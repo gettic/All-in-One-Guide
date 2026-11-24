@@ -14,3 +14,20 @@ plans/
 *.key
 credentials*.json
 discord-webhook.txt
+
+# Reference guides: never uploaded, wherever they end up (the user's rule)
+free-guides/
+paid-study-only/
+**/free-guides/**
+**/paid-study-only/**
+
+# Build output and editor/OS junk
+build/
+*.zip
+*.bak
+*.log
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+WTF/
