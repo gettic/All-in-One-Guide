@@ -1,0 +1,16 @@
+# Kit files stay local
+CLAUDE.md
+.claude/
+
+# Private notes and plans
+ideas.md
+work status.md
+readme notes.md
+plans/
+
+# Secrets
+.env*
+*.pem
+*.key
+credentials*.json
+discord-webhook.txt
