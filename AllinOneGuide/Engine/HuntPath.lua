@@ -20,7 +20,11 @@ local H = {
     LEAVE_POLLS = 2,   -- ... for this many polls = back to the smart arrow
     OFF = 40,          -- more than this off the current leg ...
     OFF_POLLS = 3,     -- ... for this many polls = pick the nearest point ahead again
-    AHEAD = 3,         -- a later point within reach (a short cut through the camp) is jumped to
+    AHEAD = 3,         -- a later point of this lap within reach (a short cut through the camp) is jumped to
+    STILL = 1,         -- yards: closer than this to where you last stood = standing still (no advance at all)
+    MOVE = 3,          -- yards you must have moved since the last advance before the next one (standing still = no change)
+    PASS_SIDE = 2,     -- "walked past": at most this x r to the side of the incoming leg ...
+    PASS_FAR = 3,      -- ... and this x r from the point
     state = nil, centreFor = nil, inCombat = false,
     stats = { polls = 0, loads = 0, reached = 0, picks = 0 },
 }
@@ -67,20 +71,25 @@ local function OffLeg(p, a, b)
     return sqrt((px - ax - u * vx) ^ 2 + (py - ay - u * vy) ^ 2)
 end
 
--- Walked past v towards n without touching its radius (the smart arrow's corner-cut test, one room).
-local function Passed(p, v, n)
-    local cv, vx, vy = World(v)
-    local cn, nx, ny = World(n)
+-- Walked on past `cur` along the leg you came in on (prev -> cur) without touching its radius: beyond cur in
+-- that leg's direction, at most PASS_SIDE x r to the side of the leg's line and PASS_FAR x r from cur. Only the
+-- incoming leg counts (beta.6: a test against the outgoing leg fired near hairpins, where the next leg turns back).
+local function PassedAlong(p, prev, cur, r)
+    if not prev then return false end
+    local ca, ax, ay = World(prev)
+    local cc, cx, cy = World(cur)
     local cp, px, py = World(p)
-    if not (cv and cn and cp) or cv ~= cn or cn ~= cp then return false end
-    local ex, ey = nx - vx, ny - vy
-    local dvn = sqrt(ex * ex + ey * ey)
-    if dvn <= 0 then return true end
-    local dot = (px - vx) * ex + (py - vy) * ey
-    local dpn = sqrt((nx - px) ^ 2 + (ny - py) ^ 2)
-    local slack = ns.SmartRoute and ns.SmartRoute.PASS_SLACK or 2
-    return dot > 0 and dpn < dvn + slack
+    if not (ca and cc and cp) or ca ~= cc or cc ~= cp then return false end
+    local ex, ey = cx - ax, cy - ay
+    local len = sqrt(ex * ex + ey * ey)
+    if len <= 0 then return false end
+    ex, ey = ex / len, ey / len
+    local along = (px - cx) * ex + (py - cy) * ey      -- > 0: beyond cur
+    local side = math.abs((px - cx) * ey - (py - cy) * ex)
+    local far = sqrt((px - cx) ^ 2 + (py - cy) ^ 2)
+    return along > 0 and side <= r * H.PASS_SIDE and far <= r * H.PASS_FAR
 end
+H.PassedAlong = PassedAlong
 
 -- ------------------------------------------------------------------ the loop
 local function Key(t)
@@ -103,7 +112,7 @@ local function Load(t)
     local r = Num(t.pathR) and t.pathR or H.RADIUS
     for _, p in ipairs(pts) do p.r = r end
     return { key = Key(t), target = t, pts = pts, n = #pts, open = t.pathOpen == true, r = r, active = false,
-        i = 1, dir = 1, out = 0, off = 0 }
+        i = 1, dir = 1, out = 0, off = 0, done = {}, ndone = 0 }
 end
 
 -- The point after i (open paths turn round at the ends).
@@ -116,11 +125,30 @@ local function NextOf(st, i)
     return (i - 1 + st.dir) % st.n + 1
 end
 
+-- A new lap: every point counts as "not done" again (closed loop: all points done; open path: it turned round).
+local function NewLap(st)
+    st.done, st.ndone = {}, 0
+end
+
+-- On to the next point; the one left behind is done for this lap.
 local function Step(st)
-    if st.open and (st.i + st.dir < 1 or st.i + st.dir > st.n) then st.dir = -st.dir end
+    if not st.done[st.i] then st.done[st.i], st.ndone = true, st.ndone + 1 end
+    if st.open and (st.i + st.dir < 1 or st.i + st.dir > st.n) then
+        st.dir = -st.dir
+        NewLap(st)
+    end
     st.prevPoint = st.pts[st.i]
     st.i = NextOf(st, st.i)
     st.off = 0
+    if not st.open and st.ndone >= st.n then NewLap(st) end
+end
+
+-- One advance (reached, walked past or a short cut), remembered with where you stood: the next one needs MOVE yd
+-- of real movement first, so standing still never moves the arrow on.
+local function Advance(st, player)
+    Step(st)
+    st.advPos = player
+    H.stats.reached = H.stats.reached + 1
 end
 
 -- Nearest point; the direction that goes on the way you walk (from your last position), else the stored order;
@@ -149,8 +177,11 @@ local function Pick(st, player)
         local back = st.open and math.max(best - 1, 1) or (best - 2) % st.n + 1
         if Ahead(back) > Ahead(fwd) then st.dir = -1 end
     end
-    st.prevPoint = nil
-    if Passed(player, st.pts[st.i], st.pts[NextOf(st, st.i)]) then Step(st) end
+    -- a nearest point you have already walked past (along the leg into it): the next one
+    local before = st.pts[st.open and math.max(1, math.min(st.n, best - st.dir)) or (best - 1 - st.dir) % st.n + 1]
+    st.prevPoint = before ~= st.pts[best] and before or nil
+    NewLap(st)
+    if PassedAlong(player, st.prevPoint, st.pts[st.i], st.r) then Advance(st, player) end
 end
 
 local function SetActive(st, on)
@@ -246,28 +277,55 @@ function H.Aim(t, map, x, y, source)
     else
         st.out = 0
     end
-    if H.inCombat then
-        st.repick = true   -- holds its point; after the fight the nearest point ahead again
-    elseif st.repick then
+    -- after a fight: the nearest point ahead again, but only when the fight took you off the way (more than OFF yd
+    -- from the current leg); otherwise the point stays (beta.5: every fight's end made a still arrow jump back)
+    if not H.inCombat and st.repick then
         st.repick = nil
-        Pick(st, player)
-    else
-        -- a later point within reach (a short cut through the camp): jump there
-        local j = st.i
-        for _ = 1, H.AHEAD do
-            j = NextOf(st, j)
-            local d = Yards(player, st.pts[j])
-            if d and d <= st.r then
-                while st.i ~= j do Step(st) end
-                break
-            end
-        end
-        -- reached (radius) or walked past (corner cut): the next point
         local cur = st.pts[st.i]
-        local d = Yards(player, cur)
-        if (d and d <= st.r) or Passed(player, cur, st.pts[NextOf(st, st.i)]) then
-            Step(st)
-            H.stats.reached = H.stats.reached + 1
+        local off = st.prevPoint and OffLeg(player, st.prevPoint, cur) or Yards(player, cur)
+        if off and off > H.OFF then Pick(st, player) end
+    end
+    if H.inCombat then
+        st.repick = true   -- holds its point
+    else
+        -- at most one advance per poll, and only after real movement since the last one (beta.6: near a hairpin
+        -- the old tests kept moving the point on while the player stood still)
+        local moved = true
+        if st.advPos then
+            local m = Yards(player, st.advPos)
+            moved = m == nil or m >= H.MOVE
+        end
+        -- and you are moving now: more than STILL yd from where you last stood (the anchor follows you only once
+        -- you are that far from it), so tiny position jitter at a radius edge can't tip it over either
+        local anchor = st.anchor and Yards(player, st.anchor)
+        if anchor == nil or anchor > H.STILL then
+            st.anchor = player
+        else
+            moved = false
+        end
+        if moved then
+            local cur = st.pts[st.i]
+            local d = Yards(player, cur)
+            if (d and d <= st.r) or PassedAlong(player, st.prevPoint, cur, st.r) then
+                -- reached, or walked on past it along the leg you came in on
+                Advance(st, player)
+            else
+                -- a short cut: a later point of this lap (not done yet, never wrapping past the lap's end and
+                -- never turning round on an open path), at most AHEAD points on, within reach: on past it
+                local j, steps = st.i, 0
+                for _ = 1, H.AHEAD do
+                    if st.open and (j + st.dir < 1 or j + st.dir > st.n) then break end
+                    j = NextOf(st, j)
+                    if j == st.i or st.done[j] then break end
+                    steps = steps + 1
+                    local dj = Yards(player, st.pts[j])
+                    if dj and dj <= st.r then
+                        for _ = 1, steps do Step(st) end
+                        Advance(st, player)
+                        break
+                    end
+                end
+            end
         end
         -- far off the leg (chased a mob): nearest point ahead again
         local from = st.prevPoint
@@ -317,7 +375,10 @@ ns.Bus.On("CombatEnded", H, function() H.inCombat = false end, "huntpath")
 -- (beta.5: a step without coordinates leaves the arrow without a target and without polls).
 function H.Check()
     local st, A = H.state, ns.Arrow
-    if st and not (A and A.target == st.target and (A.source == nil or A.source == "step")) then H.Reset() end
+    if not st then return end
+    -- the same step read again from the pack (a new frozen copy, same key) keeps its place in the loop
+    local same = A and A.target ~= nil and (A.target == st.target or Key(A.target) == st.key)
+    if st and not (same and (A.source == nil or A.source == "step")) then H.Reset() end
 end
 ns.Bus.On("StepChanged", H, function()
     H.centreFor = nil

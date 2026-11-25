@@ -58,7 +58,10 @@ local function Row(parent, width, y, d)
         c.ctl:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, -y)
         c.label:SetPoint("RIGHT", c.ctl, "LEFT", -8, 0)
     end
-    c.ctl:HookScript("OnEnter", function(self) K.Tooltip(self, labelText, { tip }) end)
+    -- sliders: a dim hint that the wheel works only after a click (missing key: no hint)
+    local lines = { tip }
+    if d.kind == "number" and L().SET_SLIDER_WHEEL then lines[2] = L().SET_SLIDER_WHEEL end
+    c.ctl:HookScript("OnEnter", function(self) K.Tooltip(self, labelText, lines) end)
     c.ctl:HookScript("OnLeave", K.HideTooltip)
     local rowH = math.max(c.ctl:GetHeight() or 0, Th.LineHeight("step") + 4)
     c.help = HelpLine(parent, width - helpX, L()[d.tip] or "")

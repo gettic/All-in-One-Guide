@@ -357,6 +357,7 @@ function Hub.Show(id, keepScroll)
     end
     if p.group then Hub.groupOpen[p.group] = true end
     for _, other in pairs(Hub.pages) do if other.child and other ~= p then other.child:Hide() end end
+    if not keepScroll then ns.UIKit.armed = nil end   -- a page opened anew: no slider keeps the wheel
     local width = math.max(200, f:GetWidth() - Hub.NAV_W - 22)
     if not p.child then
         p.child = CreateFrame("Frame", nil, f.scroll)
@@ -396,10 +397,24 @@ end
 -- While one of its sliders is dragged (the font size slider), the page waits for the release
 -- (Hub.rebuildLater): a rebuild would hide the slider under the mouse and end the drag. Its texts already
 -- take the new font through UIKit.Restyle; only the layout waits.
+-- Is the cursor inside this frame's rect (GetCursorPosition / GetEffectiveScale / GetLeft..: Classic-era API since
+-- 1.x, checked on warcraft.wiki.gg)? A rect not laid out yet counts as "not under it".
+function Hub.UnderCursor(f)
+    local l, r, b, t = f:GetLeft(), f:GetRight(), f:GetBottom(), f:GetTop()
+    if not (l and r and b and t) then return false end
+    local cx, cy = GetCursorPosition()
+    local s = f:GetEffectiveScale()
+    if not (cx and cy and s and s > 0) then return false end
+    cx, cy = cx / s, cy / s
+    return cx >= l and cx <= r and cy >= b and cy <= t
+end
+
 function Hub.Rebuild()
     local f = Hub.frame
     if not f then return false end
     Hub.rebuildLater = nil
+    -- a slider armed for the mouse wheel stays armed in the rebuilt page (hiding the old one disarms it)
+    local armed = ns.UIKit.armed
     for _, p in pairs(Hub.pages) do
         if p.child then
             p.child:Hide()
@@ -407,7 +422,20 @@ function Hub.Rebuild()
             p.height = nil
         end
     end
+    ns.UIKit.armed = f:IsShown() and armed or nil
     if f:IsShown() and Hub.current then Hub.Show(Hub.current, true) end
+    -- beta.6 M1: the rebuilt page may be laid out differently (a font size change makes rows taller), so the
+    -- armed slider can end up away from the cursor: it keeps the wheel only while it is still under the mouse
+    if K.armed then
+        local ctl
+        for _, c in pairs(ns.HubSettings and ns.HubSettings.controls or {}) do
+            if c.d == K.armed then ctl = c.ctl end
+        end
+        if not (ctl and ctl:IsShown() and Hub.UnderCursor(ctl)) then
+            K.armed = nil
+            if ctl and ctl.EnableMouseWheel then ctl:EnableMouseWheel(false) end
+        end
+    end
     return true
 end
 function Hub.Dragging()

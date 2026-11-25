@@ -350,6 +350,31 @@ end
 -- snapped value at once. s:Set(v) shows a value.
 -- K.dragging = the slider being dragged (nil otherwise); its release fires Bus "SliderReleased", so a page
 -- that would rebuild under the mouse (Hub) waits for it.
+-- Mouse wheel (2026-11-25, the user: "dont make the bars scrollable before you have clicked on them once"):
+-- a slider takes the wheel only after a click on it ("armed", K.armed = its schema entry, so the rebuilt
+-- slider of the same setting stays armed); until then its wheel is off and the page under it scrolls. The
+-- mouse leaving it (or it hiding) disarms it.
+
+-- Arms (on) or disarms one slider for the mouse wheel.
+function K.ArmWheel(s, on)
+    if on then
+        K.armed = s.d
+    elseif K.armed == s.d then
+        K.armed = nil
+    end
+    s:EnableMouseWheel(on and true or false)
+end
+
+-- Hands a wheel turn to the nearest parent that scrolls (the settings page's scroll frame).
+function K.PassWheel(f, delta)
+    local p = f:GetParent()
+    while p do
+        local fn = p.GetScript and p:GetScript("OnMouseWheel")
+        if fn then return fn(p, delta) end
+        p = p.GetParent and p:GetParent()
+    end
+end
+
 function K.Slider(parent, d, onChange, feature)
     local s = CreateFrame("Button", nil, parent)
     local w = Th.Size("slider")
@@ -400,14 +425,21 @@ function K.Slider(parent, d, onChange, feature)
     end
     s:SetScript("OnMouseDown", function(self, button)
         if button ~= "LeftButton" then return end
+        K.ArmWheel(self, true)
         K.dragging = self
         Push(self, self:FromCursor())
         self:SetScript("OnUpdate", function(me) Push(me, me:FromCursor()) end)
     end)
     s:SetScript("OnMouseUp", EndDrag)
-    s:SetScript("OnHide", EndDrag)
-    s:EnableMouseWheel(true)
+    s:SetScript("OnHide", function(self)
+        EndDrag(self)
+        K.ArmWheel(self, false)
+    end)
+    s:SetScript("OnLeave", function(self) K.ArmWheel(self, false) end)
+    s:EnableMouseWheel(K.armed == d)
     s:SetScript("OnMouseWheel", function(self, delta)
+        -- not armed (wheel off; a stray call): the wheel belongs to the page under it
+        if K.armed ~= d then return K.PassWheel(self, delta) end
         Push(self, (self.v or d.min) + (delta > 0 and 1 or -1) * (d.step or 1))
     end)
     s:Set(d.default)

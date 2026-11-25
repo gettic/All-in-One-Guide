@@ -229,8 +229,27 @@ function MV.Place()
         else
             f:SetPoint("CENTER", p, "CENTER", 0, 0)
         end
-    elseif side == "right" then
-        f:SetPoint("TOPLEFT", w, "TOPRIGHT", gap, 0)
+    elseif side == "right" or side == "left" then
+        -- the user's wish (2026-11-25): with the NOW window attached on top, the viewer's top lines up with the
+        -- NOW window's top (anchored to it, so it follows); else the guide's top (left: under the item button)
+        local now = NowOnTop()
+        local fs = f:GetEffectiveScale()
+        if now and fs and fs > 0 then
+            local ns_, ws = now:GetEffectiveScale(), w:GetEffectiveScale()
+            if side == "right" then
+                local nr, wr = now:GetRight(), w:GetRight()
+                local dx = (nr and wr) and (wr * ws - nr * ns_) / fs or 0
+                f:SetPoint("TOPLEFT", now, "TOPRIGHT", dx + gap, 0)
+            else
+                local nl, wl = now:GetLeft(), w:GetLeft()
+                local dx = (nl and wl) and (wl * ws - nl * ns_) / fs or 0
+                f:SetPoint("TOPRIGHT", now, "TOPLEFT", dx - gap, 0)
+            end
+        elseif side == "right" then
+            f:SetPoint("TOPLEFT", w, "TOPRIGHT", gap, 0)
+        else
+            f:SetPoint("TOPRIGHT", w, "TOPLEFT", -gap, -ButtonRoom() / ms)
+        end
     elseif side == "below" then
         f:SetPoint("TOPLEFT", w, "BOTTOMLEFT", 0, -gap)
     elseif side == "above" then
@@ -276,12 +295,18 @@ function MV.Misplaced()
     -- clamped at a screen edge: the gaps aren't judged
     if fl < 0.5 or fb < 0.5 or fr > p:GetWidth() - 0.5 or ft > p:GetHeight() - 0.5 then return nil end
     local side = MV.side
+    -- left / right with the NOW window attached: level with the NOW window's top (the user's wish)
+    local nowTop = now and now:GetTop() and now:GetTop() * (now:GetEffectiveScale() / ps)
     if side == "left" then
         if math.abs((wl - fr) - gap) > 1 then return ("left gap %.1f, wanted %.1f"):format(wl - fr, gap) end
-        if math.abs((wt - ft) - ButtonRoom() * kw) > 1 then return "not under the step button / window top" end
+        if nowTop then
+            if math.abs(ft - nowTop) > 1 then return "not level with the NOW window's top" end
+        elseif math.abs((wt - ft) - ButtonRoom() * kw) > 1 then return "not under the step button / window top" end
     elseif side == "right" then
         if math.abs((fl - wr) - gap) > 1 then return ("right gap %.1f, wanted %.1f"):format(fl - wr, gap) end
-        if math.abs(ft - wt) > 1 then return "not level with the window's top" end
+        if math.abs(ft - (nowTop or wt)) > 1 then
+            return nowTop and "not level with the NOW window's top" or "not level with the window's top"
+        end
     elseif side == "below" then
         if math.abs((wb - ft) - gap) > 1 then return ("gap below %.1f, wanted %.1f"):format(wb - ft, gap) end
         if math.abs(fl - wl) > 1 then return "not level with the window's left edge" end

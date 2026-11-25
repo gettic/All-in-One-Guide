@@ -42,8 +42,8 @@ This is a beta. It has two demo routes:
 | NPC talk helper | In an NPC's quest list, quests your route takes get a small tag and the rest can be faded. See [NPC talk helper](#npc-talk-helper). |
 | Tooltip step line | Mobs, NPCs and objects that are part of your current step get one line on their tooltip. See [Tooltip step line](#tooltip-step-line). |
 | Main window | One window for guides, settings, quest items, reports and About. See [The main window](#the-main-window). |
-| 3D view | The NPC or mob of your current step turns as a 3D model next to the guide window. See [3D view](#3d-view). |
-| Hunt path | On kill and collect steps the arrow leads you round the area where the mobs usually spawn. See [Hunt path](#hunt-path). |
+| 3D view | The NPC or mob of your current step turns as a 3D model next to the guide window (lined up with the top of the NOW window when it is attached). See [3D view](#3d-view). |
+| Mob areas | On kill and collect steps the arrow leads you round the area where the mobs usually spawn. See [Mob areas](#mob-areas). |
 | Ghost | Walking as a ghost doesn't tick travel steps. |
 | Full quest log | Shows which quests the route doesn't need. |
 | Travel steps | Fly, hearthstone, get a flight path, set your hearthstone, learn, train, use an item, notes, and grind as a last resort. |
@@ -71,7 +71,7 @@ The route packs for levels 1-20 are not in this beta yet.
 
 ### NPC talk helper
 
-- In an NPC's quest list (gossip and quest greeting), quests your route takes get a small tag: "Route: step 14", "Hand in: step 9" or "Later guide". Quests not on your route are faded.
+- In an NPC's quest list (gossip and quest greeting), quests your route takes get a small tag: "Route: step 14", "Turn in: step 9" or "In a later guide". Quests not on your route are faded.
 - Under the accept window one line says "On your route: step 14, ~450 XP", "Not on your route", "Skipped on your route: ..." or "Not on this route: in <guide>".
 - Hints only. It never clicks, accepts or closes anything, and every quest stays clickable.
 - Setting: Settings > Steps > "Mark route quests at NPCs": Off, Mark, or Mark and dim (default).
@@ -81,7 +81,7 @@ The route packs for levels 1-20 are not in this beta yet.
 
 - Hover a mob, NPC or object that is part of your current step and its tooltip gets a last line, for example "Step: Kobold Vermin slain 4/10", "On the way: Young Wolf slain 0/4" or "Step: Accept <quest>". A finished goal says "(done)".
 - It matches by the NPC id in the step or by the goal's name. Loot-only goals show only when the step names the mob.
-- If the tooltip already shows the quest (the game's own quest lines, or Questie is installed), the line is short: "Part of your current step" or "Do this on the way".
+- If the tooltip already shows the quest (the game's own quest lines, or Questie is installed), the line is short: "Part of your step" or "Do this on the way".
 - Hints only. Nothing else happens on hover.
 - Setting: Settings > Steps > "Step line on tooltips": Off, Short (no counts) or With counts (default).
 
@@ -119,16 +119,16 @@ The smart arrow is on by default. Switch it in the arrow's right-click menu or o
 
 ### 3D view
 
-- The NPC or mob of your current step shows as a 3D model next to the guide window (on the left by default). Steps without a model show a small "No 3D view" card.
+- The NPC or mob of your current step shows as a 3D model next to the guide window (on the left by default). Steps without a model show a small "No 3D model for this step" card.
 - Drag it to turn the model, use the mouse wheel to zoom, double-click to reset, right-click for options.
 - Settings > Guide window: "Show the 3D view", "3D view position" (left, right, below or free; Shift+drag it when free), "3D view size" and "Hide the 3D view in combat" (on by default).
 - Switch it on or off with the title menu or `/aog model`.
 
-### Hunt path
+### Mob areas
 
-- On kill and collect steps the arrow leads you in a loop round the area where the mobs usually spawn, so you walk past them. The arrow is orange and says "Walk the loop round the area (2/6)". The path line follows the loop.
+- On kill and collect steps the arrow leads you in a loop round the area where the mobs usually spawn, so you walk past them. The arrow is orange and says "Kill as you go: spot 2 of 6". The path line follows the loop.
 - It holds its point in combat.
-- Setting: Settings > Arrow > "Hunt path" (on by default). In the arrow's right-click menu: "Hunt path" on or off, and "Point at the area centre".
+- Setting: Settings > Arrow > "Lead me round mob areas" (on by default). In the arrow's right-click menu: "Lead me round the mob area" on or off, and "Point at the middle instead".
 - Loops so far: the Northshire kobolds (the camp and Echo Ridge), and the Valley of Trials boars and vile familiars.
 - The loops come from CMaNGOS classic-db spawn positions, so WoW Forever's spawns may differ a little.
 
@@ -178,7 +178,7 @@ The main window, dialogs, copy box and menus are almost solid, so they are easy 
 
 ### Settings
 
-`/aog config` opens the Settings pages in the main window: General, Guide window, Arrow, Map pins, Steps and Advanced. Each setting has a tooltip with its default. "Reset this page" resets only that page. Among them: language, use the guide on this character, hide it in battlegrounds and raids, First Aid steps, which chat window gets messages, window size, steps shown, text size (-4 to +4; the window keeps its top-left corner while you drag it), high contrast, colour-blind colours and the smart arrow.
+`/aog config` opens the Settings pages in the main window: General, Guide window, Arrow, Map pins, Steps and Advanced. Each setting has a tooltip with its default. Sliders take the mouse wheel only after you click them once (until then the wheel scrolls the page). "Reset this page" resets only that page. Among them: language, use the guide on this character, hide it in battlegrounds and raids, First Aid steps, which chat window gets messages, window size, steps shown, text size (-4 to +4, default +2; the window keeps its top-left corner while you drag it), high contrast, colour-blind colours and the smart arrow.
 
 ### Language
 

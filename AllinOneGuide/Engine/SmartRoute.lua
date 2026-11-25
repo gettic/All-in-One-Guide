@@ -417,6 +417,12 @@ function SR.Aim(t, map, x, y)
     local indoors = Indoors()
     local room = SR.RoomAt(map, x, y, indoors)
     local st = SR.state
+    -- hysteresis (beta.5 "arrow jumps while I stand still"): IsIndoors flickers in doorways and cave mouths. The
+    -- flag alone never takes you out of the room you are in while you still stand inside its outline: only
+    -- leaving the outline does (entering an indoor room still needs the flag, as before).
+    if st and st.room and room ~= st.room and indoors == false and SR.RoomAt(map, x, y, nil) == st.room then
+        room = st.room
+    end
     local follow = true
     if not st or st.target ~= t or st.key ~= Key(t) then
         st = NewPlan(t, player, indoors, room, "target")

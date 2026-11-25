@@ -61,7 +61,7 @@ S.schema = {
     { key = "modelScale", scope = "char", kind = "number", default = 1, min = 0.6, max = 1.6, step = 0.05, export = true,
         page = "window" },
     { key = "modelHideCombat", scope = "account", kind = "bool", default = true, export = true, page = "window" },
-    { key = "fontSize", scope = "account", kind = "number", default = 0, min = -4, max = 4, step = 1, export = true, page = "window" },  -- min -4 (was -2; font size fix 2026-11-25): 8 pt step text
+    { key = "fontSize", scope = "account", kind = "number", default = 2, min = -4, max = 4, step = 1, export = true, page = "window" },  -- min -4 (was -2; font size fix 2026-11-25): 8 pt step text; default +2 (was 0; the user, 2026-11-25)
     { key = "highContrast", scope = "account", kind = "bool", default = false, export = true, page = "window" },
     { key = "colorBlind", scope = "account", kind = "bool", default = false, export = true, page = "window" },
     -- the NOW window (UI\NowWindow.lua): the current step in its own window, attached on top of the guide
