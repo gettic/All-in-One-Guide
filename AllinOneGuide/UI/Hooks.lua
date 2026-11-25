@@ -6,6 +6,7 @@
 -- addon does. Each hook body runs under ns.Errors.Call, so an error in ours never reaches Blizzard's code.
 --   ns.Hooks.Func(table or nil, name, fn, feature)   hooksecurefunc on a table's function (nil = global)
 --   ns.Hooks.Script(frame, script, fn, feature)       frame:HookScript
+--   ns.Hooks.TooltipPost(tooltipType, fn, feature)    TooltipDataProcessor.AddTooltipPostCall
 --   ns.Hooks.mapOpen: the world map is shown (bus WorldMapShown / WorldMapHidden)
 local _, ns = ...
 local Co = ns.Compat
@@ -35,6 +36,19 @@ function H.Script(frame, script, fn, feature)
     if H.list[key] then return true end
     frame:HookScript(script, function(...) ns.Errors.Call(feature or "ui", fn, ...) end)
     H.list[key] = { kind = "script", name = script }
+    return true
+end
+
+-- Adds a post-call for one tooltip data type (TooltipDataProcessor.AddTooltipPostCall, the public way to add
+-- to Blizzard's tooltips; insecure callers are forced insecure by Blizzard's delegate, TooltipDataHandler.lua
+-- 181-193). Once per type; post-calls can't be removed, so fn must check its own switch. false when it can't.
+function H.TooltipPost(tooltipType, fn, feature)
+    local add = Co.fn.TipPostCall
+    if not add or tooltipType == nil or type(fn) ~= "function" then return false end
+    local key = "TooltipDataProcessor.post." .. tostring(tooltipType)
+    if H.list[key] then return true end
+    add(tooltipType, function(...) ns.Errors.Call(feature or "ui", fn, ...) end)
+    H.list[key] = { kind = "tooltip", name = key }
     return true
 end
 

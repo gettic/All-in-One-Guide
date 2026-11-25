@@ -111,6 +111,7 @@ ns.ApiList = {
     { id = "SetButtonInit", path = "CreateSettingsButtonInitializer", kind = "function", src = "xml Blizzard_Settings_Shared\\Blizzard_SettingControls.lua" },
     -- v0.2 M4: the minimap button (Minimap's size / scale; the cursor for dragging around the ring)
     { id = "MinimapButton", path = "Minimap", feature = "minimap", kind = "table", src = "xml Blizzard_Minimap\\Mainline\\Minimap.xml" },
+    -- (GetMinimapShape is not listed: minimap addons define it, not Blizzard; UI\Minimap.lua looks it up each time.)
 
     -- v0.2 M5 / M6: NPC ids from a GUID (report evidence, dev recorder; never Player- or Pet- GUIDs)
     { id = "UnitGUID", path = "UnitGUID", kind = "function", secret = "returns", src = "doc UnitDocumentation" },
@@ -120,6 +121,22 @@ ns.ApiList = {
     { id = "LootSource", path = "GetLootSourceInfo", kind = "function", secret = "returns", src = "warcraft.wiki.gg API_GetLootSourceInfo (lists Forever 1.60.1; not used in the UI source)" },
     { id = "InstanceInfo", path = "GetInstanceInfo", kind = "function", src = "xml Blizzard_FrameXML\\InstanceDifficulty.lua (8th return = instance map id)" },
     { id = "QuestSelected", path = "C_QuestLog.GetSelectedQuest", kind = "function", src = "doc QuestLogDocumentation" },
+
+    -- NPC talk helper (plans\npc-talk-helper\plan.md): read only; hooked with hooksecurefunc / HookScript, never
+    -- clicked. A missing frame = that window gets no marks; a missing quest-id read = the helper is off.
+    { id = "GossipFrame", path = "GossipFrame", kind = "table", src = "xml Blizzard_UIPanels_Game\\Mainline\\GossipFrame.xml (GossipFrameMixin:Update)" },
+    { id = "QuestGreetingPanel", path = "QuestFrameGreetingPanel", kind = "table", src = "xml Blizzard_UIPanels_Game\\Mainline\\QuestFrame.xml (titleButtonPool)" },
+    { id = "QuestDetailPanel", path = "QuestFrameDetailPanel", kind = "table", src = "xml Blizzard_UIPanels_Game\\Mainline\\QuestFrame.xml:196" },
+    { id = "QuestID", path = "GetQuestID", feature = "npchelper", kind = "function", src = "xml Blizzard_UIPanels_Game\\Mainline\\QuestFrame.lua:48 (not in the docs)" },
+    { id = "ActiveQuestID", path = "GetActiveQuestID", feature = "npchelper", kind = "function", src = "xml Blizzard_UIPanels_Game\\Mainline\\QuestFrame.lua:362 (not in the docs)" },
+    { id = "AvailQuestInfo", path = "GetAvailableQuestInfo", feature = "npchelper", kind = "function", src = "xml Blizzard_UIPanels_Game\\Mainline\\QuestFrame.lua:393 (5th return = questID; not in the docs)" },
+    { id = "ScrollInitCb", path = "ScrollUtil.AddInitializedFrameCallback", kind = "function", src = "xml Blizzard_SharedXML\\Shared\\Scroll\\ScrollUtil.lua:21 (callbacks run through secureexecuterange)" },
+    { id = "GossipAvail", path = "C_GossipInfo.GetAvailableQuests", kind = "function", src = "doc GossipInfoDocumentation.lua:33 (self-check only)" },
+    { id = "GossipActive", path = "C_GossipInfo.GetActiveQuests", kind = "function", src = "doc GossipInfoDocumentation.lua:24 (self-check only)" },
+
+    -- Tooltip step line (plans\tooltip-step\plan.md): our own lines after Blizzard builds a unit / object tooltip.
+    -- Enum.TooltipDataType / TooltipDataLineType are read in UI\TooltipStep.lua (pcall; missing = no post-call).
+    { id = "TipPostCall", path = "TooltipDataProcessor.AddTooltipPostCall", feature = "tooltipstep", kind = "function", src = "xml Blizzard_SharedXMLGame\\Tooltip\\TooltipDataHandler.lua:199 (insecure callers forced insecure, 181-193)" },
 
     -- bags, rules
     { id = "ItemCount", path = "C_Item.GetItemCount", feature = "bags", kind = "function", secret = "args", src = "doc ItemDocumentation" },

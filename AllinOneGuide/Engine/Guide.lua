@@ -210,6 +210,24 @@ function Guide:AcceptsOf()
     return map
 end
 
+-- NPC talk helper: quest -> { accept = {indexes}, turnin = {indexes} }, in route order (built once, like
+-- AcceptsOf). Read only by UI\NpcHelper.lua.
+function Guide:QuestSteps()
+    if self.questSteps then return self.questSteps end
+    local map = {}
+    for i = 1, self:Count() do
+        local s = self:Step(i)
+        if s and s.quest and (s.type == "accept" or s.type == "turnin") then
+            local e = map[s.quest] or { accept = {}, turnin = {} }
+            local l = e[s.type]
+            l[#l + 1] = i
+            map[s.quest] = e
+        end
+    end
+    self.questSteps = map
+    return map
+end
+
 -- Quests in the log the route never uses (for the "quest log full" hint), sorted.
 function Guide:UnneededLogQuests()
     local set, out = self:RouteQuests(), {}

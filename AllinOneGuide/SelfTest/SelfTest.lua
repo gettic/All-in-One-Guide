@@ -299,6 +299,9 @@ function ST.MainParts()
         { name = "footer.next", obj = ft.next, shownOnly = small, art = { "icon" } },
         -- v0.2 M3: the width grip (hidden while locked)
         { name = "grip", obj = UI.grip, opt = true, shownOnly = true },
+        -- beta.4: the height grip (bottom edge) and the size corner (hidden while locked and in small mode)
+        { name = "grip.height", obj = UI.gripH, opt = true, shownOnly = true },
+        { name = "grip.corner", obj = UI.gripC, opt = true, shownOnly = true, art = { "icon" } },
     }
 end
 
@@ -343,6 +346,21 @@ function ST.HubParts()
         { name = "guides.chip.soon", obj = chips.soon },
         { name = "guides.card1", obj = card, opt = not hasCard, shownOnly = not hasCard },
         { name = "guides.card1.emblem", obj = card and card.emblem, opt = not hasCard, shownOnly = not hasCard, artSelf = true },
+    }
+end
+
+-- NPC talk helper: the line under the accept window and a gossip row's tag (only while an NPC window shows
+-- them; the "npchelper" self-check covers parent, mouse and dimming the rest of the time).
+function ST.NpcParts()
+    local NT = ns.NpcHelper or {}
+    local tag
+    for _, t in pairs(NT.tags or {}) do
+        if t:IsShown() then tag = t break end
+    end
+    return {
+        { name = "npc.line", obj = NT.line, opt = true, shownOnly = true },
+        { name = "npc.line.text", obj = NT.line and NT.line.text, opt = true, shownOnly = true },
+        { name = "npc.tag", obj = tag, opt = true, shownOnly = true },
     }
 end
 
@@ -630,6 +648,7 @@ local function StepMain()
         CheckGroup(ST.MainParts())
         CheckGroup(ST.NowParts())
         CheckGroup(ST.ArrowParts())
+        CheckGroup(ST.NpcParts())
         Guard("letters", CheckLetters)
     end
     if run.mode == "full" and run.ui then

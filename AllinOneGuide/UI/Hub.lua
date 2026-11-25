@@ -343,8 +343,9 @@ function Hub.Heading(p)
     return name
 end
 
--- Shows one page (built on first use).
-function Hub.Show(id)
+-- Shows one page (built on first use). keepScroll: stay at the same scroll spot (a rebuild after a look
+-- change), else the top.
+function Hub.Show(id, keepScroll)
     local f = Hub.Build()
     local p = Hub.pages[id] or Hub.pages[Hub.FIRST] or Hub.list[1]
     if not p then return false end
@@ -366,8 +367,9 @@ function Hub.Show(id)
         p.child:SetHeight(p.height)
     end
     p.child:SetWidth(width)
+    local was = keepScroll and f.scroll:GetVerticalScroll() or 0
     f.scroll:SetScrollChild(p.child)
-    f.scroll:SetVerticalScroll(0)
+    f.scroll:SetVerticalScroll(math.max(0, math.min(was or 0, (p.height or 0) - (f.scroll:GetHeight() or 0))))
     p.child:Show()
     Hub.current = p.id
     Remember(p.id)
@@ -389,10 +391,15 @@ function Hub.SetHeight(id, height)
 end
 
 -- A new look (font size, contrast): page heights were measured with the old fonts, so every built page
--- is dropped and the open one is built again (look review #4). Old children are hidden and let go.
+-- is dropped and the open one is built again (look review #4), at the same scroll spot (font size fix: the
+-- page jumped to the top on every step). Old children are hidden and let go.
+-- While one of its sliders is dragged (the font size slider), the page waits for the release
+-- (Hub.rebuildLater): a rebuild would hide the slider under the mouse and end the drag. Its texts already
+-- take the new font through UIKit.Restyle; only the layout waits.
 function Hub.Rebuild()
     local f = Hub.frame
     if not f then return false end
+    Hub.rebuildLater = nil
     for _, p in pairs(Hub.pages) do
         if p.child then
             p.child:Hide()
@@ -400,10 +407,19 @@ function Hub.Rebuild()
             p.height = nil
         end
     end
-    if f:IsShown() and Hub.current then Hub.Show(Hub.current) end
+    if f:IsShown() and Hub.current then Hub.Show(Hub.current, true) end
     return true
 end
-ns.Bus.On("LookChanged", Hub, function() Hub.Rebuild() end, "hub", 80)
+function Hub.Dragging()
+    return ns.UIKit.dragging ~= nil and Hub.frame ~= nil and Hub.frame:IsShown()
+end
+ns.Bus.On("LookChanged", Hub, function()
+    if Hub.Dragging() then Hub.rebuildLater = true return end
+    Hub.Rebuild()
+end, "hub", 80)
+ns.Bus.On("SliderReleased", Hub, function()
+    if Hub.rebuildLater then Hub.Rebuild() end
+end, "hub", 80)
 
 -- id = a page; nil = the page used last (Guides the first time). keep = true: pages shown until it closes
 -- aren't remembered (the self-test opens it for a moment).
@@ -436,7 +452,7 @@ Hub.AddPage("settings", { title = "HUB_SETTINGS", icon = "hub.settings", order =
 -- Self-test: every page is registered, and the window fits this screen.
 ns.SelfChecks[#ns.SelfChecks + 1] = { label = "hub", fn = function(h)
     h.Count()
-    for _, id in ipairs({ "guides", "report", "about", "news", "questitems", "settings" }) do
+    for _, id in ipairs({ "guides", "report", "about", "questitems", "settings" }) do
         if not Hub.pages[id] then h.Problem("hub: page " .. id .. " missing") end
     end
     for _, page in ipairs(ns.Settings.PAGES) do

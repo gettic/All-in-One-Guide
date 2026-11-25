@@ -30,7 +30,6 @@ return {
         { key = "^REPORT_TYPE_", en = 22, why = "report type choices (a column after box and icon)" },
         { key = "^REPORT_", en = 180, why = "Report page lines (they wrap)" },
         { key = "^ABOUT_", en = 200, why = "About page lines (they wrap)" },
-        { key = "^NEWS_%d$", en = 90, why = "What's new bullets" },
         { key = ".", en = 120, why = "chat lines" },
     },
     daFactor = 1.4,

@@ -93,6 +93,10 @@ local function Reopen()
     local fp, fr = tostring(focus or ""):match("^([^/]+)/(.+)$")
     if fp and P.packs[fp] then E.Open(fp, fr) end
     E.RefreshAll()
+    -- beta.4 tester: after a /reload with the window open nothing else said "the step is there", so the window,
+    -- arrow, pins and path line waited for some later event. Once here, with the reopened guide.
+    local g = E.Focused()
+    if g then ns.Bus.Fire("StepChanged", g) end
 end
 
 function E.Restore()

@@ -1,7 +1,7 @@
 -- SPDX-License-Identifier: GPL-3.0-or-later
 -- Copyright (C) 2026 gettic
 -- The guide window. From the top: title bar (logo, route title, menu / small / lock / close), section
--- header with "step i/n", the fixed step area (the NOW box with the current step on top, then the NEXT
+-- header with "step i/n", the step area (its height in lines from the grips / setting "lines"; the NOW box with the current step on top, then the NEXT
 -- steps), the notice line (always kept free in full mode), the "n done" chip, the footer (back, progress,
 -- next). Every step stays shown in combat.
 -- Small mode keeps the same width: title bar, the current step and one "Next:" line (a notice replaces it).
@@ -26,7 +26,38 @@ local function L() return ns.L end
 -- ------------------------------------------------------------------ sizes
 function UI.Small() return ns.Settings.Get("small") end
 -- The window width (v0.2 M3: the grip changes it; the step area's height never changes with it).
-function UI.Width() return ns.Settings.Get("width") end
+-- UI.liveWidth / UI.liveLines: the size while a grip is being dragged (nil otherwise; saved on release).
+function UI.Width() return UI.liveWidth or ns.Settings.Get("width") end
+-- The step area's height in step-font lines (beta.4: the bottom / corner grip changes it; setting "lines",
+-- default 10 = the height before the grip, so old saves look the same).
+-- Capped at UI.LinesFit() (beta.4 tester fix: the slider, a save from a bigger screen or a UI scale change could
+-- make the window taller than the screen, footer and grips out of reach). The saved value is kept as it is, so a
+-- bigger screen / smaller scale gets it back. While a grip drags, its own limit (UI.LinesMax) applies.
+local fitting = false
+function UI.Lines()
+    local n = UI.liveLines or ns.Settings.Get("lines")
+    if fitting or UI.liveLines then return n end
+    return math.min(n, UI.LinesFit())
+end
+-- The most step lines with which the whole window (and an attached NOW window above it) fits the screen's height.
+function UI.LinesFit()
+    local d = ns.Settings.byKey.lines
+    local f, p = UI.frame, Co.UIParent()
+    if not (f and p and f.GetEffectiveScale and p.GetEffectiveScale) then return d.max end
+    local fs, ps, ph = f:GetEffectiveScale(), p:GetEffectiveScale(), p:GetHeight()
+    if not (fs and ps and ph) or fs <= 0 or ps <= 0 or ph <= 0 then return d.max end
+    local avail = ph * ps / fs                     -- the screen's height in the window's units
+    local NW = ns.NowWin
+    if NW and NW.On() and NW.Attached() and NW.frame then
+        local nh = (NW.frame:GetHeight() or 0) * NW.frame:GetEffectiveScale() / fs
+        avail = avail - nh - Th.Size("nowGap")
+    end
+    fitting = true
+    local ok, base = pcall(function() return UI.Height(false) - UI.Lines() * LH() end)
+    fitting = false
+    if not ok or type(base) ~= "number" then return d.max end
+    return math.max(d.min, math.min(d.max, math.floor((avail - base) / LH())))
+end
 -- The NOW box's frame around the current step: margin + "NOW" header above, padding below.
 function UI.NowChrome()
     return Th.Size("nowMargin") + Th.LineHeight("sectionHead") + Th.Size("nowPadBottom")
@@ -41,9 +72,9 @@ local function NowWin() return ns.NowWin and ns.NowWin.On() end
 function UI.AreaHeight(small)
     if NowWin() then
         if small then return LH() end
-        return Th.Size("stepLines") * LH() + UI.NextChrome()
+        return UI.Lines() * LH() + UI.NextChrome()
     end
-    local h = Th.Size(small and "smallLines" or "stepLines") * LH() + UI.NowChrome()
+    local h = (small and Th.Size("smallLines") or UI.Lines()) * LH() + UI.NowChrome()
     if not small then h = h + UI.NextChrome() end
     return h
 end
@@ -330,25 +361,70 @@ function UI.SetWidthLive(w)
     return w
 end
 
+-- ------------------------------------------------------------------ height + corner grips (beta.4)
+-- Drag the bottom edge: the step area gets taller or shorter in whole step lines (the current step stays
+-- at the top, more or fewer coming steps under it). The bottom-right corner does width and height in one
+-- drag. Full mode only (small mode has its fixed lines). Same rules as the width grip: hidden while
+-- locked, never starts in combat, pinned by the top-left, OnUpdate only while dragging, saved on release.
+local CORNER = 10
+
+-- The most lines that fit: the setting's max, and the window's bottom stays on the screen (its top stays).
+function UI.LinesMax()
+    local d = ns.Settings.byKey.lines
+    local top = UI.frame and UI.frame:GetTop()
+    if not top then return d.max end
+    local lh = LH()
+    local base = UI.Height(false) - UI.Lines() * lh
+    return math.max(d.min, math.min(d.max, math.floor((top - base) / lh)))
+end
+
+-- Only while a grip is dragged (UI.liveLines is cleared on release): lays out again when the line count
+-- changes, never on a mere mouse move.
+function UI.SetLinesLive(n)
+    local d = ns.Settings.byKey.lines
+    n = math.floor(ns.U.Clamp(n, d.min, UI.LinesMax()) + 0.5)
+    if n ~= UI.Lines() then
+        UI.liveLines = n
+        UI.Layout()
+        UI.Refresh()
+    end
+    return n
+end
+
 local function GripUpdate(self)
-    local f = UI.frame
-    local x = Co.Cursor(f)
-    if not x or not self.startX then return end
-    self.width = UI.SetWidthLive(self.startW + (x - self.startX))
+    -- (combat started mid-drag: the window holds still; the release still saves)
+    if not self.startX or Co.InCombat() then return end
+    local x, y = Co.Cursor(UI.frame)
+    if not (x and y) then return end
+    local kind = self.kind or "width"
+    if kind ~= "height" then
+        UI.liveWidth = nil
+        self.width = UI.SetWidthLive(self.startW + (x - self.startX))
+        UI.liveWidth = self.width
+    end
+    if kind ~= "width" then
+        self.lines = UI.SetLinesLive(self.startLines + math.floor((self.startY - y) / LH() + 0.5))
+    end
 end
 
 function UI.GripStart(self)
     local f = UI.frame
     if ns.Settings.Get("locked") or Co.InCombat() then return false end
+    local kind = self.kind or "width"
+    if kind ~= "width" and UI.Small() then return false end
     local left, top = f:GetLeft(), f:GetTop()
-    local x = Co.Cursor(f)
-    if not (left and top and x) then return false end
-    -- (hanging under an attached NOW window, the left edge already stays put)
+    local x, y = Co.Cursor(f)
+    if not (left and top and x and y) then return false end
+    -- (hanging under an attached NOW window, the top-left already stays put)
     if not (NowWin() and ns.NowWin.Attached()) then
         f:ClearAllPoints()
         f:SetPoint("TOPLEFT", Co.UIParent(), "BOTTOMLEFT", left, top)
+        -- kept as the spot now: a layout mid-drag (height grips) puts the window back on its saved spot
+        UI.SavePos()
     end
-    self.startX, self.startW, self.width = x, f:GetWidth(), f:GetWidth()
+    self.startX, self.startY = x, y
+    self.startW, self.width = f:GetWidth(), f:GetWidth()
+    self.startLines, self.lines = UI.Lines(), UI.Lines()
     self:SetScript("OnUpdate", GripUpdate)
     return true
 end
@@ -358,24 +434,51 @@ function UI.GripStop(self)
     self:SetScript("OnUpdate", nil)
     self.startX = nil
     UI.SavePos()
-    ns.Settings.Set("width", math.floor((self.width or UI.Width()) + 0.5))
+    local kind = self.kind or "width"
+    -- the width first (its layout still uses the dragged lines), then the lines
+    UI.liveWidth = nil
+    if kind ~= "height" then ns.Settings.Set("width", math.floor((self.width or UI.Width()) + 0.5)) end
+    UI.liveLines = nil
+    if kind ~= "width" then ns.Settings.Set("lines", self.lines or UI.Lines()) end
 end
 
-local function Grip(f)
+local GRIP_TIP = { width = "TIP_GRIP", height = "TIP_GRIP_HEIGHT", corner = "TIP_GRIP_SIZE" }
+
+-- kind "width" (right edge), "height" (bottom edge) or "corner" (bottom-right). The look comes from the
+-- theme: an accent line on the edge (the corner: the theme's resize glyph), shown on hover and while dragged.
+local function Grip(f, kind)
     local g = CreateFrame("Button", nil, f)
-    g:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, -TitleH())
-    g:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
-    g:SetWidth(GRIP_W)
-    g:SetFrameLevel((f:GetFrameLevel() or 0) + 20)   -- above the step rows
-    g.line = K.Fill(g, "OVERLAY", "accent")
-    g.line:SetWidth(2)
-    g.line:SetPoint("TOPRIGHT", g, "TOPRIGHT", -1, 0)
-    g.line:SetPoint("BOTTOMRIGHT", g, "BOTTOMRIGHT", -1, 0)
+    g.kind = kind
+    -- above the step rows (the corner above both edges)
+    g:SetFrameLevel((f:GetFrameLevel() or 0) + (kind == "corner" and 21 or 20))
+    if kind == "width" then
+        g:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, -TitleH())
+        g:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
+        g:SetWidth(GRIP_W)
+        g.line = K.Fill(g, "OVERLAY", "accent")
+        g.line:SetWidth(2)
+        g.line:SetPoint("TOPRIGHT", g, "TOPRIGHT", -1, 0)
+        g.line:SetPoint("BOTTOMRIGHT", g, "BOTTOMRIGHT", -1, 0)
+    elseif kind == "height" then
+        g:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 0, 0)
+        g:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
+        g:SetHeight(GRIP_W)
+        g.line = K.Fill(g, "OVERLAY", "accent")
+        g.line:SetHeight(2)
+        g.line:SetPoint("BOTTOMLEFT", g, "BOTTOMLEFT", 0, 1)
+        g.line:SetPoint("BOTTOMRIGHT", g, "BOTTOMRIGHT", 0, 1)
+    else
+        g:SetSize(CORNER, CORNER)
+        g:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
+        g.line = K.Glyph(g, "btn.resize", CORNER, "accent", "OVERLAY")
+        g.line:SetPoint("BOTTOMRIGHT", g, "BOTTOMRIGHT", 0, 0)
+        g.icon = g.line
+    end
     g.line:Hide()
     g:SetScript("OnEnter", function(self)
         if ns.Settings.Get("locked") then return end
         self.line:Show()
-        K.Tooltip(self, L().TIP_GRIP)
+        K.Tooltip(self, L()[GRIP_TIP[self.kind]])
     end)
     g:SetScript("OnLeave", function(self)
         if not self.startX then self.line:Hide() end
@@ -386,6 +489,11 @@ local function Grip(f)
     end)
     g:SetScript("OnMouseUp", function(self)
         ns.Errors.Call("ui", UI.GripStop, self)
+        self.line:Hide()
+    end)
+    -- hidden mid-drag (window closed, locked by a key): the drag ends and what was dragged is kept
+    g:SetScript("OnHide", function(self)
+        if self.startX then ns.Errors.Call("ui", UI.GripStop, self) end
         self.line:Hide()
     end)
     return g
@@ -431,7 +539,9 @@ function UI.Build()
     UI.stateText:SetPoint("LEFT", UI.area, "LEFT", Pad() * 2, 0)
     UI.stateText:SetPoint("RIGHT", UI.area, "RIGHT", -Pad() * 2, 0)
     UI.footer = Footer(f)
-    UI.grip = Grip(f)
+    UI.grip = Grip(f, "width")
+    UI.gripH = Grip(f, "height")
+    UI.gripC = Grip(f, "corner")
     -- the guide window on its own spot first; Layout sets its scale and size and only then places the NOW
     -- window (beta.3 fix: ApplyPos before the scale worked the pair's spot out from the unscaled window, so
     -- with a scale other than 1 the guide window moved on every login)
@@ -447,12 +557,21 @@ function UI.Layout()
     f:SetScale(ns.Overlay.WindowScale())
     f:SetHeight(UI.Height(small))
     f:SetWidth(UI.Width())
-    UI.grip:SetShown(not ns.Settings.Get("locked"))
+    local free = not ns.Settings.Get("locked")
+    UI.grip:SetShown(free)
+    UI.gripH:SetShown(free and not small)
+    UI.gripC:SetShown(free and not small)
     UI.header:SetShown(not small)
     -- the header and notice line follow the line height (font size setting), so the step area stays
     -- right under the header
     UI.header:SetHeight(LH())
     UI.noticeLine:SetHeight(LH())
+    -- (small fonts: the notice icon and the chip's glyphs never get taller than their line)
+    local bs = math.max(8, math.min(Th.Size("badge"), LH()))
+    UI.noticeLine.icon:SetSize(bs, bs)
+    local cb = math.max(6, math.min(Th.Size("box"), LH() - 4))
+    UI.chip.tick:SetSize(cb + 2, cb + 2)
+    UI.chip.caret:SetSize(cb, cb)
     UI.chip:SetShown(not small)
     UI.footer:SetShown(not small)
     UI.noticeLine:ClearAllPoints()
@@ -691,7 +810,8 @@ function UI.Model()
     local coord = Coord(cur)
     m.rows = { { step = cur, number = m.index, badge = K.BadgeKind(cur), text = top:Text(cur, Wrap), state = "current",
         right = not coord and UI.DistText(cur) or nil, goals = Goals(top, cur), coord = coord } }
-    for _, s in ipairs(Upcoming(top, cur, 8)) do
+    -- (a taller step area shows more of them: every row is at least one line; 8 up to the default height)
+    for _, s in ipairs(Upcoming(top, cur, math.max(8, UI.Lines() - 2))) do
         m.rows[#m.rows + 1] = { step = s, number = numbers[s.index], badge = K.BadgeKind(s), text = top:Text(s), state = "upcoming",
             right = UI.UnderLevelText(top, s) }
     end
@@ -1230,9 +1350,11 @@ local function OnSettings(_, key)
         UI.Layout()
         UI.Refresh()
         ns.Bus.Fire("WindowMoved")
-    elseif key == "small" or key == "locked" or key == "width" or key == "nowLocked" or key == "nowScale" then
+    elseif key == "small" or key == "locked" or key == "width" or key == "lines" or key == "nowLocked" or key == "nowScale" then
         UI.Layout()
         UI.Refresh()
+        -- taller (the slider): the footer and grips stay on screen (attached: NowWin.Layout keeps the pair on)
+        if (key == "lines" or key == "small") and not Co.InCombat() and ns.Overlay.KeepOnScreen(UI.frame) then UI.SavePos() end
     elseif key == "opacity" then
         UI.ApplyOpacity()
     elseif key == "reducedMotion" or key == "quiet" then
@@ -1258,7 +1380,20 @@ end, "ui", 70)
 ns.Bus.On("LookChanged", UI, function()
     if not UI.frame then return end
     UI.shadow = nil
+    -- font size fix (2026-11-25): a taller or shorter window keeps its top-left where it is, also when its
+    -- saved spot is anchored by its centre or bottom (it used to grow both ways and jump on every step)
+    local f = UI.frame
+    local _, rel = f:GetPoint(1)
+    -- (not in combat: the secure item button docks to this window, it moves after combat like scale)
+    local free = (rel == nil or rel == Co.UIParent()) and not Co.InCombat()
+    local l, t = f:GetLeft(), f:GetTop()
     UI.Layout()
+    local l2, t2 = f:GetLeft(), f:GetTop()
+    if free and l and t and l2 and t2 and (math.abs(l - l2) > 0.5 or math.abs(t - t2) > 0.5) then
+        f:ClearAllPoints()
+        f:SetPoint("TOPLEFT", Co.UIParent(), "BOTTOMLEFT", l, t)
+        UI.SavePos()
+    end
     UI.ApplyOpacity()
     UI.Refresh()
 end, "ui", 70)

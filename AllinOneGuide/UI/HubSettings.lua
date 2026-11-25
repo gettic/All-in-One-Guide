@@ -122,5 +122,30 @@ ns.Bus.On("SettingsChanged", HS, function(_, key)
     local d = ns.Settings.byKey[key]
     if d then HS.Show(d) end
 end, "hub", 90)
--- a rebuilt page (look change) makes new controls
-ns.Bus.On("LookChanged", HS, function() HS.controls, HS.resets = {}, {} end, "hub", 79)
+-- a rebuilt page (look change) makes new controls; while a slider is dragged the page waits for the
+-- release (Hub.Rebuild), and so do these
+ns.Bus.On("LookChanged", HS, function()
+    if ns.Hub.Dragging() then return end
+    HS.controls, HS.resets = {}, {}
+end, "hub", 79)
+-- Self-test (font size fix): sliders snap and clamp to their schema bounds, a value they already show sends
+-- nothing, and the smallest text size still gives readable step text.
+ns.SelfChecks[#ns.SelfChecks + 1] = { label = "sliders", fn = function(h)
+    h.Count()
+    for _, d in ipairs(ns.Settings.schema) do
+        if d.kind == "number" and d.page then
+            if K.SnapValue(d, d.min - 10) ~= d.min or K.SnapValue(d, d.max + 10) ~= d.max then
+                h.Problem("slider " .. d.key .. ": doesn't clamp to " .. d.min .. ".." .. d.max)
+            end
+        end
+    end
+    local fd = ns.Settings.byKey.fontSize
+    local base = Th.Raw("font.step")
+    local smallest = math.floor(((type(base) == "table" and base.size) or 12) + fd.min)
+    if smallest < Th.MIN_FONT then h.Problem("text size " .. fd.min .. ": step text " .. smallest .. " pt, under " .. Th.MIN_FONT) end
+    if K.dragging then h.Info("sliders: one is being dragged") end
+end }
+
+ns.Bus.On("SliderReleased", HS, function()
+    if ns.Hub.rebuildLater then HS.controls, HS.resets = {}, {} end
+end, "hub", 79)

@@ -39,7 +39,7 @@ Md.SLOTS = {
     ["glyph.step.sethearth"] = 40, ["glyph.notice.hearth"] = 41, ["glyph.notice.flight"] = 42,
     ["glyph.notice.useitem"] = 43, ["glyph.btn.keybind"] = 44, ["glyph.state.wait"] = 45, ["glyph.notice.snooze"] = 46,
     ["glyph.arrow.corpse"] = 47, ["glyph.pin.body"] = 48, ["glyph.pin.face"] = 49, ["glyph.pin.mini"] = 50,
-    ["glyph.pin.ring"] = 51, ["glyph.hub.report"] = 52, ["glyph.hub.about"] = 53, ["glyph.hub.news"] = 54,
+    ["glyph.pin.ring"] = 51, ["glyph.hub.report"] = 52, ["glyph.hub.about"] = 53, ["glyph.hub.news"] = 54,  -- (54: unused since the What's new page went, 2026-11-25; kept in step with art-src\MANIFEST.md)
     ["glyph.hub.settings"] = 55, ["glyph.report.coords"] = 56, ["glyph.report.order"] = 57,
     ["glyph.report.missing"] = 58, ["glyph.report.notick"] = 59, ["glyph.report.text"] = 60,
     ["glyph.report.other"] = 61, ["glyph.btn.copy"] = 62,

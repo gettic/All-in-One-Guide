@@ -5,7 +5,7 @@
 --   colour-blind:  the arrow runs blue (ahead) -> light grey (side) -> orange (behind) instead of
 --                  green -> yellow -> red; done / danger colours follow (blue / orange), badges keep their
 --                  own shapes
---   font size:     -2 .. +4 points on every font (setting fontSize)
+--   font size:     points on every font (setting fontSize, -4 .. +4; never under Theme.MIN_FONT)
 -- and the window scale: own scale per window (setting scale) on top of the UI scale, or the same size
 -- whatever the UI scale is (followUIScale off). UI_SCALE_CHANGED / DISPLAY_SIZE_CHANGED re-apply the
 -- scale and put the window back on screen.

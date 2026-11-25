@@ -30,15 +30,18 @@ This is a beta. It has two demo routes:
 | "Use it now" reminders | The step button glows (and gently pulses) when the target is in range, when you are at the spot, or right after you loot the item. In the menu: off, glow, glow and text, or glow, text and sound (sound is off unless you pick it). |
 | Hints | Hearthstone (ready now or in N minutes; a warning if it is set to another inn than the route expects) and flight paths (new one here, one you lack, which place to pick on the flight map). Known flight paths are remembered per character. |
 | Arrow | One arrow for everything: your corpse after you release, then a spot another addon asks for, then a spot you picked, then the step. It turns green when you face it, yellow to the side and red behind, and shows distance as walk time or yards. |
-| Smart arrow | When the spot is inside a building, cave or city, the arrow first leads to the door, cave mouth or gate. See [Smart arrow](#smart-arrow). |
+| Smart arrow | When the spot is inside a building, cave or city, the arrow first leads to the middle of the door, cave mouth or gate. See [Smart arrow](#smart-arrow). |
+| Path line | The way the arrow leads you (through doors and cave mouths, or straight when there is no door) shows as dots on the world map and the minimap. See [Path line](#path-line). |
 | Corpse arrow | Right after you release, the arrow points to your corpse, also when the graveyard is in the next zone. There is no corpse arrow when the corpse is on another continent. |
 | Quest items | Tells you when a looted item starts a quest, and gives advice for each quest item in your bags. See [Quest items](#quest-items). |
 | First Aid | With First Aid learned, optional lines say what bandages to make and when to train. See [First Aid](#first-aid). |
 | Map pins | Pins for the current step only (an any-order group's other open stops too, at most 12) on the world map and the minimap, in the same colours as the step icons. Minimap pins follow you smoothly as you move. Click one to point the arrow there. Each kind can be turned off in the menu. |
-| Window | The tip line and the "n done" button are under the steps. Drag the right edge to make it wider or narrower. A step with very many goal lines makes the window taller, so nothing draws over anything else. Window size is in the settings. The window looks the same in and out of combat. It stays put at login, also when its scale isn't 100 %. |
+| Window | The tip line and the "n done" button are under the steps. Drag the right edge to make it wider or narrower, the bottom edge to show more or fewer coming steps, or the bottom-right corner to change both. Not while locked or in combat, and not in small mode. Height is saved per character; Settings > Guide window has a "Steps shown" slider. A step with very many goal lines makes the window taller, so nothing draws over anything else. Window size is in the settings. The window looks the same in and out of combat. It stays put at login, also when its scale isn't 100 %. |
 | NOW window | The current step has its own small window on top of the guide window, with the step button inside it. See [NOW window](#now-window). |
 | "On the way" goals | Kill and loot goals you can do while walking show under the current step. See [On the way goals](#on-the-way-goals). |
-| Main window | One window for guides, settings, quest items, reports, About and What's new. See [The main window](#the-main-window). |
+| NPC talk helper | In an NPC's quest list, quests your route takes get a small tag and the rest can be faded. See [NPC talk helper](#npc-talk-helper). |
+| Tooltip step line | Mobs, NPCs and objects that are part of your current step get one line on their tooltip. See [Tooltip step line](#tooltip-step-line). |
+| Main window | One window for guides, settings, quest items, reports and About. See [The main window](#the-main-window). |
 | Ghost | Walking as a ghost doesn't tick travel steps. |
 | Full quest log | Shows which quests the route doesn't need. |
 | Travel steps | Fly, hearthstone, get a flight path, set your hearthstone, learn, train, use an item, notes, and grind as a last resort. |
@@ -64,6 +67,22 @@ The route packs for levels 1-20 are not in this beta yet.
 - Only quest progress is counted, never kills from the combat log.
 - A walk is not skipped just because the "as you go" goal right after it is already done.
 
+### NPC talk helper
+
+- In an NPC's quest list (gossip and quest greeting), quests your route takes get a small tag: "Route: step 14", "Hand in: step 9" or "Later guide". Quests not on your route are faded.
+- Under the accept window one line says "On your route: step 14, ~450 XP", "Not on your route", "Skipped on your route: ..." or "Not on this route: in <guide>".
+- Hints only. It never clicks, accepts or closes anything, and every quest stays clickable.
+- Setting: Settings > Steps > "Mark route quests at NPCs": Off, Mark, or Mark and dim (default).
+- Addons that replace or reskin the quest and gossip windows may hide the tags or the line. Nothing breaks.
+
+### Tooltip step line
+
+- Hover a mob, NPC or object that is part of your current step and its tooltip gets a last line, for example "Step: Kobold Vermin slain 4/10", "On the way: Young Wolf slain 0/4" or "Step: Accept <quest>". A finished goal says "(done)".
+- It matches by the NPC id in the step or by the goal's name. Loot-only goals show only when the step names the mob.
+- If the tooltip already shows the quest (the game's own quest lines, or Questie is installed), the line is short: "Part of your current step" or "Do this on the way".
+- Hints only. Nothing else happens on hover.
+- Setting: Settings > Steps > "Step line on tooltips": Off, Short (no counts) or With counts (default).
+
 ### The main window
 
 Open it with `/aog`, right-click the minimap button, or "Open main window" in the guide's title menu. It opens on the page you used last. Pages:
@@ -75,7 +94,6 @@ Open it with `/aog`, right-click the minimap button, or "Open main window" in th
 | Quest items | Advice for each quest item in your bags. |
 | Report a mistake | See [Report a mistake](#report-a-mistake). |
 | About | Version, licence, links and credits. |
-| What's new | What changed in this version. |
 
 Options > AddOns > All-in-One Guide has one button that opens the main window. The guide's title menu is short; the rest is in Settings.
 
@@ -90,6 +108,12 @@ The smart arrow is on by default. Switch it in the arrow's right-click menu or o
 - "Point straight at the goal" in the arrow's right-click menu turns it off for that one spot.
 - It knows these places so far: Northshire Abbey, Echo Ridge Mine, Fargodeep Mine, Jasperlode Mine, the Goldshire inn, the Den and Burning Blade Coven in the Valley of Trials, Dustwind Cave, Skull Rock, the Razor Hill inn, and the main gates of Stormwind and Orgrimmar. Their positions are first estimates and get better as testers check them.
 - It only shows the way. It never moves your character.
+
+### Path line
+
+- The arrow's way (through doors and cave mouths to the goal, or a straight line when there is no door) shows as dots on the world map and on the minimap.
+- The minimap dots follow its zoom, rotation and shape (square minimaps too) and stop at its edge.
+- Two switches in Settings > Map pins: "Path line on the world map" and "Path line on the minimap". Both are on by default.
 
 ### Quest items
 
@@ -129,15 +153,15 @@ If v0.1 gave a character the guide for another start area (for example a gnome o
 
 ### Minimap button
 
-A round button on the minimap. Drag it around the minimap. Left-click shows or hides the guide, right-click opens the main window. `/aog minimap` shows or hides the button. The addon also has an entry in the minimap's addon list. If another addon already provides a data-broker display, the guide shows up there too.
+A button on the minimap. Drag it around the minimap. It follows square and other minimap shapes from minimap addons. Left-click shows or hides the guide, right-click opens the main window. `/aog minimap` shows or hides the button. The addon also has an entry in the minimap's addon list. If another addon already provides a data-broker display, the guide shows up there too.
 
 ### Look of the windows
 
-The main window, dialogs, copy box and menus are almost solid, so they are easy to read over a bright world. The main window opens on top of the game's Options window. After an update a hint offers "What's new" once.
+The main window, dialogs, copy box and menus are almost solid, so they are easy to read over a bright world. The main window opens on top of the game's Options window.
 
 ### Settings
 
-`/aog config` opens the Settings pages in the main window: General, Guide window, Arrow, Map pins, Steps and Advanced. Each setting has a tooltip with its default. "Reset this page" resets only that page. Among them: language, use the guide on this character, hide it in battlegrounds and raids, First Aid steps, which chat window gets messages, window size, text size, high contrast, colour-blind colours and the smart arrow.
+`/aog config` opens the Settings pages in the main window: General, Guide window, Arrow, Map pins, Steps and Advanced. Each setting has a tooltip with its default. "Reset this page" resets only that page. Among them: language, use the guide on this character, hide it in battlegrounds and raids, First Aid steps, which chat window gets messages, window size, steps shown, text size (-4 to +4; the window keeps its top-left corner while you drag it), high contrast, colour-blind colours and the smart arrow.
 
 ### Language
 

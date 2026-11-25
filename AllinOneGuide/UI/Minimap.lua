@@ -9,7 +9,8 @@
 --   Addon Compartment: the .toc names three global functions (Blizzard_Minimap\Mainline\
 --     AddonCompartment.lua:106-131 calls them as (addonName, buttonName) / (addonName, button))
 --   broker: LibStub("LibDataBroker-1.1", true) at login; a "launcher" object when it's there
---   ns.MinimapButton.Build/Place/Angle/Click/MenuItems/Tip/Update/Broker, .frame, .broker
+--   shape: follows GetMinimapShape() from minimap addons (square, corner, side, tricorner maps), see MM.SHAPES
+--   ns.MinimapButton.Build/Place/Offset/Shape/Radius/Angle/Click/MenuItems/Tip/Update/Broker, .frame, .broker
 local _, ns = ...
 local Th, Co, K = ns.Theme, ns.Compat, ns.UIKit
 local MM = { SIZE = 31, RING = 10 }
@@ -18,20 +19,89 @@ ns.MinimapButton = MM
 local function L() return ns.L end
 local function Map() return Co.fn.MinimapButton end
 
--- Distance from the minimap's centre to the button's centre (just outside the round minimap).
-function MM.Radius()
+-- Minimap shapes (2026-11-25 fix: "the minimap button dont work with my own minimap addon"). Minimap addons that
+-- make the map square (or another shape) define the global GetMinimapShape(), the long-standing convention every
+-- minimap button follows; Blizzard's own UI doesn't define it (then the map is round). It is looked up each time
+-- (the other addon may load after us) and called in pcall (it's another addon's code). Not in ApiList: it's no
+-- Blizzard API, and the self-test's "not secure" check would flag every addon that defines it.
+-- Per shape, which quarter of the map is round: 1 = bottom-right, 2 = bottom-left, 3 = top-right, 4 = top-left.
+-- A square quarter keeps the button on the edge of the square (the corner is clamped).
+MM.SHAPES = {
+    ["ROUND"] = { true, true, true, true },
+    ["SQUARE"] = { false, false, false, false },
+    ["CORNER-TOPLEFT"] = { false, false, false, true },
+    ["CORNER-TOPRIGHT"] = { false, false, true, false },
+    ["CORNER-BOTTOMLEFT"] = { false, true, false, false },
+    ["CORNER-BOTTOMRIGHT"] = { true, false, false, false },
+    ["SIDE-LEFT"] = { false, true, false, true },
+    ["SIDE-RIGHT"] = { true, false, true, false },
+    ["SIDE-TOP"] = { false, false, true, true },
+    ["SIDE-BOTTOM"] = { true, true, false, false },
+    ["TRICORNER-TOPLEFT"] = { false, true, true, true },
+    ["TRICORNER-TOPRIGHT"] = { true, false, true, true },
+    ["TRICORNER-BOTTOMLEFT"] = { true, true, false, true },
+    ["TRICORNER-BOTTOMRIGHT"] = { true, true, true, false },
+}
+
+-- The minimap's shape name ("ROUND" when no addon says otherwise, or it answers something unknown).
+function MM.Shape()
+    local fn = Co.Resolve("GetMinimapShape")
+    if type(fn) ~= "function" then return "ROUND" end
+    local ok, shape = pcall(fn)
+    if ok and type(shape) == "string" and MM.SHAPES[shape] then return shape end
+    return "ROUND"
+end
+
+-- Half width / half height from the minimap's centre to the button's centre (just outside the map's edge).
+local function HalfSize()
     local m = Map()
-    local w = m and m:GetWidth() or 140
-    return w / 2 + MM.RING
+    local w = m and m:GetWidth() or 0
+    local h = m and m:GetHeight() or 0
+    if type(w) ~= "number" or w <= 0 then w = 140 end
+    if type(h) ~= "number" or h <= 0 then h = w end
+    return w / 2 + MM.RING, h / 2 + MM.RING
+end
+
+-- Distance from the centre on a round map (kept for older callers; the width decides).
+function MM.Radius()
+    return (HalfSize())
+end
+
+-- The button's offset from the minimap's centre for this angle (degrees), following the map's real shape.
+function MM.Offset(angle)
+    local a = math.rad(angle or ns.Settings.Get("minimapAngle") or 0)
+    local x, y = math.cos(a), math.sin(a)
+    local q = 1
+    if x < 0 then q = q + 1 end
+    if y > 0 then q = q + 2 end
+    local w, h = HalfSize()
+    if MM.SHAPES[MM.Shape()][q] then
+        return x * w, y * h
+    end
+    -- square quarter: push out along the diagonal, then clamp to the square's edge (w / h out, the same RING
+    -- distance as on a round map; at 45 degrees it lands exactly in the corner)
+    local dw, dh = math.sqrt(2) * w, math.sqrt(2) * h
+    return math.max(-w, math.min(x * dw, w)), math.max(-h, math.min(y * dh, h))
 end
 
 function MM.Place(angle)
     local f, m = MM.frame, Map()
     if not (f and m) then return end
-    local a = math.rad(angle or ns.Settings.Get("minimapAngle"))
-    local r = MM.Radius()
+    local x, y = MM.Offset(angle)
     f:ClearAllPoints()
-    f:SetPoint("CENTER", m, "CENTER", math.cos(a) * r, math.sin(a) * r)
+    f:SetPoint("CENTER", m, "CENTER", x, y)
+end
+
+-- Re-place when the map may have changed size or shape (another addon resizes / reshapes it).
+local function Replace()
+    if MM.frame and not MM.frame:GetScript("OnUpdate") then MM.Place() end
+end
+
+local function HookMap(m)
+    if MM.hooked or not (m and m.HookScript) then return end
+    MM.hooked = true
+    m:HookScript("OnSizeChanged", function() ns.Errors.Call("minimap", Replace) end)
+    m:HookScript("OnShow", function() ns.Errors.Call("minimap", Replace) end)
 end
 
 -- The angle (0-360, 0 = east, counter-clockwise) from the minimap's centre to the cursor; nil when unknown.
@@ -125,6 +195,7 @@ function MM.Build()
     end)
     f:SetScript("OnEnter", function(self) K.Tooltip(self, MM.Tip()) end)
     f:SetScript("OnLeave", function() K.HideTooltip() end)
+    HookMap(m)
     MM.Place()
     MM.Update()
     return f
@@ -166,7 +237,8 @@ function AllinOneGuide_OnCompartmentLeave()
     K.HideTooltip()
 end
 
--- Self-test: the button sits on the ring when it's on; the .toc's compartment names are our functions.
+-- Self-test: the button sits on the map's edge (its real shape) when it's on; the .toc's compartment names are
+-- our functions.
 ns.SelfChecks[#ns.SelfChecks + 1] = { label = "minimap", fn = function(h)
     h.Count()
     for _, field in ipairs({ "AddonCompartmentFunc", "AddonCompartmentFuncOnEnter", "AddonCompartmentFuncOnLeave" }) do
@@ -179,12 +251,13 @@ ns.SelfChecks[#ns.SelfChecks + 1] = { label = "minimap", fn = function(h)
         local bx, by = f:GetCenter()
         local mx, my = m:GetCenter()
         if bx and mx then
-            local d = math.sqrt((bx - mx) ^ 2 + (by - my) ^ 2)
-            if math.abs(d - MM.Radius()) > 2 then h.Problem(("minimap: button off the ring (%d)"):format(d)) end
+            local ex, ey = MM.Offset()
+            local d = math.sqrt((bx - mx - ex) ^ 2 + (by - my - ey) ^ 2)
+            if d > 2 then h.Problem(("minimap: button off the edge (%d, shape %s)"):format(d, MM.Shape())) end
         end
     end
-    h.Info(("minimap: button %s, broker %s"):format(f and (f:IsShown() and "shown" or "hidden") or "none",
-        MM.broker and "yes" or "no"))
+    h.Info(("minimap: button %s, shape %s, broker %s"):format(f and (f:IsShown() and "shown" or "hidden") or "none",
+        MM.Shape(), MM.broker and "yes" or "no"))
 end }
 
 ns.Bus.On("Login", MM, function()
@@ -200,6 +273,9 @@ ns.Bus.On("SettingsChanged", MM, function(_, key)
     end
 end, "ui", 80)
 ns.Bus.On("WindowToggled", MM, function() MM.Update() end, "ui", 80)
+-- A minimap addon may set its shape / size after our login: place again once the world is up and on zone changes.
+ns.Bus.On("Ready", MM, function() ns.Errors.Call("minimap", Replace) end, "ui", 80)
+ns.Bus.On("ZoneChanged", MM, function() ns.Errors.Call("minimap", Replace) end, "ui", 80)
 
 ns.Slash.Add("minimap", function()
     ns.Settings.Set("minimap", not ns.Settings.Get("minimap"))

@@ -332,9 +332,24 @@ end
 -- ------------------------------------------------------------------ main window controls
 -- All plain frames (tos: no Blizzard templates, no UIDropDownMenu, nothing hooked).
 
+-- A value snapped to the setting's step and clamped to its min / max (the bounds come from the schema
+-- entry, never hard-coded).
+function K.SnapValue(d, v)
+    v = tonumber(v)
+    if not v then return nil end
+    local step = d.step or 1
+    v = math.floor((v - d.min) / step + 0.5) * step + d.min
+    return math.max(d.min, math.min(d.max, tonumber(("%.4f"):format(v))))
+end
+
 -- A slider for a number setting d (schema entry): track, accent fill, thumb, the value on the right.
 -- Drag (cursor, OnUpdate only while the button is down), click on the track, mouse wheel = one step.
--- onChange(value) gets the raw value (the caller rounds); s:Set(v) shows a value.
+-- onChange(value) gets the value snapped to the step, and only when it differs from the shown one (font
+-- size fix 2026-11-25, the user: "the text size is janky and jumps around": every mouse move while dragging
+-- used to save the same value again and restyle / rebuild everything per frame). The thumb jumps to the
+-- snapped value at once. s:Set(v) shows a value.
+-- K.dragging = the slider being dragged (nil otherwise); its release fires Bus "SliderReleased", so a page
+-- that would rebuild under the mouse (Hub) waits for it.
 function K.Slider(parent, d, onChange, feature)
     local s = CreateFrame("Button", nil, parent)
     local w = Th.Size("slider")
@@ -370,17 +385,30 @@ function K.Slider(parent, d, onChange, feature)
         local frac = math.max(0, math.min(1, (x - left) / self.w))
         return d.min + frac * (d.max - d.min)
     end
-    local function Push(v) if v then ns.Errors.Call(feature or "ui", onChange, v) end end
+    local function Push(self, v)
+        v = K.SnapValue(d, v)
+        if v == nil or v == self.v then return end
+        self:Set(v)
+        ns.Errors.Call(feature or "ui", onChange, v)
+    end
+    local function EndDrag(self)
+        self:SetScript("OnUpdate", nil)
+        if K.dragging == self then
+            K.dragging = nil
+            ns.Bus.Fire("SliderReleased", self)
+        end
+    end
     s:SetScript("OnMouseDown", function(self, button)
         if button ~= "LeftButton" then return end
-        Push(self:FromCursor())
-        self:SetScript("OnUpdate", function(me) Push(me:FromCursor()) end)
+        K.dragging = self
+        Push(self, self:FromCursor())
+        self:SetScript("OnUpdate", function(me) Push(me, me:FromCursor()) end)
     end)
-    s:SetScript("OnMouseUp", function(self) self:SetScript("OnUpdate", nil) end)
-    s:SetScript("OnHide", function(self) self:SetScript("OnUpdate", nil) end)
+    s:SetScript("OnMouseUp", EndDrag)
+    s:SetScript("OnHide", EndDrag)
     s:EnableMouseWheel(true)
     s:SetScript("OnMouseWheel", function(self, delta)
-        Push((self.v or d.min) + (delta > 0 and 1 or -1) * (d.step or 1))
+        Push(self, (self.v or d.min) + (delta > 0 and 1 or -1) * (d.step or 1))
     end)
     s:Set(d.default)
     return s

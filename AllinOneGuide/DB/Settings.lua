@@ -30,6 +30,13 @@ S.schema = {
     { key = "reducedMotion", scope = "account", kind = "bool", default = false, export = true, page = "general" },
     -- v0.2: optional First Aid "level up" lines from your cloth and skill (Engine\FirstAid.lua)
     { key = "firstAidSteps", scope = "account", kind = "bool", default = true, export = true, page = "steps" },
+    -- NPC talk helper (UI\NpcHelper.lua): marks route quests in NPC windows. "mark" = tags + accept line only,
+    -- "dim" = also dims quests that aren't on your route (display only: every row stays clickable)
+    { key = "npcHelper", scope = "account", kind = "choice", default = "dim", choices = { "off", "mark", "dim" }, export = true,
+        page = "steps", choiceLabels = { off = "NPC_MODE_OFF", mark = "NPC_MODE_MARK", dim = "NPC_MODE_DIM" } },
+    -- Tooltip step line (UI\TooltipStep.lua): "full" = with counts, "short" = only that it's part of the step
+    { key = "tooltipStep", scope = "account", kind = "choice", default = "full", choices = { "off", "short", "full" }, export = true,
+        page = "steps", choiceLabels = { off = "TIPSTEP_MODE_OFF", short = "TIPSTEP_MODE_SHORT", full = "TIPSTEP_MODE_FULL" } },
 
     { key = "locked", scope = "char", kind = "bool", default = false, export = true, page = "window" },
     { key = "small", scope = "char", kind = "bool", default = false, export = true, page = "window" },
@@ -37,10 +44,15 @@ S.schema = {
     -- width / followUIScale move the window the secure step button docks to (beta.3 fix: combat like scale)
     { key = "width", scope = "char", kind = "number", default = 272, min = 240, max = 420, step = 4, export = true, page = "window",
         combat = true },
+    -- beta.4: the step area's height in step lines (the bottom / corner grip); default 10 = the fixed height
+    -- before the grip (Theme size.stepLines), so saves without it look the same. Height only: the item button
+    -- docks to the window's top, so no combat wait.
+    { key = "lines", scope = "char", kind = "number", default = 10, min = 4, max = 30, step = 1, export = true, page = "window",
+        whole = true },   -- whole lines only (Get / Set round)
     { key = "scale", scope = "char", kind = "number", default = 1, min = 0.6, max = 1.6, step = 0.05, export = true, page = "window",
         combat = true },   -- moves the window the secure step button docks to
     { key = "followUIScale", scope = "account", kind = "bool", default = true, export = true, page = "window", combat = true },
-    { key = "fontSize", scope = "account", kind = "number", default = 0, min = -2, max = 4, step = 1, export = true, page = "window" },
+    { key = "fontSize", scope = "account", kind = "number", default = 0, min = -4, max = 4, step = 1, export = true, page = "window" },  -- min -4 (was -2; font size fix 2026-11-25): 8 pt step text
     { key = "highContrast", scope = "account", kind = "bool", default = false, export = true, page = "window" },
     { key = "colorBlind", scope = "account", kind = "bool", default = false, export = true, page = "window" },
     -- the NOW window (UI\NowWindow.lua): the current step in its own window, attached on top of the guide
@@ -63,6 +75,9 @@ S.schema = {
 
     { key = "mapPins", scope = "account", kind = "bool", default = true, export = true, page = "map" },
     { key = "minimapPins", scope = "account", kind = "bool", default = true, export = true, page = "map" },
+    -- path line (UI\PathLine.lua): the arrow's way as dots on the world map / the minimap
+    { key = "pathMap", scope = "account", kind = "bool", default = true, export = true, page = "map" },
+    { key = "pathMinimap", scope = "account", kind = "bool", default = true, export = true, page = "map" },
 
     { key = "chatTab", scope = "account", kind = "number", default = 1, min = 1, max = 10, step = 1, export = true, page = "advanced" },
     { key = "gearSetLink", scope = "account", kind = "bool", default = true, export = true, page = "advanced" },
@@ -118,12 +133,14 @@ function S.Get(key)
     if not d then error("unknown setting " .. tostring(key), 2) end
     local v = Store(d.scope)[key]
     if not Valid(d, v) then return d.default end
+    if d.whole then return math.floor(v + 0.5) end   -- an edited save's 12.5 lines = 13 (the save is kept as is)
     return v
 end
 
 function S.Set(key, value)
     local d = byKey[key]
     if not d then error("unknown setting " .. tostring(key), 2) end
+    if d.whole and type(value) == "number" and value == value then value = math.floor(value + 0.5) end
     if not Valid(d, value) then return false end
     -- settings that touch secure parts wait for the end of combat (last change wins)
     if d.combat and ns.Compat.InCombat() and ns.CombatQueue then

@@ -89,7 +89,7 @@ local function FocusRoute()
     return g and g.route or nil
 end
 
--- What our packs know about a quest: { accept = step, turnin = step, route (the turn-in's), onRoute
+-- What our packs know about a quest: { accept = step, acceptRoute, turnin = step, route (the turn-in's), onRoute
 -- (in the focused guide's route), level, minLevel, xp }. Only the rows of accept / turnin steps for this
 -- quest are decoded. Cached per quest until the focused route changes.
 function BQ.QuestInfo(q)
@@ -107,7 +107,7 @@ function BQ.QuestInfo(q)
                     local s = Fm.DecodeRow(row)
                     if s then
                         info = info or { quest = q }
-                        if typ == "accept" and not info.accept then info.accept = s end
+                        if typ == "accept" and not info.accept then info.accept, info.acceptRoute = s, r end
                         if typ == "turnin" and not info.turnin then info.turnin, info.route = s, r end
                         if r == focus then info.onRoute = true end
                     end

@@ -8,8 +8,10 @@
 -- Fonts: Blizzard's own font files only (SetFont on our font strings; nothing copied, no new globals).
 local _, ns = ...
 -- overlays (v0.2 M4, Theme\Overlay.lua): tables laid over any theme (high contrast, colour-blind), last
--- one wins; fontDelta: points added to every font size (font size setting, large text)
-local Th = { themes = {}, name = nil, cache = {}, MIN_FONT = 9, MAX_FONT = 24, overlays = {}, fontDelta = 0 }
+-- one wins; fontDelta: points added to every font size (font size setting, large text).
+-- MIN_FONT 8 (was 9; font size fix 2026-11-25, the user: "cant go low enough"): the smallest setting -4 gives
+-- 8 pt step text, and the small texts stop at 8 pt too.
+local Th = { themes = {}, name = nil, cache = {}, MIN_FONT = 8, MAX_FONT = 24, overlays = {}, fontDelta = 0 }
 ns.Theme = Th
 
 function Th.Register(name, t)

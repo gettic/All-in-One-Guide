@@ -212,6 +212,30 @@ local function GoalPoint(t, room)
     return { map = t.map, x = t.x, y = t.y, r = t.r, room = room, goal = true }
 end
 
+local function Linked(a, b)
+    for _, e in ipairs(SR.adj and SR.adj[a] or {}) do
+        if e.to == b then return true end
+    end
+    return false
+end
+
+-- A door (cave mouth, gate) is two linked points, one on each side of the wall, often 10-35 yards apart. Aiming
+-- at the near one led to a spot in front of the door (and to its side when you came at an angle), and it only
+-- counted within its 3-5 yd radius, so walking straight to the door kept the arrow pointing beside it. The arrow
+-- now aims at the doorway itself: the middle between the two points (same map), with the near point's radius.
+-- The node's own data is untouched (planning still uses it); only this route's aim point moves.
+local function Doorways(route)
+    for k = 1, #route - 1 do
+        local a, b = route[k], route[k + 1]
+        if a.id and b.id and not a.door and a.room ~= b.room and a.map == b.map and Linked(a.id, b.id) then
+            a.x, a.y, a.door = (a.x + b.x) / 2, (a.y + b.y) / 2, true
+            a.c, a.wx, a.wy = nil, nil, nil
+        end
+    end
+    return route
+end
+SR.Doorways = Doorways
+
 -- A step's own `via` list: connector ids or inline points { map, x, y (%), hint }.
 local function ForcedRoute(t, goalRoom)
     local route = {}
@@ -225,7 +249,7 @@ local function ForcedRoute(t, goalRoom)
         end
     end
     route[#route + 1] = GoalPoint(t, goalRoom)
-    return route
+    return Doorways(route)
 end
 
 -- Plain Dijkstra (linear-scan minimum; graphs are 20-300 nodes). Start = the player, linked to every node of
@@ -297,7 +321,7 @@ function SR.Plan(t, map, x, y, indoors)
     local route = {}
     for _, id in ipairs(ids) do route[#route + 1] = Point(SR.nodes[id]) end
     route[#route + 1] = goal
-    return route, "graph"
+    return Doorways(route), "graph"
 end
 
 -- ------------------------------------------------------------------ following the route
@@ -347,8 +371,11 @@ end
 -- further from n than v is (+ slack). A step that crosses a room wall (v and n in different rooms: door,
 -- cave mouth) only counts once the player is in n's room (`room` = the player's room, nil = outdoors), so
 -- standing outside next to a cave never moves the arrow on to the point inside.
+-- A doorway point (v.door) also counts as passed while the room outline doesn't say so yet (our outlines are
+-- rough): stepping over its middle towards the far side, at most its radius + slack to the side.
 local function Passed(p, v, n, room)
-    if v.room ~= n.room and room ~= n.room then return false end
+    local through = v.room ~= n.room and room ~= n.room
+    if through and not v.door then return false end
     local cv, vx, vy = World(v)
     local cn, nx, ny = World(n)
     local cp, px, py = World(p)
@@ -357,6 +384,10 @@ local function Passed(p, v, n, room)
     local dvn = sqrt(ex * ex + ey * ey)
     if dvn <= 0 then return true end
     local dot = (px - vx) * ex + (py - vy) * ey
+    if through then
+        local side = math.abs((px - vx) * ey - (py - vy) * ex) / dvn
+        return dot > 0 and dot <= dvn * dvn and side <= (v.r or 3) + SR.PASS_SLACK
+    end
     local dpn = sqrt((nx - px) ^ 2 + (ny - py) ^ 2)
     return dot > 0 and dpn < dvn + SR.PASS_SLACK
 end

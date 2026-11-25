@@ -31,12 +31,11 @@ end
 function SU.SetFromPanel(d, v)
     local S = ns.Settings
     if d.kind == "number" then
-        v = tonumber(v)
-        if not v then return end
-        local step = d.step or 1
-        v = math.floor((v - d.min) / step + 0.5) * step + d.min
-        v = math.max(d.min, math.min(d.max, tonumber(("%.4f"):format(v))))
+        v = ns.UIKit.SnapValue(d, v)
+        if v == nil then return end
     end
+    -- the same value again changes nothing (font size fix: no SettingsChanged, no restyle per mouse move)
+    if v == S.Shown(d.key) then return end
     if d.key == "lang" then
         if v ~= S.Get("lang") then ns.Locale.Switch(v) end
     else

@@ -351,7 +351,6 @@ ns.Locale.Add("daDK", {
     -- v0.2 M5: Hub (drafts, plans\v0.2\da-review-m4.md)
     HUB_REPORT = "Rapportér en fejl",
     HUB_ABOUT = "Om",
-    HUB_NEWS = "Nyheder",
     HUB_MORE = "Mere",
     TIP_CLOSE_HUB = "Luk",
     HELP_REPORT = "rapportér et forkert trin (du kopierer én linje og indsætter den på GitHub)",
@@ -388,13 +387,6 @@ ns.Locale.Add("daDK", {
     ABOUT_COPY_ISSUES = "Kopiér linket til issues",
     ABOUT_CREDITS = "Tak til bidragyderne på Warcraft Wiki (fakta brugt i ruterne, CC BY-SA 4.0). Hele listen står i CREDITS.txt.",
     ABOUT_BLIZZARD = "World of Warcraft er et varemærke tilhørende Blizzard Entertainment. Denne addon er lavet af spillere, ikke af Blizzard.",
-    NEWS_TITLE = "Nyt i denne version",
-    NEWS_NOTICE = "Nyt i denne version",
-    NEWS_SHOW = "Vis",
-    NEWS_1 = "En smart pil gennem døre og huleåbninger, kortmarkører, /way og en pil til dit lig",
-    NEWS_2 = "Trinnet, du skal lave nu, står i en NU-boks med de NÆSTE trin under den",
-    NEWS_3 = "Questgenstande: en trinknap og et råd til hver genstand i dine tasker (brug, behold, bank, slet)",
-    NEWS_4 = "First Aid: hvilke bandager du kan lave af dit stof, og hvornår du skal træne",
 
     -- v0.2 M6 (udkast fra addon-dev; se plans\v0.2\da-review-m4.md "M6")
     HELP_WHERE = "vis dit kort-id og din placering, den valgte quests id og dit måls NPC-id",

@@ -80,6 +80,10 @@ ns.Theme.Register("Dark", {
     -- smart arrow: while it leads to a door / gate / path point first (not the goal itself)
     ["color.arrowVia"] = { "#5CC8F0", 1 },    -- the arrow
     ["color.viaText"] = { "#8FD8F5", 1 },     -- "Through the abbey door" under the distance
+    -- path line (UI\PathLine.lua): dots along the arrow's way on the world map and the minimap
+    ["color.pathNow"] = "=arrowVia",          -- the leg the arrow points along now
+    ["color.pathLater"] = { "#5CC8F0", 0.55 },  -- the legs after it
+    ["color.pathCorpse"] = "=corpse",         -- the way to your corpse
     ["color.wait"] = "=notice.hearth",        -- the step button's hourglass
     ["color.minimap"] = "=white",             -- the minimap button while the guide is shown
     ["color.minimapDim"] = { "#999999", 1 },  -- ... and while it is hidden
@@ -110,6 +114,15 @@ ns.Theme.Register("Dark", {
     ["color.sliderFill"] = "=accent",
     ["color.sliderThumb"] = { "#E6EBF0", 1 },
     ["color.searchBg"] = { "#0E141A", 1 },
+    -- NPC talk helper: tags on quest rows in NPC windows and the line under the accept window
+    ["color.npcRoute"] = "=accent",           -- on your route / hand in
+    ["color.npcLater"] = "=counter",          -- in a later guide
+    ["color.npcDim"] = "=text.dim",           -- skipped / not on your route
+    ["color.npcTagBg"] = { "#0B0E13", 0.85 }, -- the tag's own small backing
+    -- tooltip step line (on Blizzard's dark tooltip)
+    ["color.tipStep"] = "=accent",            -- part of the current step
+    ["color.tipOnWay"] = "=counter",          -- an on-the-way / optional goal
+    ["color.tipDone"] = "=text.dim",          -- that objective is already full
 
     -- fonts (Blizzard's narrow font file on Western clients)
     fontFile = "Fonts\\ARIALN.TTF",
@@ -133,7 +146,7 @@ ns.Theme.Register("Dark", {
     ["size.bar"] = 6,
     ["size.barSmall"] = 5,
     ["size.arrow"] = 64,
-    ["size.stepLines"] = 10,      -- the fixed step area in full mode, in step-font lines
+    ["size.stepLines"] = 10,      -- the step area in full mode, in step-font lines (the "lines" setting's default; the grip changes it)
     ["size.smallLines"] = 5,      -- in small mode
     ["size.border"] = 1,
     ["size.thumb"] = 3,           -- Hub scroll thumb width
@@ -157,11 +170,16 @@ ns.Theme.Register("Dark", {
     ["size.slider"] = 140,        -- our own slider's width
     ["size.sliderThumb"] = 10,
     ["size.search"] = 170,        -- the search box's width
+    ["size.pathDot"] = 6,         -- path line: a dot on the world map (screen units, kept at any map zoom)
+    ["size.pathGap"] = 14,        -- ... the space between dots on the world map
+    ["size.pathMiniDot"] = 4,     -- ... a dot on the minimap
+    ["size.pathMiniGap"] = 8,     -- ... the space between dots on the minimap
 
     -- alphas (0..1) and built-in game files (v0.2 look review)
     ["alpha.hover"] = 0.35,       -- the minimap button's highlight
     ["alpha.pulseLow"] = 0.4,     -- the step button's reminder glow pulses between this and 1
     ["alpha.arrowPulseLow"] = 0.35,  -- smart arrow: the arrow dips to this and back when a door / gate is passed
+    ["alpha.npcDim"] = 0.45,      -- NPC talk helper: a quest row that isn't on your route (still clickable)
     ["file.itemUnknown"] = "Interface\\Icons\\INV_Misc_QuestionMark",  -- step button: item icon not known yet
 
     -- slot keys (resolved by Theme\Media.lua)
@@ -190,6 +208,8 @@ ns.Theme.Register("Dark", {
     ["slot.btn.grip"] = "glyph.btn.grip",
     ["slot.btn.attach"] = "glyph.btn.attach",
     ["slot.btn.detach"] = "glyph.btn.detach",
+    -- the guide window's bottom-right size grip (glyphs2.tga)
+    ["slot.btn.resize"] = "glyph.btn.resize",
     -- main window (glyphs2.tga, emblems.tga)
     ["slot.btn.search"] = "glyph.btn.search",
     ["slot.emblem.alliance"] = "emblem.alliance",
@@ -228,7 +248,6 @@ ns.Theme.Register("Dark", {
     ["slot.pin.ring"] = "glyph.pin.ring",
     ["slot.hub.report"] = "glyph.hub.report",
     ["slot.hub.about"] = "glyph.hub.about",
-    ["slot.hub.news"] = "glyph.hub.news",
     ["slot.hub.settings"] = "glyph.hub.settings",
     ["slot.report.coords"] = "glyph.report.coords",
     ["slot.report.order"] = "glyph.report.order",
