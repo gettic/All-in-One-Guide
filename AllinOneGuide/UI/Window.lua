@@ -1,8 +1,9 @@
 -- SPDX-License-Identifier: GPL-3.0-or-later
 -- Copyright (C) 2026 gettic
 -- The guide window. From the top: title bar (logo, route title, menu / small / lock / close), section
--- header with "step i/n", the notice line (always kept free in full mode), the "n done" chip, the fixed
--- step area (current step always the top row, then upcoming steps), the footer (back, progress, next).
+-- header with "step i/n", the fixed step area (the NOW box with the current step on top, then the NEXT
+-- steps), the notice line (always kept free in full mode), the "n done" chip, the footer (back, progress,
+-- next). Every step stays shown in combat.
 -- Small mode keeps the same width: title bar, the current step and one "Next:" line (a notice replaces it).
 -- States: none / finished / error / safe. Clamped to the screen; the position is saved per character
 -- only after the player moves it. Opacity changes the panel alpha only (text stays at full alpha and
@@ -366,6 +367,10 @@ function UI.Layout()
     f:SetWidth(UI.Width())
     UI.grip:SetShown(not ns.Settings.Get("locked"))
     UI.header:SetShown(not small)
+    -- the header and notice line follow the line height (font size setting), so the step area stays
+    -- right under the header
+    UI.header:SetHeight(LH())
+    UI.noticeLine:SetHeight(LH())
     UI.chip:SetShown(not small)
     UI.footer:SetShown(not small)
     UI.noticeLine:ClearAllPoints()
@@ -378,13 +383,17 @@ function UI.Layout()
         UI.noticeLine:SetPoint("BOTTOMLEFT", UI.area, "BOTTOMLEFT", Pad(), 0)
         UI.noticeLine:SetPoint("BOTTOMRIGHT", UI.area, "BOTTOMRIGHT", -Pad(), 0)
     else
-        UI.noticeLine:SetPoint("TOPLEFT", f, "TOPLEFT", Pad(), -(TitleH() + LH()))
-        UI.noticeLine:SetPoint("TOPRIGHT", f, "TOPRIGHT", -Pad(), -(TitleH() + LH()))
+        -- v0.2 fix (the user: "wasn't we moving the NOW step to the top?"): the step area, and so the NOW
+        -- box, sits right under the section header; the notice line and the "n done" chip go under the
+        -- steps (they used to sit above the NOW box and push it down the window)
+        UI.area:SetPoint("TOP", f, "TOP", 0, -(TitleH() + LH()))
+        local below = TitleH() + LH() + UI.AreaHeight(false)
+        UI.noticeLine:SetPoint("TOPLEFT", f, "TOPLEFT", Pad(), -below)
+        UI.noticeLine:SetPoint("TOPRIGHT", f, "TOPRIGHT", -Pad(), -below)
         UI.chip:ClearAllPoints()
-        UI.chip:SetPoint("TOPLEFT", f, "TOPLEFT", Pad(), -(TitleH() + LH() * 2 + 1))
+        UI.chip:SetPoint("TOPLEFT", f, "TOPLEFT", Pad(), -(below + LH() + 1))
         UI.chip:SetHeight(LH() - 2)
         UI.chip:SetWidth(UI.ChipWidth())
-        UI.area:SetPoint("TOP", f, "TOP", 0, -(TitleH() + LH() * 3))
     end
     UI.area:SetHeight(UI.AreaHeight(small))
     Th.Glyph(UI.title.small.icon, small and "btn.expand" or "btn.small")
@@ -393,10 +402,10 @@ function UI.Layout()
     ns.Bus.Fire("WindowLayout")
 end
 
--- Panel alpha = opacity x the combat fade; texts get a shadow when the panel is very see-through.
+-- Panel alpha = the opacity setting (v0.2 fix: no combat fade any more, the window looks the same in
+-- combat); texts get a shadow when the panel is very see-through.
 function UI.ApplyOpacity()
     local a = ns.Overlay.Opacity(ns.Settings.Get("opacity"))
-    if Co.InCombat() then a = a * (Th.Raw("motion.combatFade") or 0.5) end
     K.SetPanelAlpha(a)
     local shadow = a < 0.5
     if shadow ~= UI.shadow then
@@ -748,7 +757,9 @@ function UI.Refresh()
     UI.nextHead:Hide()
     for i, d in ipairs(m.rows) do
         local r = Row(i)
-        if i > maxRows or (UI.inCombat and d.state ~= "current" and #m.rows > 1) then
+        -- (v0.2 fix: no combat filter any more; the user wants every step shown in combat. The rows are
+        -- plain frames, nothing secure, so showing them in combat is taint-safe.)
+        if i > maxRows then
             r:Hide()
         else
             d.boxed = i == 1
@@ -1004,7 +1015,7 @@ ns.Bus.On("NoticeChanged", UI, function() UI.Refresh() end, "ui", 70)
 ns.Bus.On("QuestsChanged", UI, function() UI.Refresh() end, "ui", 70)
 ns.Bus.On("ItemsChanged", UI, function() UI.Refresh() end, "ui", 70)
 ns.Bus.On("NameReady", UI, function() UI.Refresh() end, "ui", 70)
--- v0.2 M3: in combat the window shows the current step only (look only, nothing secure)
+-- combat changes nothing in the window's look: every step stays shown, no fade (v0.2 fix, the user's wish)
 ns.Bus.On("CombatStarted", UI, function()
     UI.inCombat = true
     if UI.frame then UI.ApplyOpacity() UI.Refresh() end
@@ -1070,6 +1081,14 @@ function UI.NowProblem()
     if type(bt) == "number" and type(rt) == "number" and type(bb) == "number" and type(rb) == "number"
         and (rt > bt + 0.5 or rb < bb - 0.5) then
         return "the current step sticks out of the NOW box"
+    end
+    -- v0.2 fix: the box is on top (above the first NEXT row, the notice line and the chip)
+    local function Above(o)
+        local t = o and o:IsShown() and o:GetTop()
+        return not (type(bt) == "number" and type(t) == "number") or bt > t
+    end
+    if not (Above(UI.rows[2]) and Above(UI.noticeLine) and Above(UI.chip)) then
+        return "the NOW box isn't on top"
     end
     return nil
 end

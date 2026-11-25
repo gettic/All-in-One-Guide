@@ -12,10 +12,9 @@ All files: TGA, 32-bit BGRA, straight alpha, uncompressed (type 2), bottom-left 
 | `arrow.tga` | 128x128 | 64 KB | `build_arrow.py` | waypoint arrow, shown 64x64 | v0.1, Dark |
 | `arrived.tga` | 128x128 | 64 KB | `build_arrow.py` | arrived marker (tick ring), shown 64x64 | v0.1, Dark |
 | `frames.tga` | 128x64 | 32 KB | `build_frames.py` | step button frame + reminder glow (regions below) | v0.2, Dark |
-| `ring.tga` | 64x64 | 16 KB | `build_frames.py` | arrow arrival progress ring, shown 80x80 | v0.2, Dark |
 | `minimap.tga` | 32x32 | 4 KB | `build_minimap.py` | minimap button (whole round button, full colour) | v0.2, all themes |
 
-**Total raw texture memory: 516 KB** (budget at v0.1-v0.2: 600 KB; 84 KB left).
+**Total raw texture memory: 500 KB** (budget at v0.1-v0.2: 600 KB; 100 KB left).
 
 Note for the `.toc`: the build plan says `IconTexture: ...\media\logo`, but the file is `logo_64` (no `logo.tga` exists). Point `IconTexture` at `Interface\AddOns\AllinOneGuide\media\logo_64`.
 
@@ -33,10 +32,6 @@ The whole minimap button: round dark badge, thicker teal ring, logo mark simplif
 |---|---|---|---|---|---|---|---|
 | `frame.stepbutton` | step button frame: rounded square, top-lit bevel, see-through middle | 0.000 | 0.500 | 0.000 | 1.000 | 52x52 centred on the 36x36 button (the hole is ~36 px) | normal #56606D, reminder #2FC4A8, item missing #E0524A |
 | `frame.glow` | reminder glow: soft rounded-square halo, white, alpha only | 0.500 | 1.000 | 0.000 | 1.000 | 72x72 centred on the button, layer below the frame, blend `ADD` (or `BLEND`), pulse with alpha | #2FC4A8 |
-
-## ring.tga
-
-Progress ring (white, 1 px dark rim), texture coordinates (0, 1, 0, 1). Shown 80x80 centred on the 64x64 arrow (it clears the dart tips). Track: the same texture tinted #1A212A; fill: tinted #2FC4A8, either as a `Cooldown` swipe texture (`SetSwipeTexture`, radial fill) or full when arrived.
 
 ## arrow.tga / arrived.tga
 

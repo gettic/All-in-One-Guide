@@ -66,6 +66,8 @@ function HR.String()
     return ns.Report.Build(HR.opts)
 end
 
+-- HR.page is only set once Build has made every part (see Build), but the parts are still checked one by
+-- one: a page that failed half-way in game must never turn each click into a second error.
 function HR.Update()
     local p = HR.page
     if not p then return end
@@ -83,15 +85,18 @@ function HR.Update()
             b:Hide()
         end
     end
-    p.noStep:SetShown(#steps == 0)
-    p.noloc:Set(HR.opts.noloc)
-    p.evidence:Set(HR.opts.evidence)
+    if p.noStep then p.noStep:SetShown(#steps == 0) end
+    if p.noloc then p.noloc:Set(HR.opts.noloc) end
+    if p.evidence then p.evidence:Set(HR.opts.evidence) end
     local s, f = HR.String()
     HR.last, HR.lastFields = s, f
-    p.preview:SetText(s)
-    p.title:SetText(ns.Report.Title(f))
-    p.count:SetText(ns.U.Fill(L().REPORT_LENGTH, { n = #s, max = ns.Report.MAX_LEN }))
+    if p.preview then p.preview:SetText(s) end
+    if p.title then p.title:SetText(ns.Report.Title(f)) end
+    if p.count then p.count:SetText(ns.U.Fill(L().REPORT_LENGTH, { n = #s, max = ns.Report.MAX_LEN })) end
 end
+
+-- The parts Update and the buttons need (the self-test and the offline tests check them all).
+HR.PARTS = { "noStep", "note", "noloc", "evidence", "preview", "count", "title", "send", "status", "waiting", "copy" }
 
 -- The line under Send: how many reports from this session wait for the Addon Manager.
 function HR.WaitingText()
@@ -103,7 +108,7 @@ end
 
 local function ShowStatus(text, color)
     local p = HR.page
-    if not p then return end
+    if not (p and p.status and p.waiting) then return end
     p.status:SetText(text or "")
     K.Color(p.status, color or "quest")
     p.waiting:SetText(HR.WaitingText())
@@ -141,10 +146,11 @@ function HR.Copy()
     return s
 end
 
+-- Builds into local tables and makes them the page (HR.page, .typeButtons, .stepButtons) only at the end:
+-- a build that stops half-way (the Hub shows the error) leaves no half page behind for the clicks to use.
 local function Build(parent, width)
     local p = { parent = parent, width = width }
-    HR.page = p
-    HR.typeButtons, HR.stepButtons = {}, {}
+    local typeButtons, stepButtons = {}, {}
     local y = 0
     y = Para(parent, y, width, L().REPORT_INTRO2, "text")
     y = Head(parent, y + 4, L().REPORT_WHAT)
@@ -168,7 +174,7 @@ local function Build(parent, width)
         local col, row = (i - 1) % cols, math.floor((i - 1) / cols)
         b:SetPoint("TOPLEFT", parent, "TOPLEFT", col * colW, -(y + row * rowH))
         b:SetWidth(colW - 8)
-        HR.typeButtons[i] = b
+        typeButtons[i] = b
     end
     y = y + math.ceil(#ns.Report.TYPES / cols) * rowH + 6
     y = Head(parent, y, L().REPORT_WHICH)
@@ -179,7 +185,7 @@ local function Build(parent, width)
         end, true)
         b:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, -(y + (i - 1) * rowH))
         b:SetWidth(width)
-        HR.stepButtons[i] = b
+        stepButtons[i] = b
     end
     p.noStep = K.Text(parent, "goal", "text.dim")
     p.noStep:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, -y)
@@ -270,6 +276,8 @@ local function Build(parent, width)
     end
     y = y + Th.LineHeight("step") + 14
     y = Para(parent, y, width, ns.U.Fill(L().REPORT_GITHUB, { url = HR.URL }))
+    -- every part is there: now it is the page
+    HR.page, HR.typeButtons, HR.stepButtons = p, typeButtons, stepButtons
     -- a rebuilt page (new look) keeps the note typed so far (set last: OnTextChanged updates the page)
     if HR.opts.note and HR.opts.note ~= "" then p.note:SetText(HR.opts.note) end
     return y + 8
@@ -286,14 +294,17 @@ ns.Hub.AddPage("report", { title = "HUB_REPORT", icon = "hub.report", order = 10
     end
 end })
 
--- Self-test: once the Report page was built, Send (primary) and the web-page button are there and fit the
+-- Self-test: once the Report page was built, every part (HR.PARTS) and choice row is there, Send (primary) and the web-page button are there and fit the
 -- page, the status / waiting lines exist and the web address is set.
 ns.SelfChecks[#ns.SelfChecks + 1] = { label = "report page", fn = function(h)
     h.Count()
     if type(HR.WEB_URL) ~= "string" or not HR.WEB_URL:find("%.") then h.Problem("report page: no web address") end
     local p = HR.page
     if not p then h.Info("report page: not opened yet") return end
-    if not (p.send and p.copy and p.status and p.waiting) then h.Problem("report page: Send / copy / lines missing") return end
+    for _, k in ipairs(HR.PARTS) do
+        if not p[k] then h.Problem("report page: part " .. k .. " missing") return end
+    end
+    if #HR.typeButtons ~= #ns.Report.TYPES or #HR.stepButtons ~= 4 then h.Problem("report page: choice rows missing") return end
     if not p.send.primary then h.Problem("report page: Send isn't the main button") end
     local pw = p.width or 0
     for _, b in ipairs({ p.send, p.copy }) do

@@ -24,7 +24,7 @@ This is a beta. It has two demo routes:
 | Part | What it does |
 |---|---|
 | Steps | Optional steps never block. Some steps can be done in any order. Steps that need a higher level say "in 2 levels" and return when you get there. Quests that don't exist on WoW Forever are skipped by themselves. |
-| "Only if you have it" steps | Some optional steps show only while an item is in your bags (for example "use the book if a kobold drops it"). If you loot it later, the step comes back. |
+| "Only if you have it" steps | Some optional steps show only while an item is in your bags (for example "use the book if a kobold drops it"). If you loot it later, the step comes back. In Elwynn, one short optional step (about 3 minutes, skip it any time) kills more kobold vermin until the Nibbled-On Book drops, because it starts a quest chain worth about 1,700 XP. |
 | Skips | Skip a step, or say you're not doing a quest (its follow-ups drop out too). The Undo button or `/aog undo` takes back your last skips. |
 | Step button | Next to the window. It holds the quest item the step needs, or your hearthstone. You click it; the addon never uses anything by itself. In combat it stays as it is and catches up right after. |
 | "Use it now" reminders | The step button glows (and gently pulses) when the target is in range, when you are at the spot, or right after you loot the item. In the menu: off, glow, glow and text, or glow, text and sound (sound is off unless you pick it). |
@@ -34,8 +34,8 @@ This is a beta. It has two demo routes:
 | Corpse arrow | Right after you release, the arrow points to your corpse, also when the graveyard is in the next zone. There is no corpse arrow when the corpse is on another continent. |
 | Quest items | Tells you when a looted item starts a quest, and gives advice for each quest item in your bags. See [Quest items](#quest-items). |
 | First Aid | With First Aid learned, optional lines say what bandages to make and when to train. See [First Aid](#first-aid). |
-| Map pins | Numbered pins for the current and next steps (at most 12, 1 is the current step) on the world map and the minimap, in the same colours as the step icons. Click one to point the arrow there. Each kind can be turned off in the menu. |
-| Window | Drag the right edge to make it wider or narrower. Window size is in the settings. In combat it shows only the current step. |
+| Map pins | Pins for the current step only (an any-order group's other open stops too, at most 12) on the world map and the minimap, in the same colours as the step icons. Minimap pins follow you smoothly as you move. Click one to point the arrow there. Each kind can be turned off in the menu. |
+| Window | The NOW box sits at the top, right under the section header. The tip line and the "n done" button are under the steps. Drag the right edge to make it wider or narrower. Window size is in the settings. The window looks the same in and out of combat. |
 | Ghost | Walking as a ghost doesn't tick travel steps. |
 | Full quest log | Shows which quests the route doesn't need. |
 | Travel steps | Fly, hearthstone, get a flight path, set your hearthstone, learn, train, use an item, notes, and grind as a last resort. |
@@ -47,15 +47,14 @@ The route packs for levels 1-20 are not in this beta yet.
 The smart arrow is on by default. Switch it in the arrow's right-click menu or on the Arrow settings page.
 
 - While it leads to a door, cave mouth or gate first, the arrow is light blue. Under it is a line like "Through the abbey door", and "Goal: 214 yd".
-- The ring flashes briefly when you pass a door (not with "Less motion").
+- The arrow gives one short pulse when you pass a door (not with "Stop flashing and pulsing", and not when it points straight).
 - "Point straight at the goal" in the arrow's right-click menu turns it off for that one spot.
 - It knows these places so far: Northshire Abbey, Echo Ridge Mine, Fargodeep Mine, Jasperlode Mine, the Goldshire inn, the Den and Burning Blade Coven in the Valley of Trials, Dustwind Cave, Skull Rock, the Razor Hill inn, and the main gates of Stormwind and Orgrimmar. Their positions are first estimates and get better as testers check them.
 - It only shows the way. It never moves your character.
 
 ### Quest items
 
-- When you loot an item that starts a quest, the hint line says "This starts a quest: right-click it". When the guide knows the quest, it also says where to hand it in and the XP. This shows once per item and character.
-- After login and on a level-up, the guide gives one piece of advice for each quest item in your bags: **Do it now**, **Keep for later**, **Bank it** (it can't be got again), **Safe to delete** (quest done, or grey and it drops again) or **Keep it** (unknown). An item whose quest is in your log is never called safe to delete.
+- When you loot an item that starts a quest, the hint line says "This starts a quest: right-click it". When the guide knows the quest, it also says where to hand it in and the XP. This shows once per item and character.- After login and on a level-up, the guide gives one piece of advice for each quest item in your bags: **Do it now**, **Keep for later**, **Bank it** (it can't be got again), **Safe to delete** (quest done, or grey and it drops again) or **Keep it** (unknown). An item whose quest is in your log is never called safe to delete.
 - The full list is on the Hub page "Quest items".
 - The guide never uses, moves or deletes items. You do that yourself.
 
@@ -82,7 +81,7 @@ If v0.1 gave a character the guide for another start area (for example a gnome o
 
 - `/aog` opens or closes the guide window. Esc never closes it.
 - Drag the title bar to move the window. The padlock locks it. The minus button switches to a small window (the NOW box and one next line).
-- Right-click the title bar (or click the menu button) for the guide menu: settings, small mode, lock, quiet mode, the arrow, less motion, map pins, minimap pins, background opacity, reminders, reset positions, report a mistake and the guides.
+- Right-click the title bar (or click the menu button) for the guide menu: settings, small mode, lock, quiet mode, the arrow, stop flashing and pulsing, map pins, minimap pins, background opacity, reminders, reset positions, report a mistake and the guides.
 - Hover a step for its quest, zone, coordinates and why it waits. Click it to point the arrow there. Shift-click puts the quest link into an open chat box (it is never sent). Ctrl-click opens the map there.
 - Right-click a step for skip, make current, not doing this quest, point the arrow here, or copy a `/way` line.
 - Right-click the arrow for skip, hide until the next step, clear a picked spot, smart arrow, lock, size, opacity, click-through and arrival sound (off). The mouse wheel changes its size. Alt+drag moves it while it is locked.

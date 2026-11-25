@@ -16,7 +16,6 @@ Md.FILES = {
     logo_64 = { w = 64, h = 64 },
     -- v0.2 (art agent, 2026-11-25)
     frames = { w = 128, h = 64 },
-    ring = { w = 64, h = 64 },
     minimap = { w = 32, h = 32 },
 }
 
@@ -44,7 +43,7 @@ Md.SLOTS = {
 }
 -- Whole-file textures.
 Md.WHOLE = { ["tex.arrow"] = "arrow", ["tex.arrived"] = "arrived", ["tex.logo"] = "logo_64",
-    ["tex.ring"] = "ring", ["tex.minimap"] = "minimap" }
+    ["tex.minimap"] = "minimap" }
 -- Regions of other files: key -> { file, l, r, t, b } (frames.tga, MANIFEST "frames.tga regions").
 Md.REGIONS = {
     ["frame.stepbutton"] = { "frames", 0, 0.5, 0, 1 },
@@ -64,9 +63,13 @@ function Md.Get(key)
     return Md.PATH .. "glyphs", col * CELL, (col + 1) * CELL, row * CELL, (row + 1) * CELL
 end
 
+-- Keys asked for that resolve to no art (the self-test names them: a placeholder is never silent).
+Md.missed = {}
+
 function Md.Apply(tex, key, flipV)
     local file, l, r, t, b = Md.Get(key)
     if not file then
+        Md.missed[tostring(key)] = true
         if ns.Errors then ns.Errors.Debug("media key %s missing", tostring(key)) end
         tex:SetColorTexture(1, 1, 1, 0.3)   -- visible placeholder, never an error
         return false
@@ -82,6 +85,15 @@ function Md.Apply(tex, key, flipV)
     end
     return true
 end
+
+-- Self-test: no texture so far asked for a key that has no art (it would show a grey placeholder).
+ns.SelfChecks[#ns.SelfChecks + 1] = { label = "media keys", fn = function(h)
+    h.Count()
+    local list = {}
+    for k in pairs(Md.missed) do list[#list + 1] = k end
+    table.sort(list)
+    if #list > 0 then h.Problem("media: no art for " .. table.concat(list, ", ", 1, math.min(#list, 4))) end
+end }
 
 -- Raw texture memory of the shipped art in bytes (32-bit: 4 bytes per pixel).
 function Md.RawBytes()

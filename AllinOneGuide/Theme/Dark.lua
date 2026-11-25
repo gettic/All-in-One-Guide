@@ -71,8 +71,6 @@ ns.Theme.Register("Dark", {
     ["color.notice.snooze"] = "=text.dim",
     ["color.corpse"] = { "#C9D3DF", 1 },
     ["color.pinFace"] = { "#0B0E13", 1 },
-    ["color.ring"] = "=accent",
-    ["color.ringTrack"] = "=barTrack",
     ["color.stepFrame"] = { "#56606D", 1 },
     ["color.stepFrameMissing"] = { "#E0524A", 1 },
     -- v0.2 look review: the Hub, dialog, copy box and menu (text over the world; the guide window keeps
@@ -80,7 +78,7 @@ ns.Theme.Register("Dark", {
     ["color.panelSolid"] = { "#0B0E13", 0.95 },
     ["color.arrowText"] = "=white",           -- the distance under the arrow
     -- smart arrow: while it leads to a door / gate / path point first (not the goal itself)
-    ["color.arrowVia"] = { "#5CC8F0", 1 },    -- the arrow and its ring
+    ["color.arrowVia"] = { "#5CC8F0", 1 },    -- the arrow
     ["color.viaText"] = { "#8FD8F5", 1 },     -- "Through the abbey door" under the distance
     ["color.wait"] = "=notice.hearth",        -- the step button's hourglass
     ["color.minimap"] = "=white",             -- the minimap button while the guide is shown
@@ -141,6 +139,7 @@ ns.Theme.Register("Dark", {
     -- alphas (0..1) and built-in game files (v0.2 look review)
     ["alpha.hover"] = 0.35,       -- the minimap button's highlight
     ["alpha.pulseLow"] = 0.4,     -- the step button's reminder glow pulses between this and 1
+    ["alpha.arrowPulseLow"] = 0.35,  -- smart arrow: the arrow dips to this and back when a door / gate is passed
     ["file.itemUnknown"] = "Interface\\Icons\\INV_Misc_QuestionMark",  -- step button: item icon not known yet
 
     -- slot keys (resolved by Theme\Media.lua)
@@ -207,7 +206,6 @@ ns.Theme.Register("Dark", {
     ["slot.report.other"] = "glyph.report.other",
     ["slot.frame.stepbutton"] = "frame.stepbutton",
     ["slot.frame.glow"] = "frame.glow",
-    ["slot.ring"] = "tex.ring",
     ["slot.minimap"] = "tex.minimap",
     -- radio rows (look review #5): the ring and disc glyphs we already ship
     ["slot.radio.ring"] = "glyph.step.ring",
@@ -215,8 +213,6 @@ ns.Theme.Register("Dark", {
 
     -- motion (seconds; 0 with reduced motion)
     ["motion.flash"] = 0.7,
-    ["motion.slide"] = 0.2,
-    ["motion.fade"] = 0.25,
-    ["motion.combatFade"] = 0.5,  -- panel alpha factor in combat (not a duration)
     ["motion.pulse"] = 1.0,       -- one loop of the step button's glow pulse (low -> 1 -> low)
+    ["motion.arrowPulse"] = 0.3,  -- smart arrow: one arrow pulse (1 -> low -> 1) when a door / gate is passed
 })

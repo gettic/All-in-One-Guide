@@ -112,11 +112,9 @@ function A.ApplyLook()
     f:EnableMouse(not S.Get("arrowClickThrough"))
     if f.EnableMouseWheel then f:EnableMouseWheel(not S.Get("arrowClickThrough")) end
     A.alpha = S.Get("arrowAlpha")
-    A.dirty = true   -- the next frame redraws texts, ring and colours with the new look
+    A.dirty = true   -- the next frame redraws texts and colours with the new look
     local r, g, b = Th.Color("arrived")
     A.arrived:SetVertexColor(r, g, b, A.alpha)
-    local r2, g2, b2 = Th.Color("ringTrack")
-    A.ring:SetVertexColor(r2, g2, b2, 0.8 * A.alpha)
 end
 
 -- Hover: what it points at.
@@ -175,8 +173,7 @@ local function Build()
     local f = CreateFrame("Frame", nil, Co.UIParent())
     A.frame = f
     f:SetFrameStrata("MEDIUM")
-    -- the frame holds the 80x80 progress ring, so clamping keeps the ring on screen; the arrow is 64x64 inside
-    f:SetSize(size * 1.25, size * 1.25)
+    f:SetSize(size, size)
     f:SetClampedToScreen(true)
     f:SetMovable(true)
     f:EnableMouse(true)
@@ -197,22 +194,10 @@ local function Build()
         local d = ns.Settings.byKey.arrowScale
         ns.Settings.Set("arrowScale", ns.U.Clamp(math.floor((ns.Settings.Get("arrowScale") + (delta > 0 and 0.1 or -0.1)) * 10 + 0.5) / 10, d.min, d.max))
     end)
-    -- the progress ring (art: ring.tga, 80x80 around the 64x64 arrow): track while a spot is set, accent
-    -- once inside twice the step's radius
-    A.ring = f:CreateTexture(nil, "BACKGROUND")
-    A.ring:SetSize(size * 1.25, size * 1.25)
-    A.ring:SetPoint("CENTER")
-    Th.Glyph(A.ring, "ring")
     A.tex = f:CreateTexture(nil, "ARTWORK")
     A.tex:SetSize(size, size)
     A.tex:SetPoint("CENTER")
     Th.Glyph(A.tex, "arrow")
-    -- smart arrow: a short flash of the ring when a door / gate point is passed (nothing with reduced motion)
-    A.flash = f:CreateTexture(nil, "BACKGROUND", nil, 1)
-    A.flash:SetSize(size * 1.25, size * 1.25)
-    A.flash:SetPoint("CENTER")
-    Th.Glyph(A.flash, "ring")
-    A.flash:Hide()
     A.arrived = f:CreateTexture(nil, "ARTWORK", nil, 1)
     A.arrived:SetSize(size, size)
     A.arrived:SetPoint("CENTER")
@@ -308,26 +293,31 @@ local function SetShown(show)
     end
 end
 
--- The ring flash (smart arrow: a via point passed). Colour arrowVia; fades out over motion.flash.
-function A.Flash()
-    A.flashes = (A.flashes or 0) + 1
-    local d = Th.Motion("flash")
-    local t = A.flash
+-- The arrow pulse (smart arrow: a door / gate point passed): the arrow itself dips to alpha.arrowPulseLow and
+-- back, once, over motion.arrowPulse (0.3 s). Nothing with reduced motion, with the smart arrow off or while it
+-- points straight. A.pulses counts the passes (also when nothing animates).
+function A.Pulse()
+    A.pulses = (A.pulses or 0) + 1
+    local d = Th.Motion("arrowPulse")
+    local t, SR = A.tex, ns.SmartRoute
     if d <= 0 or not (t and t.CreateAnimationGroup) then return false end
-    if not A.flashAnim then
+    if not (SR and SR.On()) or (A.target and SR.straightFor == A.target) then return false end
+    if not A.pulseAnim then
         local ag = t:CreateAnimationGroup()
-        local a = ag:CreateAnimation("Alpha")
-        a:SetFromAlpha(1)
-        a:SetToAlpha(0)
-        ag:SetScript("OnFinished", function() t:Hide() end)
-        A.flashAnim, A.flashAlpha = ag, a
+        local down, up = ag:CreateAnimation("Alpha"), ag:CreateAnimation("Alpha")
+        down:SetOrder(1)
+        up:SetOrder(2)
+        A.pulseAnim, A.pulseDown, A.pulseUp = ag, down, up
     end
-    local r, g, b = Th.Color("arrowVia")
-    t:SetVertexColor(r, g, b, A.alpha or 1)
-    A.flashAlpha:SetDuration(d)
-    t:Show()
-    A.flashAnim:Stop()
-    A.flashAnim:Play()
+    local low = Th.Alpha("arrowPulseLow", 0.35)
+    A.pulseDown:SetFromAlpha(1)
+    A.pulseDown:SetToAlpha(low)
+    A.pulseDown:SetDuration(d / 2)
+    A.pulseUp:SetFromAlpha(low)
+    A.pulseUp:SetToAlpha(1)
+    A.pulseUp:SetDuration(d / 2)
+    A.pulseAnim:Stop()
+    A.pulseAnim:Play()
     return true
 end
 
@@ -350,14 +340,14 @@ local function ReadPosition()
     end
     if not bearing then return false end
     -- passed a via point on the way to the same target: the route moved on, or it was planned again because you
-    -- walked through into another room (not after going off the route): flash the ring
+    -- walked through into another room (not after going off the route): pulse the arrow
     local old, st = A.via, ns.SmartRoute and ns.SmartRoute.state
     if old and st and A.viaTarget == t and (not via or via.point ~= old.point) and ns.SmartRoute.On()
         and ns.SmartRoute.straightFor ~= t then
         local moved = st.route == old.route and via and (via.index or 0) > (old.index or 0)
         local through = st.route ~= old.route and st.why == "room"
         local last = st.route == old.route and not via
-        if moved or through or last then ns.Errors.Call("ui", A.Flash) end
+        if moved or through or last then ns.Errors.Call("ui", A.Pulse) end
     end
     A.viaTarget = via and t or nil
     A.bearing, A.yards, A.playerMap, A.aim, A.via = bearing, yards, pm, aim, via
@@ -367,7 +357,7 @@ end
 
 -- Draws with the last bearing and the facing now. false when the facing can't be read.
 -- Optimizer #2: between position reads (A.dirty false) only the rotation and its colour change; texts, zone
--- line, anchors, shown state, ring colour and the arrival sound wait for the next read.
+-- line, anchors, shown state and the arrival sound wait for the next read.
 local function Draw()
     local facing = Co.Facing()
     if type(facing) ~= "number" or not A.bearing then return false end
@@ -392,8 +382,6 @@ local function Draw()
     A.arrived:SetShown(here)
     local corpse = A.source == "corpse"
     A.corpse:SetShown(corpse)
-    local rr, rg, rb = Th.Color(via and "arrowVia" or ((here or A.yards <= r * 2) and "ring" or "ringTrack"))
-    A.ring:SetVertexColor(rr, rg, rb, 0.8 * alpha)
     if here then
         A.dist:SetText(ns.L.ARRIVED)
         local tr, tg, tb = Th.Color("arrivedText")

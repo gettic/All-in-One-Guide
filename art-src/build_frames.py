@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# All-in-One Guide - step button frame, reminder glow and progress ring (default "Dark" theme, v0.2).
+# All-in-One Guide - step button frame and reminder glow (default "Dark" theme, v0.2).
 # Copyright (C) 2026 All-in-One Guide contributors
 #
 # This program is free software: you can redistribute it and/or modify it
@@ -9,16 +9,14 @@
 # General Public License for details: <https://www.gnu.org/licenses/>.
 #
 # Plain Python 3, deterministic. Run: python art-src/build_frames.py
-# Writes only AllinOneGuide/media/frames.tga (128x64) and ring.tga (64x64).
+# Writes only AllinOneGuide/media/frames.tga (128x64).
 # frames.tga left 64x64: step button frame (rounded square, top-lit bevel,
 #   see-through middle), shown 52x52 centred on the 36x36 button.
 # frames.tga right 64x64: reminder glow (soft rounded-square halo, white,
 #   alpha only), shown 72x72 centred on the 36x36 button.
-# ring.tga: progress ring (white, 1 px dark rim), shown 80x80 centred on the
-#   64x64 arrow; usable as a Cooldown swipe texture for a radial fill.
 # All white / grey; colour in game with SetVertexColor. Coords: MANIFEST.md.
 import math, os
-from aog_art import MEDIA, Mask, compose, down, ring, rrect, write_tga
+from aog_art import MEDIA, Mask, compose, down, rrect, write_tga
 
 SS = 4
 RIM = (0.02, 0.03, 0.04, 0.90)
@@ -70,13 +68,6 @@ def build_glow():
     return out
 
 
-def build_ring():
-    n = 64 * SS
-    m = Mask(n)
-    m.add(ring(0.5, 0.5, 0.405, 0.465))
-    return down(compose(m, SS, RIM), n, 64)
-
-
 if __name__ == "__main__":
     os.makedirs(MEDIA, exist_ok=True)
     frame, glow = build_frame(), build_glow()
@@ -84,5 +75,4 @@ if __name__ == "__main__":
     for j in range(64):
         sheet += frame[j * 64:(j + 1) * 64] + glow[j * 64:(j + 1) * 64]
     write_tga(os.path.join(MEDIA, "frames.tga"), 128, 64, sheet)
-    write_tga(os.path.join(MEDIA, "ring.tga"), 64, 64, build_ring())
-    print("frames.tga, ring.tga written")
+    print("frames.tga written")

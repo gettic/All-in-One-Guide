@@ -307,7 +307,6 @@ function ST.ArrowParts()
         { name = "arrow", obj = A.frame, opt = true, shownOnly = true },
         { name = "arrow.tex", obj = A.tex, opt = true, shownOnly = true, artSelf = true },
         { name = "arrow.ring", obj = A.arrived, opt = true, shownOnly = true, artSelf = true },
-        { name = "arrow.progress", obj = A.ring, opt = true, shownOnly = true, artSelf = true },
         -- smart arrow: the way line and the goal line (only while it leads to a door / gate first)
         { name = "arrow.via", obj = A.viaText, opt = true, shownOnly = true },
         { name = "arrow.goal", obj = A.goalLine, opt = true, shownOnly = true },

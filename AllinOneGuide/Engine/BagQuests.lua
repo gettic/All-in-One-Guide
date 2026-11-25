@@ -250,7 +250,7 @@ end
 local function Notify(text)
     BQ.stats.notices = BQ.stats.notices + 1
     ns.Notice.Push({ id = "questitems", kind = "questitem", source = "questitems", priority = 20,
-        icon = "step.accept", text = text, button = { text = L().QI_SHOW, fn = OpenHub } })
+        icon = "badge.accept", text = text, button = { text = L().QI_SHOW, fn = OpenHub } })
 end
 BQ.Notify = Notify
 

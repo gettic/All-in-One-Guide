@@ -129,6 +129,16 @@ function PC.Check(pack, opts)
             if not Fm.TYPES[s.type] then Err(where, "unknown type '" .. tostring(s.type) .. "'") end
             if (s.type == "accept" or s.type == "turnin") and not s.quest then Err(where, "needs quest") end
             if s.type == "objective" and not s.quest and not s.item then Err(where, "needs quest or item") end
+            -- capped item farm (the user's grind exception, 2026-11-25): an optional item objective without a
+            -- quest keeps you killing on the route until a quest-starting drop is in your bags. It ends on loot,
+            -- needs a why (what the item starts and its XP) and a cap of a few minutes (estMin, which marks the step as a farm), never a grind gap.
+            if s.type == "objective" and not s.quest and s.item and s.estMin ~= nil then
+                local opt = false
+                for _, f in ipairs(s.flags or {}) do if f == "optional" then opt = true end end
+                if not opt then Err(where, "item farm must be optional (skippable)") end
+                if not s.why then Err(where, "item farm without why") end
+                if type(s.estMin) ~= "number" or s.estMin > 5 then Err(where, "item farm needs a cap: estMin of 5 minutes or less") end
+            end
             if s.type == "goto" and not (s.map and s.x and s.y) then Err(where, "needs map, x, y") end
             if s.type == "level" and not s.level then Err(where, "needs level") end
             -- format 2 types
