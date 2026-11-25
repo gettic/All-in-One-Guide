@@ -221,8 +221,8 @@ local function CheckPart(p, coverers)
     local lv, ss = Level(o), Strata(o)
     if lv == "secret" or ss == "secret" then return Skip(p.name, "(secret)") end
 
-    -- Not under another part that covers a good share of it.
-    if type(lv) == "number" then
+    -- Not under another part that covers a good share of it (p.behind: a background meant to sit behind them).
+    if type(lv) == "number" and not p.behind then
         Count()
         for _, c in ipairs(coverers or {}) do
             if c.obj ~= o and Related(o, c.obj) == false and select(2, Read(c.obj, "IsVisible")) == true then
@@ -279,15 +279,24 @@ function ST.MainParts()
         { name = "header", obj = UI.header, shownOnly = small },
         { name = "area", obj = UI.area },
         { name = "row1", obj = UI.rows and UI.rows[1], opt = not guide, shownOnly = not guide },
+        -- the NOW box around the current step, its header, and the NEXT header (shown when steps follow)
+        { name = "now", obj = UI.nowBox and UI.nowBox.bg, opt = not guide, shownOnly = not guide, behind = true },
+        { name = "now.head", obj = UI.nowBox and UI.nowBox.head, opt = not guide, shownOnly = not guide },
+        { name = "next.head", obj = UI.nextHead, opt = true, shownOnly = true },
         { name = "state", obj = UI.stateText, shownOnly = true },
         { name = "state.icon", obj = UI.stateIcon, shownOnly = true, artSelf = true },
         { name = "notice", obj = UI.noticeLine, shownOnly = true },
         { name = "notice.icon", obj = nl.icon, opt = true, shownOnly = true, artSelf = true },
         { name = "chip", obj = UI.chip, shownOnly = true },
         { name = "chip.tick", obj = UI.chip and UI.chip.tick, opt = true, shownOnly = true, artSelf = true },
+        -- look review #7: the chip is a small button (fill + caret)
+        { name = "chip.fill", obj = UI.chip and UI.chip.fill, opt = true, shownOnly = true },
+        { name = "chip.caret", obj = UI.chip and UI.chip.caret, opt = true, shownOnly = true, artSelf = true },
         { name = "footer", obj = UI.footer, shownOnly = small },
         { name = "footer.back", obj = ft.prev, shownOnly = small, art = { "icon" } },
         { name = "footer.next", obj = ft.next, shownOnly = small, art = { "icon" } },
+        -- v0.2 M3: the width grip (hidden while locked)
+        { name = "grip", obj = UI.grip, opt = true, shownOnly = true },
     }
 end
 
@@ -298,6 +307,10 @@ function ST.ArrowParts()
         { name = "arrow", obj = A.frame, opt = true, shownOnly = true },
         { name = "arrow.tex", obj = A.tex, opt = true, shownOnly = true, artSelf = true },
         { name = "arrow.ring", obj = A.arrived, opt = true, shownOnly = true, artSelf = true },
+        { name = "arrow.progress", obj = A.ring, opt = true, shownOnly = true, artSelf = true },
+        -- smart arrow: the way line and the goal line (only while it leads to a door / gate first)
+        { name = "arrow.via", obj = A.viaText, opt = true, shownOnly = true },
+        { name = "arrow.goal", obj = A.goalLine, opt = true, shownOnly = true },
     }
 end
 
@@ -387,6 +400,12 @@ local function CheckTheme()
             if s < Th.MIN_FONT or s % 1 ~= 0 then bad = "font size " .. tostring(s) end
         elseif kind == "size" then
             if type(Th.Raw(key)) ~= "number" then bad = "not a number" end
+        elseif kind == "alpha" then
+            local v = Th.Raw(key)
+            if type(v) ~= "number" or v < 0 or v > 1 then bad = "not an alpha 0..1" end
+        elseif kind == "file" then
+            local v = Th.Raw(key)
+            if type(v) ~= "string" or not v:find("^Interface\\") then bad = "not a game file path" end
         end
         if bad then Problem("THEME", key, bad) end
     end
@@ -667,6 +686,9 @@ function ST:Start(mode)
     Guard("locale", CheckLocale)
     Guard("perf", CheckPerf)
     Guard("rotation", CheckRotation)
+    -- checks added by later modules (API, Gear Set link, atlases ...)
+    local h = { Count = Count, Problem = Problem, Skip = Skip, Info = Info }
+    for _, c in ipairs(ns.SelfChecks) do Guard(c.label, c.fn, h) end
     if ns.safeMode then
         Skip("ui", "(safe mode)")
         return Finish()

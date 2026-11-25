@@ -3,11 +3,15 @@
 ## Title: All-in-One Guide
 ## Notes: Leveling guide with one guide window and a waypoint arrow.
 ## Author: gettic
-## Version: 0.1.0-beta.1
-## SavedVariables: AllinOneGuideDB
+## Version: 0.2.0-beta.1
+## SavedVariables: AllinOneGuideDB, AllinOneGuideRecDB
 ## SavedVariablesPerCharacter: AllinOneGuideCharDB
 ## IconTexture: Interface\AddOns\AllinOneGuide\media\logo_64
 ## X-License: GPL-3.0-or-later
+## OptionalDeps: GearSet
+## AddonCompartmentFunc: AllinOneGuide_OnCompartmentClick
+## AddonCompartmentFuncOnEnter: AllinOneGuide_OnCompartmentEnter
+## AddonCompartmentFuncOnLeave: AllinOneGuide_OnCompartmentLeave
 
 Core\Init.lua
 Core\Util.lua
@@ -17,16 +21,22 @@ Core\Callbacks.lua
 Core\Registry.lua
 Core\Scheduler.lua
 Core\Slash.lua
+Core\API.lua
 Locale\Locale.lua
 Locale\enUS.lua
 Locale\daDK.lua
 Compat\ApiList.lua
 Compat\Compat.lua
+Core\CombatQueue.lua
 DB\DB.lua
 DB\Settings.lua
 DB\Serializer.lua
 Data\GameState.lua
 Data\Geo.lua
+Data\QuestData.lua
+Data\QuestItems.lua
+Data\FirstAid.lua
+Data\Taxi.lua
 Data\Names.lua
 Packs\Format.lua
 Packs\Conditions.lua
@@ -34,11 +44,21 @@ Packs\StepTypes.lua
 Packs\Packs.lua
 Engine\Guide.lua
 Engine\Engine.lua
+Engine\Reminders.lua
+Engine\Waypoint.lua
+Engine\SmartRoute.lua
+Engine\BagQuests.lua
+Engine\FirstAid.lua
+Link\GearSet.lua
 Routes\Durotar.lua
 Routes\Elwynn.lua
+Routes\Connectors.lua
 Theme\Theme.lua
 Theme\Dark.lua
 Theme\Media.lua
+Theme\Atlas.lua
+Theme\Overlay.lua
+UI\Hooks.lua
 UI\Kit.lua
 UI\Menu.lua
 UI\Popups.lua
@@ -46,5 +66,18 @@ UI\Notice.lua
 UI\Rows.lua
 UI\Window.lua
 UI\Arrow.lua
+UI\StepButton.lua
+UI\Pins.lua
+UI\Keys.lua
+UI\Settings.lua
+UI\Minimap.lua
+Data\Report.lua
+UI\Hub.lua
+UI\HubReport.lua
+UI\HubAbout.lua
+UI\HubNews.lua
+UI\HubBag.lua
+Core\Conflicts.lua
+Dev\Recorder.lua
 SelfTest\SelfTest.lua
 Core\Boot.lua

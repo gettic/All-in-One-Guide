@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 gettic
+name: Mistake report
+description: A guide step is wrong (place, order, missing quest, doesn't tick, text, danger).
+title: "[Report] "
+labels: ["guide-report", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **This page is public.** Everyone can read what you write here. Please don't paste your character name, realm, guild, account or e-mail.
+        In game: open the guide's title menu, pick **Report a mistake** (or type `/aog report`), choose what is wrong and which step, then press **Copy the report** and paste it below. (No GitHub account? Press **Send** in the game instead, or paste it on the report web page shown in the copy box.)
+        The report line holds no names: only version numbers, the guide and step, your level, race and class, and (unless you left it out) where you stood.
+  - type: textarea
+    id: report
+    attributes:
+      label: Report line
+      description: The line that starts with `AOGR2` (Ctrl+A, Ctrl+C in the copy box, then Ctrl+V here).
+      render: text
+    validations:
+      required: true
+  - type: dropdown
+    id: type
+    attributes:
+      label: What is wrong?
+      description: The same choice you made in game (the report line has it too).
+      options:
+        - Wrong place on the map
+        - Wrong order
+        - Quest isn't there
+        - Step doesn't tick
+        - Text is wrong
+        - Dangerous spot
+        - Something else
+    validations:
+      required: false
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else?
+      description: Optional. What would be right? A screenshot of the spot helps (crop out names and chat).
+    validations:
+      required: false
+  - type: checkboxes
+    id: grant
+    attributes:
+      label: Licence
+      options:
+        - label: I agree that what I report here may be used to fix the guides under the addon's licence (GNU GPL, version 3 or later).
+          required: true

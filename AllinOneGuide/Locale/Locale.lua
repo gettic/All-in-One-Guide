@@ -76,19 +76,20 @@ function Lo.Switch(setting)
         ns.Print(L.LANG_SAME)
         return true
     end
-    ns.Popups.Confirm({ kind = "lang", text = L.LANG_RELOAD,
-        accept = function() if not ns.Compat.Reload() then ns.Print(L.LANG_LATER) end end,
-        cancel = function() ns.Print(L.LANG_LATER) end })
+    -- ReloadUI is protected on 16001 (ADDON_ACTION_BLOCKED, beta.1): the dialog only says to type /reload
+    -- (one OK button); the chat line stays as a reminder after it closes
+    ns.Popups.Confirm({ kind = "lang", text = L.LANG_RELOAD, acceptText = L.POPUP_OK, noCancel = true,
+        accept = function() ns.Print(L.LANG_LATER) end })
     return true
 end
 
--- First run on an English UI: one hint "Dansk? /aog lang da" (in Danish on purpose; once per account).
+-- First run on an English UI: one chat line "Dansk? Skriv /aog lang da." (in Danish on purpose; once per account).
 function Lo.Hint()
     if ns.safeMode or ns.DB.readOnly.account or ns.Test.quietFirstRun then return end
     if ns.Settings.Get("hintLang") or ns.Settings.Get("lang") ~= "auto" or Lo.code ~= "enUS" then return end
     ns.Settings.Set("hintLang", true)
-    ns.Notice.Push({ id = "lang-da", kind = "lang", text = "Dansk? /aog lang da", priority = 5,
-        button = { text = "Dansk", fn = function() Lo.Switch("da") end } })
+    -- one chat line (not the notice line: that slot is for the guide; player review, beta.2)
+    ns.Print("Dansk? Skriv /aog lang da.")
 end
 -- a few seconds after login, once the window and the guide have settled
 ns.Bus.On("Login", Lo, function() ns.Compat.After(3, function() ns.Errors.Call("ui", Lo.Hint) end) end, "ui", 85)
@@ -101,6 +102,42 @@ function Lo.F(key, fields) return U.Fill(ns.L[key], fields) end
 -- Plural helper: KEY_ONE / KEY_MANY, both with {n}.
 function Lo.Plural(n, key)
     return U.Fill(ns.L[key .. ((n == 1) and "_ONE" or "_MANY")], { n = n })
+end
+
+-- Number, time and date formats per language (v0.2 M4). English: 1,234.5 and 2026-11-25; Danish:
+-- 1.234,5 and 25.11.2026; both use a 24-hour clock. Coordinates (/way lines) stay with a dot on purpose:
+-- the /way command reads them back.
+Lo.FORMATS = {
+    enUS = { dec = ".", group = ",", date = "{y}-{m}-{d}" },
+    daDK = { dec = ",", group = ".", date = "{d}.{m}.{y}" },
+}
+local function Fmt() return Lo.FORMATS[Lo.code or "enUS"] or Lo.FORMATS.enUS end
+
+function Lo.Number(n, decimals)
+    n = tonumber(n) or 0
+    local f = Fmt()
+    local s = ("%." .. (decimals or 0) .. "f"):format(math.abs(n))
+    local int, frac = s:match("^(%d+)%.?(%d*)$")
+    int = int:reverse():gsub("(%d%d%d)", "%1" .. f.group):reverse()
+    if int:sub(1, 1) == f.group then int = int:sub(2) end
+    local out = int .. ((frac ~= "" and (f.dec .. frac)) or "")
+    if n < 0 and tonumber(s) ~= 0 then out = "-" .. out end
+    return out
+end
+
+-- Seconds -> "1:05" (under an hour) or "1:02:05".
+function Lo.Duration(seconds)
+    local s = math.max(0, math.floor((tonumber(seconds) or 0) + 0.5))
+    local h, m = math.floor(s / 3600), math.floor(s % 3600 / 60)
+    if h > 0 then return ("%d:%02d:%02d"):format(h, m, s % 60) end
+    return ("%d:%02d"):format(m, s % 60)
+end
+
+-- Hours and minutes -> "14:05" (24-hour in both languages).
+function Lo.Clock(hour, minute) return ("%02d:%02d"):format((tonumber(hour) or 0) % 24, (tonumber(minute) or 0) % 60) end
+
+function Lo.Date(y, m, d)
+    return U.Fill(Fmt().date, { y = ("%04d"):format(tonumber(y) or 0), m = ("%02d"):format(tonumber(m) or 0), d = ("%02d"):format(tonumber(d) or 0) })
 end
 
 -- Test hook: a pseudo-long locale (+40 %, with æøå) built from English, placeholders kept.

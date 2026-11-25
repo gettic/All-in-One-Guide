@@ -6,7 +6,8 @@
 --   ns.Menu.Close(), ns.Menu.IsOpen()
 local _, ns = ...
 local Th, K = ns.Theme, ns.UIKit
-local Mn = { buttons = {}, WIDTH = 190, MAX = 12 }
+-- MAX: the title menu has 13-17 rows since v0.2 (before, rows past 12 were cut off: the language rows)
+local Mn = { buttons = {}, WIDTH = 190, MAX = 20 }
 ns.Menu = Mn
 
 local function Build()
@@ -22,6 +23,7 @@ local function Build()
     f:SetScript("OnHide", function()
         Mn.items = nil
         ns.Events.Off("GLOBAL_MOUSE_DOWN", Mn)
+        Mn.Closed()
     end)
     K.CloseOnEsc("AllinOneGuideMenu")
     Mn.frame = f
@@ -72,10 +74,22 @@ end
 
 -- Esc: the frame's name is in UISpecialFrames, so Blizzard's own Esc code hides it (OnHide cleans up).
 
+-- The opener's opts.onClose runs once when its list goes away (hidden, or another list takes its place).
+function Mn.Closed()
+    local o = Mn.opts
+    if o and o.onClose and not o.closed then
+        o.closed = true
+        ns.Errors.Call("ui", o.onClose)
+    end
+end
+
 -- opts.right = line the menu's right edge up with the anchor's (for a button at the window's right).
+-- opts.onClose = fn (the list went away; e.g. the done chip's caret turns back).
 function Mn.Open(anchor, items, opts)
     if not Mn.frame then Build() end
     local f = Mn.frame
+    if Mn.opts ~= opts then Mn.Closed() end
+    if opts then opts.closed = nil end
     Mn.anchor, Mn.items = anchor, items
     local n = math.min(#items, Mn.MAX)
     for i = 1, n do

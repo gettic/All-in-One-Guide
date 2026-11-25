@@ -6,7 +6,10 @@
 -- Readiness gate: nothing may tick (complete, auto-skip, "abandoned") before the first full snapshot
 -- after login; ticking also pauses during loading screens and taxi flights.
 --   bus: Ready, QuestsChanged(changed), QuestTurnedIn(id), ItemsChanged(changed), LevelChanged(level),
---        ZoneChanged, CombatStarted, CombatEnded, PauseChanged(paused)
+--        ZoneChanged, CombatStarted, CombatEnded, PauseChanged(paused),
+--        XPChanged, DeadChanged(dead, ghost), BindChanged(name)   (v0.2; fields GS.xp / xpMax / dead / ghost /
+--        instance / bind)
+--        BagsChanged(bags)   (v0.2: set of changed bag ids 0..LAST_BAG, for the quest-item scan)
 local _, ns = ...
 local Co = ns.Compat
 local GS = { quests = {}, count = 0, ready = false, loading = false, taxi = false, items = {}, watched = {},
@@ -15,6 +18,9 @@ ns.GameState = GS
 
 local QUEST_EVENTS = { "QUEST_LOG_UPDATE", "QUEST_ACCEPTED", "QUEST_REMOVED", "QUEST_WATCH_UPDATE", "UNIT_QUEST_LOG_CHANGED" }
 local DEBOUNCE = 0.1
+-- the backpack (0) and the four bag slots (Constants.InventoryConstants.NumBagSlots = 4 in Classic;
+-- Blizzard_FrameXMLBase\Constants.lua NUM_BAG_SLOTS); bank and keyring are never scanned
+GS.LAST_BAG = 4
 
 -- ------------------------------------------------------------------ quests
 local function ReadQuest(id, old)
@@ -78,7 +84,16 @@ function GS.UnwatchItem(id)
 end
 function GS.ItemCount(id) return GS.items[id] or 0 end
 
+-- v0.2: which bags changed since the last burst (BAG_UPDATE bagID; only numbers kept), for the quest-item
+-- scan (bus BagsChanged(set of bag ids)); nothing is read here.
+GS.dirtyBags = {}
+
 local function ReadItems()
+    if next(GS.dirtyBags) then
+        local bags = GS.dirtyBags
+        GS.dirtyBags = {}
+        ns.Bus.Fire("BagsChanged", bags)
+    end
     local changed
     for id in pairs(GS.watched) do
         local n = Co.ItemCount(id)
@@ -99,6 +114,8 @@ function GS.MarkReady()
 end
 
 function GS.Paused() return GS.loading or GS.taxi end
+
+function GS.ReadXP() GS.xp, GS.xpMax = Co.XP() end
 function GS.CanTick() return GS.ready and not GS.loading and not GS.taxi end
 
 local function SetPause(loading, taxi)
@@ -123,9 +140,13 @@ function GS.Start()
         end
         QueueSnapshot()
     end, "questlog")
+    E.On("BAG_UPDATE", GS, function(_, bag)
+        if type(bag) == "number" and bag >= 0 and bag <= GS.LAST_BAG then GS.dirtyBags[bag] = true end
+    end, "bags")
     E.On("BAG_UPDATE_DELAYED", GS, function() E.Debounce("items", DEBOUNCE, ReadItems, "bags") end, "bags")
     E.On("PLAYER_LEVEL_UP", GS, function(_, level)
         GS.level = tonumber(level) or GS.level
+        GS.ReadXP()
         ns.Bus.Fire("LevelChanged", GS.level)
     end, "player")
     E.On("LOADING_SCREEN_ENABLED", GS, function() SetPause(true, GS.taxi) end, "core")
@@ -135,7 +156,36 @@ function GS.Start()
     end, "core")
     E.On("PLAYER_CONTROL_LOST", GS, function() SetPause(GS.loading, Co.OnTaxi()) end, "core")
     E.On("PLAYER_CONTROL_GAINED", GS, function() SetPause(GS.loading, Co.OnTaxi()) end, "core")
-    E.On("ZONE_CHANGED_NEW_AREA", GS, function() ns.Bus.Fire("ZoneChanged") end, "core")
+    E.On("ZONE_CHANGED_NEW_AREA", GS, function()
+        GS.instance = Co.InInstance()
+        ns.Bus.Fire("ZoneChanged")
+    end, "core")
+    -- v0.2: XP (grind / level bars, under-level texts), death (goto pauses), the hearthstone bind
+    E.On("PLAYER_XP_UPDATE", GS, function(_, unit)
+        if unit ~= nil and unit ~= "player" then return end
+        GS.ReadXP()
+        ns.Bus.Fire("XPChanged")
+    end, "player")
+    -- The client sends PLAYER_DEAD (dead, not a ghost), PLAYER_ALIVE at the release (still dead, now a ghost)
+    -- and PLAYER_UNGHOST; DeadChanged fires when dead OR ghost changes, so the release is seen too.
+    local function Dead()
+        local d, g = Co.Dead(), Co.Ghost()
+        if d ~= GS.dead or g ~= GS.ghost then
+            GS.dead, GS.ghost = d, g
+            ns.Bus.Fire("DeadChanged", d, g)
+        end
+    end
+    E.On("PLAYER_DEAD", GS, Dead, "player")
+    E.On("PLAYER_ALIVE", GS, Dead, "player")
+    E.On("PLAYER_UNGHOST", GS, Dead, "player")
+    E.On("HEARTHSTONE_BOUND", GS, function()
+        GS.bind = Co.BindLocation()
+        ns.Bus.Fire("BindChanged", GS.bind)
+    end, "hearth")
+    GS.ReadXP()
+    GS.dead, GS.ghost = Co.Dead(), Co.Ghost()
+    GS.instance = Co.InInstance()
+    GS.bind = Co.BindLocation()
     E.On("PLAYER_REGEN_DISABLED", GS, function() ns.Bus.Fire("CombatStarted") end, "core")
     E.On("PLAYER_REGEN_ENABLED", GS, function() ns.Bus.Fire("CombatEnded") end, "core")
     GS.level = Co.Player().level

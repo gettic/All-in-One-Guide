@@ -9,7 +9,21 @@ ns.Serializer = Ser
 
 Ser.kinds = {
     status = { "v", "client", "st", "on", "off", "safe", "ro", "err", "login", "mem" },
+    -- v0.2 M5: the report string "AOGR2 ..." (Data\Report.lua; plans\tools\report-decode.lua reads it).
+    -- Fields: report id, addon version, client line, self-test line, language, type (about), pack / pack
+    -- version / format / route, step id / step hash / include path, quest state, condition result, level,
+    -- XP %, faction, race, class, Hardcore, map / x / y / radius / distance, location removed, NPC id
+    -- (evidence), knownIssue, other addons, last 3 steps, engine lines, note. Never a name.
+    R2 = { "rid", "v", "c", "st", "lang", "ab", "pk", "pv", "fv", "rt", "sid", "sh", "inc", "qs", "cnd", "lv", "xp",
+        "fa", "ra", "cl", "hc", "map", "x", "y", "r", "d", "noloc", "npc", "ki", "cf", "l3", "eng", "note" },
+    -- v0.2 M6: the dev recorder export "AOGREC1 ..." (Dev\Recorder.lua; tools\recmerge.lua reads it).
+    -- Header: h=1, addon version, client line, records on this page, page "i/n". Records: kind, quest,
+    -- NPC id, object id, instance id, start item, map, x / y (0-100), sightings, item ids. Never a name.
+    REC1 = { "h", "v", "c", "cnt", "pg", "k", "q", "npc", "obj", "ins", "from", "m", "x", "y", "n", "it" },
 }
+-- kinds whose values are escaped strictly: every byte outside a small plain set becomes %XX (non-ASCII,
+-- line breaks, separators), so the string survives any paste
+Ser.strict = { R2 = true, REC1 = true }
 
 local function Escape(v)
     local s = tostring(v)
@@ -17,6 +31,11 @@ local function Escape(v)
     return s
 end
 Ser.Escape = Escape
+
+local function StrictEscape(v)
+    return (tostring(v):gsub("[^%w %.,:_/%+%(%)'!%?%-]", function(c) return ("%%%02X"):format(c:byte()) end))
+end
+Ser.StrictEscape = StrictEscape
 
 -- fields = { key = value, ... }; returns "AOG<kind> k=v;k=v" in the allowlist's order.
 function Ser.Build(kind, fields)
@@ -36,7 +55,7 @@ function Ser.Build(kind, fields)
                 error("serializer: field " .. k .. " must be plain, got " .. t, 2)
             end
             if t == "boolean" then v = v and 1 or 0 end
-            parts[#parts + 1] = k .. "=" .. Escape(v)
+            parts[#parts + 1] = k .. "=" .. (Ser.strict[kind] and StrictEscape(v) or Escape(v))
         end
     end
     return "AOG" .. kind .. " " .. table.concat(parts, ";")

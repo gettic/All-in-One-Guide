@@ -9,7 +9,7 @@
 # General Public License for details: <https://www.gnu.org/licenses/>.
 #
 # Plain Python 3 (math + struct only). Run: python art-src/build_logo.py
-# Writes only to AllinOneGuide/media/: logo_64.tga, logo_128.tga
+# Writes only to AllinOneGuide/media/: logo_64.tga
 # (32-bit BGRA with alpha, uncompressed, bottom-up rows).
 import math, os, struct
 
@@ -140,6 +140,5 @@ def write_tga(path, size, px):
 if __name__ == "__main__":
     os.makedirs(MEDIA, exist_ok=True)
     art = logo_waypoint()
-    for m in (64, 128):
-        write_tga(os.path.join(MEDIA, "logo_%d.tga" % m), m, art.down(m))
-    print("logo_64.tga, logo_128.tga written")
+    write_tga(os.path.join(MEDIA, "logo_64.tga"), 64, art.down(64))
+    print("logo_64.tga written")

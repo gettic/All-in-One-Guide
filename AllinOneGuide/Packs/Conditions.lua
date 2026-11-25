@@ -11,10 +11,16 @@ ns.Conditions = Cd
 
 -- Keys for "who is this for" conditions, and goal words (override goals and checker goals).
 Cd.KEYS = { level = "number", class = "set", race = "set", faction = "set", sex = "set", prof = "true",
-    flag = "set", spec = "true", role = "true" }
+    flag = "set", spec = "true", role = "true",
+    -- v0.2: item=<id>[:<count>] = that many in the bags (a read-only count; optional steps only, packcheck)
+    item = "item",
+    -- v0.2: skill=firstaid>=50 / skill=firstaid<50 (a read-only skill rank; unknown = false)
+    skill = "skill" }
+-- skill names the condition knows, and their skill line ids (SkillLineAttributes.skillID)
+Cd.SKILLS = { firstaid = 129 }
 Cd.GOALS = { done = "id", inlog = "id", ready = "id", item = "item" }
 -- keys whose answer can change while playing (everything else is cached per character)
-Cd.DYNAMIC = { level = true, flag = true, done = true, inlog = true, ready = true, item = true }
+Cd.DYNAMIC = { level = true, flag = true, done = true, inlog = true, ready = true, item = true, skill = true }
 
 local function Tokens(s)
     local t, i, n = {}, 1, #s
@@ -50,6 +56,12 @@ local function Atom(word, goals)
     if kind == "number" then
         a.num = tonumber(value)
         if not a.num then return nil, "not a number in '" .. word .. "'" end
+    elseif kind == "skill" then
+        if op ~= "=" then return nil, "write skill=<name>>=<n> in '" .. word .. "'" end
+        local name, cmp, n = value:match("^(%a+)([<>]=?)(%d+)$")
+        if not name then return nil, "write skill=<name>>=<n> or skill=<name><<n> in '" .. word .. "'" end
+        if not Cd.SKILLS[name:lower()] then return nil, "unknown skill '" .. name .. "' in '" .. word .. "'" end
+        a.skill, a.cmp, a.num = name:lower(), cmp, tonumber(n)
     else
         if op ~= "=" then return nil, "only '=' works with " .. key end
         a.values = {}
@@ -58,6 +70,7 @@ local function Atom(word, goals)
             for i, v in ipairs(a.values) do
                 local id, count = v:match("^(%d+):?(%d*)$")
                 if not id then return nil, "not an id in '" .. word .. "'" end
+                if count ~= "" and tonumber(count) < 1 then return nil, "count must be 1 or more in '" .. word .. "'" end
                 a.values[i] = { tonumber(id), tonumber(count) or 1 }
             end
         end
@@ -176,6 +189,13 @@ local function Eval(a, ctx)
         if not f then return false end
         for _, v in ipairs(a.values) do if f(v[1]) then return true end end
         return false
+    elseif a.kind == "skill" then
+        local f = ctx.skill
+        local r = f and f(a.skill)
+        if type(r) ~= "number" then return false end
+        local n, c = a.num, a.cmp
+        if c == ">=" then return r >= n elseif c == "<=" then return r <= n elseif c == ">" then return r > n end
+        return r < n
     elseif a.kind == "item" then
         local f = ctx.itemCount
         if not f then return false end
@@ -183,6 +203,19 @@ local function Eval(a, ctx)
         return false
     end
     return false
+end
+
+-- The item ids an ast asks about (item=<id>[:<count>]), added to the set `out` (returned).
+function Cd.Items(ast, out)
+    out = out or {}
+    if type(ast) ~= "table" then return out end
+    if ast.op == "atom" then
+        if ast.kind == "item" then for _, v in ipairs(ast.values) do out[v[1]] = true end end
+    else
+        Cd.Items(ast[1], out)
+        Cd.Items(ast[2], out)
+    end
+    return out
 end
 
 -- true / false; a condition with an unknown word is never true ("not applicable").

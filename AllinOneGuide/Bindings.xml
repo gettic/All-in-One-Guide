@@ -1,0 +1,25 @@
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- Copyright (C) 2026 gettic -->
+<!-- Key bindings for Blizzard's key binding page (names: UI\Keys.lua). No keys are set by the addon. -->
+<Bindings>
+	<Binding name="ALLINONEGUIDE_TOGGLE" header="ALLINONEGUIDE" category="ADDONS">
+		AllinOneGuide.Binding("toggle")
+	</Binding>
+	<Binding name="ALLINONEGUIDE_NEXT" category="ADDONS">
+		AllinOneGuide.Binding("next")
+	</Binding>
+	<Binding name="ALLINONEGUIDE_BACK" category="ADDONS">
+		AllinOneGuide.Binding("back")
+	</Binding>
+	<Binding name="ALLINONEGUIDE_SKIP" category="ADDONS">
+		AllinOneGuide.Binding("skip")
+	</Binding>
+	<Binding name="CLICK AllinOneGuideStepButton:LeftButton" category="ADDONS">
+	</Binding>
+	<Binding name="ALLINONEGUIDE_ARROW" category="ADDONS">
+		AllinOneGuide.Binding("arrow")
+	</Binding>
+	<Binding name="ALLINONEGUIDE_MENU" category="ADDONS">
+		AllinOneGuide.Binding("menu")
+	</Binding>
+</Bindings>

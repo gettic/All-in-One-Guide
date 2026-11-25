@@ -32,7 +32,8 @@ function N.Quest(id, fallback)
         end
         if not N.asked[id] then
             N.asked[id] = true
-            Co.RequestQuest(id)
+            -- through the one rate-limited request queue (tos R2)
+            ns.QuestData.Request(id)
         end
     end
     return fallback or "...", false

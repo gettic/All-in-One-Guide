@@ -12,7 +12,8 @@ local E = { guides = {}, focus = nil, listening = {}, ticker = nil, detourSource
     restored = false }
 ns.Engine = E
 
-local ALWAYS = { Ready = true, PauseChanged = true, LevelChanged = true, Login = true }
+local ALWAYS = { Ready = true, PauseChanged = true, LevelChanged = true, Login = true, QuestNotAvailable = true,
+    SkillChanged = true }   -- v0.2: skill= conditions (rare: a skill point or a new rank)
 
 -- The condition context (one table, refreshed before each evaluation round).
 local ctx = { flags = {} }
@@ -23,6 +24,12 @@ ctx.ready = function(q) local s = GS.Quest(q) return s ~= nil and s.complete end
 ctx.itemCount = function(id)
     if GS.watched[id] then return GS.ItemCount(id) end
     return Co.ItemCount(id) or 0
+end
+
+-- v0.2: skill=<name>>=<n> reads the First Aid module's last (debounced) read; nil = unknown
+ctx.skill = function(name)
+    local r = ns.FirstAid and ns.FirstAid.Rank(name)
+    return type(r) == "number" and r or nil
 end
 
 function E.UpdateCtx()
@@ -77,8 +84,7 @@ function E.SaveActive()
 end
 
 -- After the first full game-state snapshot: reopen the saved active guides (the focused one last).
-function E.Restore()
-    E.restored = true
+local function Reopen()
     local focus = ns.DB.char.focus
     for _, k in ipairs(ns.DB.char.active or {}) do
         local packId, routeId = tostring(k):match("^([^/]+)/(.+)$")
@@ -87,27 +93,109 @@ function E.Restore()
     local fp, fr = tostring(focus or ""):match("^([^/]+)/(.+)$")
     if fp and P.packs[fp] then E.Open(fp, fr) end
     E.RefreshAll()
-    if not ns.Test.quietFirstRun then ns.Errors.Call("engine", E.FirstPick) end
+end
+
+function E.Restore()
+    E.restored = true
+    Reopen()
+    if not ns.Test.quietFirstRun then
+        -- a renamed character: ask "move data?" first; the first-login pick only runs when there is nothing to move
+        local _, asked = ns.Errors.Call("engine", E.OfferMove)
+        if not asked then
+            ns.Errors.Call("engine", E.FixWrongStart)   -- a v0.1 pick for another start (bug-first-step cause 2)
+            ns.Errors.Call("engine", E.FirstPick)
+        end
+        ns.Errors.Call("engine", E.OfferUpgrade)
+    end
+end
+
+-- ------------------------------------------------------------------ "move data?" after a rename
+-- DB.FindMoveCandidate (at login) found exactly one known character with the same class, race, faction and
+-- level under another name, and this character's save is new. Ask once; yes copies its guide progress here
+-- (the old entry is kept), no goes on with the normal first-login pick. Returns true when the dialog is queued.
+function E.OfferMove()
+    local cand = ns.DB.moveCandidate
+    if type(cand) ~= "string" or ns.safeMode or ns.DB.readOnly.char or ns.DB.readOnly.account then return false end
+    if E.Focused() then return false end
+    local name = ns.DisplayName(cand:match("^([^%-]+)") or cand)
+    return ns.Popups.Confirm({ kind = "move", text = ns.U.Fill(ns.L.DIALOG_MOVE, { name = name }),
+        acceptText = ns.L.POPUP_MOVE, cancelText = ns.L.POPUP_FRESH,
+        accept = function() E.MoveIn(cand) end,
+        cancel = function()
+            ns.DB.moveCandidate = nil
+            E.FirstPick()
+        end }) == true
+end
+
+function E.MoveIn(cand)
+    local open = {}
+    for k in pairs(E.guides) do open[#open + 1] = k end
+    for _, k in ipairs(open) do E.Close(k) end
+    if not ns.DB.MoveFrom(cand) then return false end
+    local flags = ns.DB.char.flags
+    if type(flags) == "table" then flags.guidePicked = true end
+    Reopen()
+    local g = E.Focused()
+    if g then ns.Bus.Fire("StepChanged", g) end
+    ns.Print(ns.L.MOVE_DONE)
+    return true
 end
 
 -- ------------------------------------------------------------------ picking a guide
--- The first route pack whose header conditions fit this character and whose level range isn't
--- behind it (pack order = id order, so the pick never depends on load order). nil when none fits.
-function E.Suggest()
+-- Does a route pack fit this character? Header conditions (faction ...) and a level range that isn't
+-- behind it; with needEntry also the pack's `entry` (race / start area): a guide is only picked by
+-- itself where the character really starts (beta.2 fix: a night elf no longer gets Elwynn).
+-- An unknown race never matches an entry (then nothing is picked by itself).
+function E.Fits(id, needEntry)
+    local h = P.Header(id)
+    if not (h and h.kind == "route") then return false end
+    local cond = h.conditions
+    if type(cond) == "string" and cond ~= "" and not ns.Conditions.Check(ns.Conditions.Get(cond), ctx) then return false end
+    local top = type(h.levels) == "table" and tonumber(h.levels[2])
+    if top and type(ctx.level) == "number" and ctx.level > top then return false end
+    if needEntry then
+        local entry = h.entry
+        if type(entry) ~= "string" or entry == "" then return false end
+        if ctx.race == nil then return false end
+        if not ns.Conditions.Check(ns.Conditions.Get(entry), ctx) then return false end
+    end
+    return true
+end
+
+local function IsDemo(id) return id:match("^demo%-") ~= nil end
+E.IsDemo = IsDemo
+
+-- Fitting route packs, best first: real routes before demo packs, then by id (never load order).
+function E.Fitting(needEntry)
     E.UpdateCtx()
     local ids = {}
-    for _, id in ipairs(P.List()) do ids[#ids + 1] = id end
-    table.sort(ids)
-    for _, id in ipairs(ids) do
-        local h = P.Header(id)
-        local cond = h and h.conditions
-        local fits = h and h.kind == "route"
-        if fits and type(cond) == "string" and cond ~= "" then fits = ns.Conditions.Check(ns.Conditions.Get(cond), ctx) end
-        local top = h and type(h.levels) == "table" and tonumber(h.levels[2])
-        if fits and top and type(ctx.level) == "number" and ctx.level > top then fits = false end
-        if fits then return id end
+    for _, id in ipairs(P.List()) do if E.Fits(id, needEntry) then ids[#ids + 1] = id end end
+    table.sort(ids, function(a, b)
+        if IsDemo(a) ~= IsDemo(b) then return not IsDemo(a) end
+        return a < b
+    end)
+    return ids
+end
+
+-- The guide to open by itself on a first login, or nil (then the "none" state and the guide list).
+function E.Suggest() return E.Fitting(true)[1] end
+
+-- The short name the player types: the pack id without "demo-".
+function E.ShortName(id) return (id:gsub("^demo%-", "")) end
+
+-- "elwynn, durotar": the guides for this character (faction / level fit), or every installed route pack.
+function E.GuideList()
+    local ids = E.Fitting(false)
+    if #ids == 0 then
+        for _, id in ipairs(P.List()) do
+            local h = P.Header(id)
+            if h and h.kind == "route" then ids[#ids + 1] = id end
+        end
+        table.sort(ids)
     end
-    return nil
+    local names = {}
+    for _, id in ipairs(ids) do names[#names + 1] = E.ShortName(id) end
+    return table.concat(names, ", "), ids
 end
 
 local function GuideTitle(packId)
@@ -119,17 +207,104 @@ end
 -- Elwynn, Horde Durotar) and say so in one chat line; or say how to pick one. Only once per character.
 function E.FirstPick()
     if ns.safeMode or E.Focused() then return end
+    if not ns.Settings.Get("useOnChar") then return end   -- v0.2 M4: "Use the guide on this character" off
     local flags = ns.DB.char.flags
     if type(flags) ~= "table" or flags.guidePicked then return end
-    if not ns.DB.readOnly.char then flags.guidePicked = true end
+    -- v0.2 picks by start (entry), so FixWrongStart has nothing to undo for this character
+    if not ns.DB.readOnly.char then flags.guidePicked, flags.startChecked = true, true end
     local id = E.Suggest()
     local g = id and E.Open(id)
     if g then
         ns.Bus.Fire("StepChanged", g)
         ns.Print(ns.U.Fill(ns.L.GUIDE_OPENED, { guide = GuideTitle(id) }))
     else
-        ns.Print(ns.L.GUIDE_NONE)
+        ns.Print(ns.U.Fill(ns.L.GUIDE_NONE, { list = (E.GuideList()) }))
     end
+end
+
+-- bug-first-step cause 2: v0.1 picked by faction only, so a v0.1 character may sit on a guide for another
+-- start (a gnome on Elwynn) and keep it (flags.guidePicked). Once per character, at login: when the focused
+-- guide's pack has an `entry` that doesn't fit this character's race, and the character is still on that
+-- guide's first step with nothing skipped or done, close it, say so, and open the fitting guide (or print
+-- the guide list). Never touches a guide the player has moved on in. Returns true when it closed one.
+function E.FixWrongStart()
+    if ns.safeMode or ns.DB.readOnly.char then return false end
+    if not ns.Settings.Get("useOnChar") then return false end
+    local flags = ns.DB.char.flags
+    if type(flags) ~= "table" or flags.startChecked then return false end
+    local g = E.Focused()
+    if not g then return false end
+    local packId = g.key:match("^([^/]+)/")
+    local h = packId and P.Header(packId)
+    if not (h and type(h.entry) == "string" and h.entry ~= "") then return false end
+    E.UpdateCtx()
+    if ctx.race == nil then return false end   -- an unknown race: can't judge, ask again next login
+    flags.startChecked = true
+    if E.Fits(packId, true) then return false end
+    -- still at the very start: no detour, nothing skipped / done / dropped, current = first step that applies
+    if g:Top() ~= g then return false end
+    local save = g.save or {}
+    for _, t in ipairs({ save.skips, save.done, save.notDoing }) do
+        if type(t) == "table" and next(t) ~= nil then return false end
+    end
+    local cur = g:Current()
+    if not cur then return false end
+    local first
+    for i = 1, g:Count() do
+        local s = g:Step(i)
+        if s and g:Applicable(s, true) then first = s break end
+    end
+    if not (first and first.id == cur.id) then return false end
+    E.Close(g.key)
+    E.SaveActive()
+    ns.Print(ns.U.Fill(ns.L.GUIDE_WRONG_START, { guide = GuideTitle(packId) }))
+    local id = E.Suggest()
+    local ng = id and E.Open(id)
+    if ng then
+        E.SaveActive()
+        ns.Bus.Fire("StepChanged", ng)
+        ns.Print(ns.U.Fill(ns.L.GUIDE_OPENED, { guide = GuideTitle(id) }))
+    else
+        if ns.UI and ns.UI.Refresh then ns.UI.Refresh() end   -- the "none" state
+        ns.Print(ns.U.Fill(ns.L.GUIDE_NONE, { list = (E.GuideList()) }))
+    end
+    return true
+end
+
+-- A character on a demo pack gets one offer of a real route for the same start, once one is installed.
+-- Yes copies the demo's progress (the real routes keep the demo step ids) and opens the route.
+function E.OfferUpgrade()
+    if ns.safeMode or ns.DB.readOnly.char then return false end
+    local g = E.Focused()
+    if not g then return false end
+    local packId, routeId = g.key:match("^([^/]+)/(.+)$")
+    if not (packId and IsDemo(packId)) then return false end
+    local flags = ns.DB.char.flags
+    if type(flags) ~= "table" or flags.routeOffered then return false end
+    local newId
+    for _, id in ipairs(E.Fitting(true)) do if not IsDemo(id) then newId = id break end end
+    if not newId then return false end
+    flags.routeOffered = true
+    return ns.Popups.Confirm({ kind = "route", text = ns.U.Fill(ns.L.DIALOG_ROUTE, { guide = GuideTitle(newId) }),
+        accept = function() E.Upgrade(g.key, newId, routeId) end })
+end
+
+function E.Upgrade(oldKey, newId, routeId)
+    local route = P.Open(newId, routeId) or P.Open(newId)
+    if not route then return false end
+    local newKey = E.Key(newId, route.id)
+    local guides = ns.DB.char.guides
+    if type(guides[newKey]) ~= "table" and type(guides[oldKey]) == "table" then
+        guides[newKey] = ns.U.Copy(guides[oldKey])
+    end
+    E.Close(oldKey)
+    local g = E.Open(newId, route.id)
+    if g then
+        E.SaveActive()
+        ns.Bus.Fire("StepChanged", g)
+        ns.Print(ns.U.Fill(ns.L.GUIDE_OPENED, { guide = GuideTitle(newId) }))
+    end
+    return g ~= nil
 end
 
 -- "/aog guide elwynn": a pack id, or the id without its "demo-" part.
@@ -143,16 +318,28 @@ function E.FindPack(word)
     return nil
 end
 
-ns.Slash.Add("guide", function(arg)
-    arg = strtrim(tostring(arg or ""))
-    if arg == "" then ns.Print(ns.L.GUIDE_USAGE) return end
-    local id = E.FindPack(arg)
-    if not id then ns.Print(ns.U.Fill(ns.L.GUIDE_UNKNOWN, { word = arg })) return end
+-- Opens a guide by pack id (the slash command and the title menu's guide rows).
+function E.OpenGuide(id)
     local g = E.Open(id)
-    if not g then ns.Print(ns.U.Fill(ns.L.GUIDE_UNKNOWN, { word = arg })) return end
+    if not g then return nil end
+    -- picked by hand: FixWrongStart never undoes the player's own choice
+    local flags = ns.DB.char and ns.DB.char.flags
+    if type(flags) == "table" and not ns.DB.readOnly.char then flags.startChecked = true end
+    E.SaveActive()
     ns.Bus.Fire("StepChanged", g)
     ns.Print(ns.U.Fill(ns.L.GUIDE_OPENED, { guide = GuideTitle(id) }))
     if ns.UI and not ns.UI.IsShown() then ns.UI.Show() end
+    return g
+end
+E.GuideTitle = GuideTitle
+
+ns.Slash.Add("guide", function(arg)
+    arg = strtrim(tostring(arg or ""))
+    if arg == "" then ns.Print(ns.U.Fill(ns.L.GUIDE_LIST, { list = (E.GuideList()) })) return end
+    local id = E.FindPack(arg)
+    if not id or not E.OpenGuide(id) then
+        ns.Print(ns.U.Fill(ns.L.GUIDE_UNKNOWN, { word = arg, list = (E.GuideList()) }))
+    end
 end, "HELP_GUIDE", { main = true })
 
 function E.Close(key)
@@ -188,11 +375,52 @@ function E.RefreshAll()
         if ok and changed then ns.Bus.Fire("StepChanged", g) end
     end
     E.Rewire()
+    ns.Errors.Call("engine", E.AfterRefresh)
 end
 
-local function Visible(g)
+-- After each round (v0.2): ask about the quests of the shown steps (rate-limited, tos R2), and the
+-- "quest log full" hint with the log quests this route doesn't use.
+-- Optimizer #5: the 0.25 s ticker runs this round while a travel step shows, so its lists are reused
+-- tables (wiped each round; nobody keeps them).
+local function Wipe(t) for k in pairs(t) do t[k] = nil end return t end
+local idsBuf, wantBuf, itemsBuf, visBuf = {}, {}, {}, {}
+
+function E.AfterRefresh()
+    local g = E.Focused()
+    if not g then return end
     local top = g:Top()
-    local list = top:Background()
+    local ids, n, j = Wipe(idsBuf), top:Count(), top.pos
+    while j <= n and #ids < 6 do
+        local s = top:Step(j)
+        if s and s.quest and top:Applicable(s) and not top.save.skips[s.id] then ids[#ids + 1] = s.quest end
+        j = j + 1
+    end
+    if ns.QuestData then ns.QuestData.Check(ids) end
+    local Nt = ns.Notice
+    if not Nt then return end
+    if top.status == "logfull" then
+        local names = {}
+        for _, id in ipairs(top:UnneededLogQuests()) do
+            if #names >= 5 then break end
+            names[#names + 1] = ns.Names.Quest(id, "#" .. id)
+        end
+        local L = ns.L
+        local text = #names > 0 and ns.U.Fill(L.LOGFULL_LIST, { list = table.concat(names, ", ") }) or L.LOGFULL
+        Nt.Push({ id = "logfull", kind = "tip", priority = 70, icon = "notice.tip", text = text })
+        E.logfullShown = true
+    elseif E.logfullShown then
+        E.logfullShown = false
+        Nt.Remove("logfull")
+    end
+end
+
+-- The visible steps of a guide (its background goals, then the current step), into `list` (appended).
+local function Visible(g, list)
+    local top = g:Top()
+    for _, b in ipairs(top.bg) do
+        local s = top:Step(b)
+        if s and top:IsStop(s, b) then list[#list + 1] = s end
+    end
     local cur = top:Current()
     if cur then list[#list + 1] = cur end
     return list
@@ -204,16 +432,32 @@ function E.CanTrack() return ns.Feature.IsOn("position") and ns.Feature.IsOn("wo
 
 -- Listens only to what the visible steps need; watches only their items.
 function E.Rewire()
-    local want, items = {}, {}
+    -- (a nested round, which nothing here causes today, would get its own tables)
+    local nested = E.rewiring
+    E.rewiring = true
+    local want = nested and {} or Wipe(wantBuf)
+    local items = nested and {} or Wipe(itemsBuf)
+    local vis = nested and {} or Wipe(visBuf)
     for ev in pairs(ALWAYS) do want[ev] = true end
     for _, g in pairs(E.guides) do
-        for _, s in ipairs(Visible(g)) do
+        Visible(g, vis)
+        -- v0.2: optional steps that show only while an item is in the bags (cond item=<id>)
+        for id in pairs(g:Top():CondItems()) do
+            items[id] = true
+            want.ItemsChanged = true
+        end
+    end
+    do
+        for _, s in ipairs(vis) do
             local def = ST.Get(s.type)
             for _, ev in ipairs(def.events) do want[ev] = true end
             -- a travel step auto-skips when its target gets done; an override goal reads quests and items
             if def.travel then want.QuestsChanged, want.QuestTurnedIn = true, true end
             if s.overrideAst then want.QuestsChanged, want.QuestTurnedIn, want.ItemsChanged = true, true, true end
             if s.item then items[s.item] = true end
+            if s.useItem then items[s.useItem] = true end   -- v0.2: the step button and "use it now"
+            -- an any-order group picks the nearest step, so it follows the player's position
+            if s.anyOrder then want.Position = true end
         end
     end
     for id in pairs(E.items) do
@@ -251,6 +495,7 @@ function E.Rewire()
         E.ticker:Cancel()
         E.ticker = nil
     end
+    E.rewiring = nested
     if again then E.RefreshAll() end   -- ends: the next round watches nothing new
 end
 
@@ -264,12 +509,43 @@ for ev in pairs(ALWAYS) do
 end
 
 -- ------------------------------------------------------------------ the player's actions (focused guide)
+-- Undo (v0.2): the last 10 of the player's skip / next / not doing / set current actions, this session.
+-- An "Undo" button shows on the notice line for 10 s after a skip or "not doing"; /aog undo works later too.
+E.undo = {}
+E.UNDO_MAX, E.UNDO_SECONDS = 10, 10
+local undoToken = 0
+
+local function UndoNotice(kind)
+    local Nt = ns.Notice
+    if not Nt then return end
+    undoToken = undoToken + 1
+    local token = undoToken
+    local L = ns.L
+    Nt.Push({ id = "undo", kind = "tip", priority = 60, icon = "notice.tip",
+        text = kind == "NotDoing" and L.UNDO_NOTDOING or L.UNDO_SKIPPED,
+        button = { text = L.UNDO, fn = function() E.Undo() end } })
+    Co.After(E.UNDO_SECONDS, function()
+        if token == undoToken and ns.Notice then ns.Notice.Remove("undo") end
+    end)
+end
+
 local function Act(method, ...)
     local g = E.Focused()
     if not g then return false end
     local top = g:Top()
+    local before = top:Snapshot()
+    local cur = top:Current()
+    local wasDone = cur and top:Done(cur)
     local ok = top[method](top, ...)
     if ok then
+        if method ~= "Back" then
+            table.insert(E.undo, { guide = top, snap = before })
+            if #E.undo > E.UNDO_MAX then table.remove(E.undo, 1) end
+        end
+        if method == "Skip" or method == "NotDoing" or (method == "Next" and cur and not wasDone
+            and not ST.Get(cur.type).manualDone) then
+            UndoNotice(method)
+        end
         E.RefreshAll()
         ns.Bus.Fire("StepChanged", g)
     end
@@ -279,6 +555,20 @@ function E.Skip(id) return Act("Skip", id) end
 function E.SetCurrent(id) return Act("SetCurrent", id) end
 function E.Back() return Act("Back") end
 function E.Next() return Act("Next") end
+-- "Not doing this quest": its steps and its follow-ups (through `pre`) drop out; on = false takes it back.
+function E.NotDoing(questID, on) return Act("NotDoing", questID, on) end
+
+function E.Undo()
+    local u = table.remove(E.undo)
+    if not u then return false end
+    u.guide:Restore(u.snap)
+    undoToken = undoToken + 1
+    if ns.Notice then ns.Notice.Remove("undo") end
+    E.RefreshAll()
+    local g = E.Focused()
+    if g then ns.Bus.Fire("StepChanged", g) end
+    return true
+end
 
 -- Detours: a module registers how to rebuild a kind's steps (so an active detour survives /reload).
 function E.RegisterDetour(kind, fn) E.detourSources[kind] = fn end
@@ -296,4 +586,7 @@ end
 
 -- Slash words for moving by hand (the window gets buttons in M3).
 ns.Slash.Add("skip", function() E.Skip() end, "HELP_SKIP")
+ns.Slash.Add("undo", function()
+    if not E.Undo() then ns.Print(ns.L.UNDO_NONE) end
+end, "HELP_UNDO")
 ns.Slash.Add("back", function() E.Back() end, "HELP_BACK")

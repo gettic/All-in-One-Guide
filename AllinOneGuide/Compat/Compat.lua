@@ -156,6 +156,150 @@ function Co.OnTaxi()
     return f ~= nil and f("player") == true
 end
 
+-- Smart arrow: is the player in an indoor area? true / false, nil when unknown (API missing or secret).
+-- Only a hint next to our room outlines, never used alone.
+function Co.Indoors()
+    local f = F.IsIndoors
+    if not f then return nil end
+    local v = f()
+    if Secret(v) or type(v) ~= "boolean" then return nil end
+    return v
+end
+
+-- XP and XP to the next level (nil, nil when unknown).
+function Co.XP()
+    local a, b = F.UnitXP, F.UnitXPMax
+    if not (a and b) then return nil end
+    local xp, max = a("player"), b("player")
+    if Secret(xp) or Secret(max) or type(xp) ~= "number" or type(max) ~= "number" then return nil end
+    return xp, max
+end
+
+function Co.Dead()
+    local f = F.DeadOrGhost
+    if not f then return false end
+    local v = f("player")
+    if Secret(v) then return false end
+    return v == true
+end
+
+-- Released and running as a ghost (v0.2 M3: the corpse arrow).
+function Co.Ghost()
+    local f = F.UnitIsGhost
+    if not f then return false end
+    local v = f("player")
+    if Secret(v) then return false end
+    return v == true
+end
+
+-- The corpse on a map, as 0-1 fractions (nil when it isn't on that map).
+function Co.CorpsePosition(uiMapID)
+    local f = F.CorpsePos
+    if not f or type(uiMapID) ~= "number" then return nil end
+    local ok, pos = pcall(f, uiMapID)
+    if not ok or pos == nil or Secret(pos) then return nil end
+    local x, y
+    if type(pos) == "table" and pos.GetXY then x, y = pos:GetXY() elseif type(pos) == "table" then x, y = pos.x, pos.y end
+    if type(x) ~= "number" or type(y) ~= "number" or (x == 0 and y == 0) then return nil end
+    return x, y
+end
+
+-- true inside a dungeon / raid / battleground (no map position there).
+function Co.InInstance()
+    local f = F.InInstance
+    if not f then return false end
+    local v = f()
+    if Secret(v) then return false end
+    return v == true
+end
+
+-- v0.2 M5 (report evidence) / M6 (recorder, tos R3): the NPC / object id of a unit, only from a
+-- Creature- / Vehicle- / GameObject- GUID that isn't secret; Player- and Pet- give nil. The GUID itself is
+-- never kept. Returns id, kind ("npc" / "object") or nil.
+local NPC_KINDS = { Creature = "npc", Vehicle = "npc", GameObject = "object" }
+function Co.UnitNpcId(unit)
+    local f = F.UnitGUID
+    if not f then return nil end
+    return Co.GuidNpcId(f(unit or "target"))
+end
+
+-- The same rule for a GUID we were handed (loot sources, M6 recorder): id, kind or nil.
+function Co.GuidNpcId(g)
+    if g == nil or Secret(g) or type(g) ~= "string" then return nil end
+    local kind = g:match("^(%a+)%-")
+    if not NPC_KINDS[kind] then return nil end
+    -- [unitType]-0-[serverID]-[instanceID]-[zoneUID]-[npcID]-[spawnUID]
+    local n, id = 0, nil
+    for part in g:gmatch("[^%-]+") do
+        n = n + 1
+        if n == 6 then id = tonumber(part) break end
+    end
+    if not id or id <= 0 then return nil end
+    return id, NPC_KINDS[kind]
+end
+
+-- v0.2 M6 (dev recorder, /aog where): the open loot window. Returns a list of
+-- { item = itemID or nil, sources = { { id, kind }, ... } } (sources only from Creature / Vehicle /
+-- GameObject GUIDs, see GuidNpcId), or nil when the loot API is missing.
+function Co.LootSources()
+    local num, src, link = F.LootNum, F.LootSource, F.LootLink
+    if not (num and src) then return nil end
+    local n = num()
+    if Secret(n) or type(n) ~= "number" then return nil end
+    local out = {}
+    for slot = 1, math.min(n, 20) do
+        local e = { sources = {} }
+        local l = link and link(slot)
+        if type(l) == "string" and not Secret(l) then e.item = tonumber(l:match("item:(%d+)")) end
+        local res = { pcall(src, slot) }
+        if res[1] then
+            for i = 2, #res, 2 do
+                local id, kind = Co.GuidNpcId(res[i])
+                if id then e.sources[#e.sources + 1] = { id, kind } end
+            end
+        end
+        out[#out + 1] = e
+    end
+    return out
+end
+
+-- The instance map id (GetInstanceInfo's 8th return, read in Blizzard_FrameXML\InstanceDifficulty.lua),
+-- or nil outside / when unknown.
+function Co.InstanceId()
+    local f = F.InstanceInfo
+    if not f or not Co.InInstance() then return nil end
+    local id = select(8, f())
+    if Secret(id) or type(id) ~= "number" or id <= 0 then return nil end
+    return id
+end
+
+-- The quest selected in the quest log (C_QuestLog.GetSelectedQuest), or nil.
+function Co.SelectedQuest()
+    local f = F.QuestSelected
+    if not f then return nil end
+    local id = f()
+    if Secret(id) or type(id) ~= "number" or id <= 0 then return nil end
+    return id
+end
+
+-- v0.2 M4: the instance kind ("none", "party", "raid", "pvp", "arena", "scenario"); "none" when unknown.
+function Co.InstanceType()
+    local f = F.InInstance
+    if not f then return "none" end
+    local _, kind = f()
+    if Secret(kind) or type(kind) ~= "string" then return "none" end
+    return kind
+end
+
+-- The hearthstone's bind location name (client language), or nil.
+function Co.BindLocation()
+    local f = F.BindLocation
+    if not f then return nil end
+    local v = f()
+    if Secret(v) or type(v) ~= "string" or v == "" then return nil end
+    return v
+end
+
 function Co.Hardcore()
     local f = F.Hardcore
     if not f then return nil end
@@ -265,19 +409,260 @@ function Co.Color(r, g, b, a)
     local f = F.CreateColor
     return f and f(r, g, b, a or 1) or nil
 end
--- Reloads the UI (only ever after the player's click). false when the API is missing.
-function Co.Reload()
-    local f = F.ReloadUI
-    if not f then return false end
-    f()
+-- No Co.Reload: ReloadUI / C_UI.Reload are protected on 16001 (ADDON_ACTION_BLOCKED in v0.1.0-beta.1, even
+-- from our own dialog's button). The addon never calls them; it tells the player to type /reload.
+
+-- Atlas info (width, height ...) or nil when the client doesn't have that atlas / the API is missing.
+function Co.AtlasInfo(name)
+    local f = F.AtlasInfo
+    if not f or type(name) ~= "string" then return nil end
+    local ok, info = pcall(f, name)
+    if not ok or type(info) ~= "table" then return nil end
+    return info
+end
+
+-- ------------------------------------------------------------------ v0.2 M3 part 2: maps, clicks, time
+-- The name of a uiMapID in the client's language, or nil.
+function Co.MapName(uiMapID)
+    local f = F.MapInfo
+    if not f or type(uiMapID) ~= "number" then return nil end
+    local ok, info = pcall(f, uiMapID)
+    if not ok or type(info) ~= "table" or Secret(info.name) or type(info.name) ~= "string" or info.name == "" then return nil end
+    return info.name
+end
+
+-- The parent map of a zone / dungeon / micro map, up to the continent (Enum.UIMapType: 2 = Continent;
+-- warcraft.wiki.gg API_C_Map.GetMapInfo, parentMapID 0 = none). nil at a continent or above, or on no data.
+function Co.MapParent(uiMapID)
+    local f = F.MapInfo
+    if not f or type(uiMapID) ~= "number" then return nil end
+    local ok, info = pcall(f, uiMapID)
+    if not ok or type(info) ~= "table" then return nil end
+    local kind, parent = info.mapType, info.parentMapID
+    if Secret(kind) or Secret(parent) or type(kind) ~= "number" or kind <= 2 then return nil end
+    if type(parent) ~= "number" or parent <= 0 then return nil end
+    return parent
+end
+
+function Co.Modifier(which)
+    local f = F[which == "shift" and "IsShiftKeyDown" or which == "ctrl" and "IsControlKeyDown" or "IsAltKeyDown"]
+    return f ~= nil and f() == true
+end
+
+-- Cursor x, y in screen units of `frame` (nil when unknown).
+function Co.Cursor(frame)
+    local f = F.GetCursorPosition
+    if not f then return nil end
+    local x, y = f()
+    if type(x) ~= "number" or type(y) ~= "number" then return nil end
+    local s = frame and frame:GetEffectiveScale() or 1
+    if not s or s == 0 then s = 1 end
+    return x / s, y / s
+end
+
+-- Seconds of server time (for snoozes that last past a /reload); nil when the API is missing.
+function Co.ServerTime()
+    local f = F.GetServerTime
+    if not f then return nil end
+    local v = f()
+    if Secret(v) or type(v) ~= "number" then return nil end
+    return v
+end
+
+-- Puts a quest link into the chat box the player has open. Never opens or sends chat: false when
+-- no chat box is open or the client gives no link.
+function Co.InsertQuestLink(questID)
+    local link, active, insert = F.QuestLink, F.ChatActiveWindow, F.ChatInsertLink
+    if not (link and active and insert) or type(questID) ~= "number" then return false end
+    if not active() then return false end
+    local ok, text = pcall(link, questID)
+    if not ok or type(text) ~= "string" or text == "" then return false end
+    return insert(text) ~= false
+end
+
+-- Opens the world map at a map (the same Lua function Blizzard's own buttons use). Never in combat.
+function Co.OpenMap(uiMapID)
+    local f = F.OpenWorldMap
+    if not f or Co.InCombat() or type(uiMapID) ~= "number" then return false end
+    f(uiMapID)
     return true
+end
+
+function Co.CVarBool(name)
+    local f = F.CVarBool
+    if not f then return false end
+    local ok, v = pcall(f, name)
+    return ok and v == true
+end
+
+-- The minimap's view radius in yards (nil when unknown).
+function Co.MinimapRadius()
+    local f = F.MinimapRadius
+    if not f then return nil end
+    local ok, v = pcall(f)
+    if not ok or Secret(v) or type(v) ~= "number" or v <= 0 then return nil end
+    return v
+end
+
+-- A built-in sound kit number by name (SOUNDKIT table), or nil.
+function Co.SoundKit(name)
+    local t = Resolve("SOUNDKIT")
+    local v = type(t) == "table" and t[name] or nil
+    return type(v) == "number" and v or nil
 end
 
 -- ------------------------------------------------------------------ bags
 function Co.ItemCount(itemID)
-    local f = F.ItemCount
+    local f = F.ItemCount or F.ItemCountOld   -- v0.2: the old global when C_Item.GetItemCount is missing
     if not f then return 0 end
     local n = f(itemID)
     if Secret(n) or type(n) ~= "number" then return 0 end
     return n
+end
+
+-- v0.2 First Aid: a skill line's rank, max rank (the current cap) by skill line id; scan only.
+-- Returns rank, maxRank, or nil when not learned / unknown; "hidden" when it may sit under a collapsed
+-- header (only the index scan is there): the caller then shows its text without a number.
+local function SkillFields(info, id)
+    if type(info) ~= "table" or Secret(info.skillID) or info.skillID ~= id then return nil end
+    local r, m = info.rank, info.maxRank
+    if Secret(r) or Secret(m) or type(r) ~= "number" then return nil end
+    return r, type(m) == "number" and m or nil
+end
+function Co.SkillRank(skillLineID)
+    local by = F.SkillLineByID
+    if by then
+        local ok, info = pcall(by, skillLineID)
+        if ok and type(info) == "table" then
+            local r, m = SkillFields(info, skillLineID)
+            if r and r > 0 then return r, m end
+            return nil
+        end
+    end
+    local num, get = F.SkillLines, F.SkillLineInfo
+    if not (num and get) then return nil end
+    local ok, n = pcall(num)
+    if not ok or type(n) ~= "number" or Secret(n) then return nil end
+    local collapsed = false
+    for i = 1, n do
+        local ok2, info = pcall(get, i)
+        if ok2 and type(info) == "table" then
+            if info.isHeader and info.isCollapsed == true then collapsed = true end
+            local r, m = SkillFields(info, skillLineID)
+            if r and r > 0 then return r, m end
+        end
+    end
+    if collapsed then return "hidden" end
+    return nil
+end
+
+-- v0.2 quest items: bag slots (plain numbers only; AllowedWhenUntainted, called from our own code).
+function Co.BagSlots(bag)
+    local f = F.BagSlots
+    if not f then return 0 end
+    local ok, n = pcall(f, bag)
+    if not ok or Secret(n) or type(n) ~= "number" then return 0 end
+    return n
+end
+
+function Co.BagItemID(bag, slot)
+    local f = F.BagItemID
+    if not f then return nil end
+    local ok, id = pcall(f, bag, slot)
+    if not ok or Secret(id) or type(id) ~= "number" then return nil end
+    return id
+end
+
+-- questID (nil when the item starts / belongs to no quest), isActive (that quest is in the log), isQuestItem.
+function Co.BagQuestInfo(bag, slot)
+    local f = F.BagQuestInfo
+    if not f then return nil, false, false end
+    local ok, info = pcall(f, bag, slot)
+    if not ok or type(info) ~= "table" then return nil, false, false end
+    local q, active, item = info.questID, info.isActive, info.isQuestItem
+    if Secret(q) or type(q) ~= "number" or q <= 0 then q = nil end
+    return q, (not Secret(active)) and active == true, (not Secret(item)) and item == true
+end
+
+-- ------------------------------------------------------------------ v0.2 M2: items, taxi, bindings, sound
+-- Icon file id of an item (nil while unknown).
+function Co.ItemIcon(itemID)
+    local f = F.ItemIcon
+    if not f then return nil end
+    local v = f(itemID)
+    if Secret(v) then return nil end
+    return v
+end
+
+function Co.ItemName(itemID)
+    local f = F.ItemName
+    if not f then return nil end
+    local v = f(itemID)
+    if Secret(v) or type(v) ~= "string" or v == "" then return nil end
+    return v
+end
+
+-- start, duration (seconds) of an item's cooldown; 0, 0 when ready or unknown.
+function Co.ItemCooldown(itemID)
+    local f = F.ItemCooldown
+    if not f then return 0, 0 end
+    local s, d = f(itemID)
+    if Secret(s) or Secret(d) or type(s) ~= "number" or type(d) ~= "number" then return 0, 0 end
+    return s, d
+end
+
+-- true / false when the game says, nil when it can't (no target, protected, secret or no API).
+function Co.ItemInRange(itemID, unit)
+    local f = F.ItemInRange
+    if not f then return nil end
+    local ok, v = pcall(f, itemID, unit or "target")
+    if not ok or Secret(v) or type(v) ~= "boolean" then return nil end
+    return v
+end
+
+-- Taxi nodes the client lists for a map: { { id, name, known } }; known = not undiscovered.
+function Co.TaxiNodesForMap(uiMapID)
+    local f = F.TaxiForMap
+    if not f then return {} end
+    local ok, list = pcall(f, uiMapID)
+    if not ok or type(list) ~= "table" or Secret(list) then return {} end
+    local out = {}
+    for _, n in ipairs(list) do
+        if type(n) == "table" and type(n.nodeID) == "number" then
+            out[#out + 1] = { id = n.nodeID, name = n.name, known = n.isUndiscovered ~= true }
+        end
+    end
+    return out
+end
+
+-- The nodes on the open flight master's map (all of them are known to the player): { { id, name, state } }.
+function Co.TaxiOpenNodes(uiMapID)
+    local f = F.TaxiAllNodes
+    if not f then return {} end
+    local ok, list = pcall(f, uiMapID)
+    if not ok or type(list) ~= "table" or Secret(list) then return {} end
+    local out = {}
+    for _, n in ipairs(list) do
+        if type(n) == "table" and type(n.nodeID) == "number" then
+            out[#out + 1] = { id = n.nodeID, name = n.name, state = n.state }
+        end
+    end
+    return out
+end
+
+-- The key bound to a binding command (e.g. "CLICK AllinOneGuideStepButton:LeftButton"), or nil.
+function Co.BindingKey(command)
+    local f = F.BindingKey
+    if not f then return nil end
+    local v = f(command)
+    if Secret(v) or type(v) ~= "string" then return nil end
+    return v
+end
+
+-- Plays a built-in sound kit (only ever when the player turned reminder sounds on).
+function Co.PlaySound(kit)
+    local f = F.PlaySound
+    if not f or type(kit) ~= "number" then return false end
+    pcall(f, kit, "Master")
+    return true
 end

@@ -24,12 +24,37 @@ function Guide.New(key, route, save)
         child = nil, needsLoad = true }, Guide)
     save.skips = type(save.skips) == "table" and save.skips or {}
     save.stack = type(save.stack) == "table" and save.stack or {}
+    -- v0.2: steps ticked by hand, quests the player isn't doing (only written when used)
+    if type(save.done) ~= "table" then save.done = nil end
+    if type(save.notDoing) ~= "table" then save.notDoing = nil end
     return g
 end
 
 function Guide:Count() return P.Count(self.route) end
 function Guide:Step(i) return P.GetStep(self.route, i) end
 function Guide:IndexOf(id) return P.IndexOf(self.route, id) end
+
+-- v0.2: the item ids this route's conditions ask about (cond item=<id>), found once per route: only rows
+-- with "item=" in them are decoded. The engine watches these so such a step shows / hides on bag changes.
+function Guide:CondItems()
+    local r = self.route
+    if r.condItems then return r.condItems end
+    local set = {}
+    if r.steps then
+        for _, s in ipairs(r.steps) do
+            if s.cond then Cd.Items(Cd.Get(s.cond), set) end
+        end
+    else
+        for _, row in ipairs(r.rows or {}) do
+            if type(row) == "string" and row:find("item=", 1, true) then
+                local s = ns.Format.DecodeRow(row)
+                if s and s.cond then Cd.Items(Cd.Get(s.cond), set) end
+            end
+        end
+    end
+    r.condItems = set
+    return set
+end
 
 -- Follows renamedSteps (old id -> new id), at most 10 hops.
 function Guide:Resolve(id)
@@ -44,8 +69,13 @@ function Guide:Resolve(id)
 end
 
 -- ------------------------------------------------------------------ step tests
-function Guide:Applicable(step)
+function Guide:Applicable(step, ignoreLevel)
     if step.bad then return false end
+    -- v0.2: a minimum level (checked live, never cached; ignoreLevel = would it fit once the level is there)
+    if step.minLevel and not ignoreLevel then
+        local lv = ns.Engine.ctx.level
+        if type(lv) == "number" and lv < step.minLevel then return false end
+    end
     if not step.cond then return true end
     local ast = step.condAst
     if not ast then return false end
@@ -63,7 +93,132 @@ function Guide:IsFuture(step)
     return step.flags.future == true and not self:Applicable(step)
 end
 
-function Guide:Skipped(step) return self.save.skips[step.id] == true end
+-- Skipped by the player, or its quest is "not doing" (with its follow-ups), or not on this server.
+function Guide:Skipped(step)
+    if self.save.skips[step.id] == true then return true end
+    local q = step.quest
+    if q then
+        if self.save.notDoing and next(self.save.notDoing) and self:Dropped(q) then return true end
+        if ns.QuestData and ns.QuestData.NotAvailable(q) then return true end
+    end
+    return false
+end
+
+-- Why a step is passed over: "skip", "notdoing", "na" or nil.
+function Guide:SkipReason(step)
+    if self.save.skips[step.id] == true then return "skip" end
+    local q = step.quest
+    if q and self.save.notDoing and next(self.save.notDoing) and self:Dropped(q) then return "notdoing" end
+    if q and ns.QuestData and ns.QuestData.NotAvailable(q) then return "na" end
+    return nil
+end
+
+-- ------------------------------------------------------------------ not doing a quest (v0.2)
+-- quest -> its pre-quests, from the steps' `pre` lists (built once per guide, on first use)
+function Guide:PreMap()
+    if self.preOf then return self.preOf end
+    local map = {}
+    for i = 1, self:Count() do
+        local s = self:Step(i)
+        if s and s.quest and P.Len(s.pre) > 0 then
+            local list = map[s.quest] or {}
+            for _, p in P.Each(s.pre) do list[#list + 1] = p end
+            map[s.quest] = list
+        end
+    end
+    self.preOf = map
+    return map
+end
+
+-- A quest is dropped when the player isn't doing it, or it follows (through `pre`) one that is dropped.
+function Guide:Dropped(q, depth)
+    local nd = self.save.notDoing
+    if not nd then return false end
+    if nd[q] then return true end
+    depth = depth or 0
+    if depth > 10 then return false end
+    for _, p in ipairs(self:PreMap()[q] or {}) do
+        if self:Dropped(p, depth + 1) then return true end
+    end
+    return false
+end
+
+function Guide:NotDoing(q, on)
+    if type(q) ~= "number" then return false end
+    if on == false then
+        if self.save.notDoing then self.save.notDoing[q] = nil end
+    else
+        self.save.notDoing = self.save.notDoing or {}
+        self.save.notDoing[q] = true
+    end
+    self.pinned = false
+    self:Advance()
+    self:Store()
+    return true
+end
+
+-- Undo support: what the player's actions change, as a copy; Restore puts it back.
+function Guide:Snapshot()
+    local U = ns.U
+    return { pos = self.pos, pinned = self.pinned, pinDone = self.pinDone, skips = U.Copy(self.save.skips),
+        notDoing = self.save.notDoing and U.Copy(self.save.notDoing) or nil,
+        done = self.save.done and U.Copy(self.save.done) or nil }
+end
+
+function Guide:Restore(snap)
+    self.pos, self.pinned, self.pinDone = snap.pos, snap.pinned, snap.pinDone
+    self.save.skips, self.save.notDoing, self.save.done = snap.skips, snap.notDoing, snap.done
+    self:Store()
+end
+
+-- ------------------------------------------------------------------ levels and the quest log (v0.2)
+-- For a step that waits for a level: levels to go, XP now, XP needed for the next level (or nil).
+function Guide:UnderLevel(step)
+    local need = step.minLevel or ((step.type == "grind" or step.type == "level") and step.level) or nil
+    local lv = ns.Engine.ctx.level
+    if not need or type(lv) ~= "number" or lv >= need then return nil end
+    local GS2 = ns.GameState
+    return need - lv, GS2.xp, GS2.xpMax
+end
+
+-- The quest ids this route uses (built once).
+function Guide:RouteQuests()
+    if self.routeQuests then return self.routeQuests end
+    local set = {}
+    for i = 1, self:Count() do
+        local s = self:Step(i)
+        if s and s.quest then set[s.quest] = true end
+    end
+    self.routeQuests = set
+    return set
+end
+
+-- quest -> the indexes of its accept steps, in route order (built once; optimizer #1: CheckQuest no longer
+-- walks back to step 1 on every refresh while a quest is missing)
+function Guide:AcceptsOf()
+    if self.acceptsOf then return self.acceptsOf end
+    local map = {}
+    for i = 1, self:Count() do
+        local a = self:Step(i)
+        if a and a.type == "accept" and a.quest then
+            local l = map[a.quest] or {}
+            l[#l + 1] = i
+            map[a.quest] = l
+        end
+    end
+    self.acceptsOf = map
+    return map
+end
+
+-- Quests in the log the route never uses (for the "quest log full" hint), sorted.
+function Guide:UnneededLogQuests()
+    local set, out = self:RouteQuests(), {}
+    for id in pairs(GS.quests) do
+        if not set[id] then out[#out + 1] = id end
+    end
+    table.sort(out)
+    return out
+end
 
 function Guide:Done(step)
     local d = ST.Get(step.type).Done(step, self)
@@ -102,16 +257,84 @@ function Guide:WaitingFor(id)
 end
 
 -- ------------------------------------------------------------------ moving
+local AddOptional
+
 local function AddBg(self, i)
     for _, b in ipairs(self.bg) do if b == i then return end end
     self.bg[#self.bg + 1] = i
 end
 
+-- Optional steps ride along as background goals; at most this many at once (the oldest drop out).
+local MAX_OPTIONAL = 3
+Guide.ITEM_BACK = 15   -- an optional item step this many steps back still comes back when the item shows up
+
+function AddOptional(self, i)
+    for _, b in ipairs(self.bg) do if b == i then return end end
+    local n = 0
+    for _, b in ipairs(self.bg) do
+        local s = self:Step(b)
+        if s and s.flags.optional then n = n + 1 end
+    end
+    if n >= MAX_OPTIONAL then
+        for k, b in ipairs(self.bg) do
+            local s = self:Step(b)
+            if s and s.flags.optional then table.remove(self.bg, k) break end
+        end
+    end
+    self.bg[#self.bg + 1] = i
+end
+
+-- Any-order group (`anyOrder`): the first index of the run of steps sharing s.anyOrder around i.
+function Guide:GroupStart(i)
+    local s = self:Step(i)
+    local g = s and s.anyOrder
+    if not g then return i end
+    while i > 1 do
+        local p = self:Step(i - 1)
+        if not p or p.anyOrder ~= g then break end
+        i = i - 1
+    end
+    return i
+end
+
+-- Among the stops of the any-order run starting at i: the nearest one (route order without a position).
+function Guide:PickInGroup(i)
+    local first = self:Step(i)
+    local g = first.anyOrder
+    local n = self:Count()
+    local best, bestD
+    local j = i
+    while j <= n do
+        local s = self:Step(j)
+        if not s or s.anyOrder ~= g then break end
+        if self:IsStop(s, j) and not s.flags.optional then
+            local d = (s.map and s.x and s.y) and ns.Geo.PlayerDistance(s.map, s.x, s.y) or nil
+            if not best then
+                best, bestD = j, d
+            elseif d and (not bestD or d < bestD) then
+                best, bestD = j, d
+            end
+        end
+        j = j + 1
+    end
+    return best
+end
+
 function Guide:Advance()
     local n = self:Count()
-    local i = self.pos
+    local i = self:GroupStart(self.pos)
     while i <= n do
         local s = self:Step(i)
+        -- a step passed over only for its level comes back once the level is there (see Refresh)
+        if s and s.minLevel and not self:Applicable(s) and self:UnderLevel(s) then
+            self.levelWait = self.levelWait or {}
+            self.levelWait[i] = true
+        end
+        -- v0.2: an optional step for an item not in the bags yet (cond item=) comes back when it is
+        if s and s.flags.optional and s.condAst and next(Cd.Items(s.condAst)) and not self:Applicable(s) then
+            self.itemWait = self.itemWait or {}
+            self.itemWait[i] = true
+        end
         if s then
             if self:WaitingFor(s.id) then
                 self.pos = i
@@ -121,6 +344,11 @@ function Guide:Advance()
                 local untilIndex = s.whileUntil and self:IndexOf(s.whileUntil)
                 if untilIndex and untilIndex > i then
                     AddBg(self, i)
+                elseif s.flags.optional then
+                    AddOptional(self, i)   -- never blocks the route
+                elseif s.anyOrder then
+                    self.pos = self:PickInGroup(i) or i
+                    return
                 else
                     self.pos = i
                     return
@@ -190,6 +418,18 @@ function Guide:Load()
             local s = self:Step(j)
             local u = s and s.whileUntil and self:IndexOf(s.whileUntil)
             if u and u >= i and self:IsStop(s, j) then AddBg(self, j) end
+            -- optional steps not done yet, from the last 15 steps
+            if s and s.flags.optional and j >= i - 15 and self:IsStop(s, j) then AddOptional(self, j) end
+            if s and s.flags.optional and j >= i - Guide.ITEM_BACK and s.condAst and next(Cd.Items(s.condAst))
+                and not self:Applicable(s) then
+                self.itemWait = self.itemWait or {}
+                self.itemWait[j] = true
+            end
+            -- steps passed over for their level
+            if s and s.minLevel and not self:Applicable(s) then
+                self.levelWait = self.levelWait or {}
+                self.levelWait[j] = true
+            end
         end
     else
         self.pos = 1
@@ -203,11 +443,16 @@ function Guide:CheckQuest()
     if not s then return end
     local q = s.quest
     if q and (s.type == "objective" or s.type == "turnin") and not s.item and not GS.InLog(q) and not GS.IsDone(q) then
-        for j = s.index - 1, 1, -1 do
-            local a = self:Step(j)
-            if a and a.type == "accept" and a.quest == q and self:Applicable(a) and not self:Skipped(a) then
-                self.pos, self.pinned = j, false
-                return
+        -- the nearest usable accept step before this one (same answer and order as walking back)
+        local list = self:AcceptsOf()[q]
+        for k = list and #list or 0, 1, -1 do
+            local j = list[k]
+            if j < s.index then
+                local a = self:Step(j)
+                if a and self:Applicable(a) and not self:Skipped(a) then
+                    self.pos, self.pinned = j, false
+                    return
+                end
             end
         end
         self.status = "missing"
@@ -225,6 +470,35 @@ function Guide:Refresh()
     for k = #self.bg, 1, -1 do
         local s = self:Step(self.bg[k])
         if not s or not self:IsStop(s, self.bg[k]) then table.remove(self.bg, k) end
+    end
+    -- v0.2: steps passed over for their level: once the level is there they are background goals
+    -- (or the current step when the route had run out)
+    if self.levelWait then
+        for i in pairs(self.levelWait) do
+            local s = self:Step(i)
+            if not s or i >= self.pos then
+                self.levelWait[i] = nil
+            elseif self:Applicable(s) then
+                self.levelWait[i] = nil
+                if self:IsStop(s, i) then
+                    if self.pos > self:Count() then self.pos = i else AddBg(self, i) end
+                end
+            end
+        end
+    end
+    -- v0.2: optional item steps passed over (cond item=): once the item is in the bags they ride along
+    -- as background goals; only the last ITEM_BACK steps are kept waiting
+    if self.itemWait then
+        for i in pairs(self.itemWait) do
+            local s = self:Step(i)
+            if not s or i >= self.pos or i < self.pos - Guide.ITEM_BACK then
+                self.itemWait[i] = nil
+            elseif self:Applicable(s) then
+                self.itemWait[i] = nil
+                if self:IsStop(s, i) then AddOptional(self, i) end
+            end
+        end
+        if not next(self.itemWait) then self.itemWait = nil end
     end
     if self.pinned then
         local s = self:Step(self.pos)
@@ -262,6 +536,7 @@ function Guide:SetCurrent(id)
     if not i then return false end
     local s = self:Step(i)
     self.save.skips[s.id] = nil
+    if self.save.done then self.save.done[s.id] = nil end
     self.pos, self.pinned, self.pinDone = i, true, self:Done(s)
     self:Store()
     return true
@@ -282,7 +557,15 @@ end
 function Guide:Next()
     local cur = self:Current()
     if not cur then return false end
-    if not self:Done(cur) then self.save.skips[cur.id] = true end
+    if not self:Done(cur) then
+        if ST.Get(cur.type).manualDone then
+            -- steps the game can't confirm: "next" means the player did it
+            self.save.done = self.save.done or {}
+            self.save.done[cur.id] = true
+        else
+            self.save.skips[cur.id] = true
+        end
+    end
     if cur.index == self.pos then self.pos = self.pos + 1 end
     self.pinned = false
     self:Advance()

@@ -26,6 +26,7 @@ function B.AddonLoaded(_, name)
     Co.Init()
     local safe = ns.DB.Init()
     ns.Settings.Init()
+    ns.Overlay.Apply()
     ns.Errors.debug = ns.Settings.Get("debug")
     ns.Locale.Choose(ns.Settings.Get("lang"), Co.Locale())
     if safe then ns.Feature.Set("modules", "safe", "safe mode") end

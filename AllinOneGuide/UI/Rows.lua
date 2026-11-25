@@ -5,7 +5,7 @@
 -- goals. States: "current" (accent bar + glow, bright text), "upcoming" (dim by colour), "done".
 -- Never SetAlpha on text: dimming is always a text colour.
 --   ns.Rows.New(parent) -> row;  ns.Rows.Set(row, data) -> height
---   data = { number, badge, text, state, right, goals = { { text, have, need, done } }, coord, maxLines }
+--   data = { number, badge, text, state, right, goals = { { text, have, need, done } }, coord, maxLines, boxed }
 local _, ns = ...
 local Th, K = ns.Theme, ns.UIKit
 local R = {}
@@ -85,8 +85,11 @@ function R.Set(row, d)
     local LH, LG = Th.LineHeight("step"), Th.LineHeight("goal")
     local state = d.state or "upcoming"
     local current = state == "current"
-    row.glow:SetShown(current)
-    row.bar:SetShown(current)
+    row.step = d.step   -- v0.2 M3: the right-click step menu, hover and clicks
+    row.current, row.rightText = current, d.right
+    -- d.boxed: the row sits in the window's NOW box, which draws its own panel and accent edge
+    row.glow:SetShown(current and not d.boxed)
+    row.bar:SetShown(current and not d.boxed)
     row.num:SetText(d.number and tostring(d.number) or "")
     K.Color(row.num, current and "accent" or "stepNumber")
     K.SetBadge(row.badge, d.badge or "manual", state == "done")

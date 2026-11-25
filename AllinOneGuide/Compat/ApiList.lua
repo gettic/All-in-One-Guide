@@ -40,6 +40,7 @@ ns.ApiList = {
     { id = "UnitName", path = "UnitName", feature = "player", kind = "function", src = "doc UnitDocumentation" },
     { id = "RealmName", path = "GetNormalizedRealmName", feature = "player", kind = "function", src = "doc PlayerScriptDocumentation" },
     { id = "UnitOnTaxi", path = "UnitOnTaxi", kind = "function", src = "doc UnitDocumentation" },
+    { id = "IsIndoors", path = "IsIndoors", kind = "function", src = "doc PlayerScriptDocumentation" },
 
     -- quest log
     { id = "QuestNumEntries", path = "C_QuestLog.GetNumQuestLogEntries", feature = "questlog", kind = "function", src = "doc QuestLogDocumentation" },
@@ -62,15 +63,90 @@ ns.ApiList = {
     { id = "MapWorldPos", path = "C_Map.GetWorldPosFromMapPos", feature = "worldpos", kind = "function", secret = "args", src = "doc MapDocumentation" },
     { id = "PlayerFacing", path = "GetPlayerFacing", feature = "facing", kind = "function", src = "doc PlayerScriptDocumentation (nilable)" },
 
+    -- v0.2 M1: XP, death, instance, hearthstone bind (plans\v0.2\api-16001-v0.2.md)
+    { id = "UnitXP", path = "UnitXP", feature = "xp", kind = "function", src = "doc UnitDocumentation" },
+    { id = "UnitXPMax", path = "UnitXPMax", feature = "xp", kind = "function", src = "doc UnitDocumentation" },
+    { id = "DeadOrGhost", path = "UnitIsDeadOrGhost", kind = "function", src = "doc UnitDocumentation" },
+    { id = "InInstance", path = "IsInInstance", kind = "function", src = "doc InstanceDocumentation" },
+    { id = "BindLocation", path = "GetBindLocation", feature = "hearth", kind = "function", src = "doc PlayerScriptDocumentation" },
+
+    -- v0.2 M2: the step button, reminders, flight paths (plans\v0.2\api-16001-v0.2.md)
+    { id = "ItemIcon", path = "C_Item.GetItemIconByID", feature = "stepbutton", kind = "function", secret = "args", src = "doc ItemDocumentation" },
+    { id = "ItemName", path = "C_Item.GetItemNameByID", kind = "function", secret = "args", src = "doc ItemDocumentation" },
+    { id = "ItemCooldown", path = "C_Item.GetItemCooldown", kind = "function", secret = "args", src = "doc ItemDocumentation" },
+    { id = "ItemInRange", path = "C_Item.IsItemInRange", kind = "function", secret = "args", src = "doc ItemDocumentation (nilable)" },
+    { id = "TaxiForMap", path = "C_TaxiMap.GetTaxiNodesForMap", feature = "taxi", kind = "function", src = "doc TaxiMapDocumentation" },
+    { id = "TaxiAllNodes", path = "C_TaxiMap.GetAllTaxiNodes", kind = "function", src = "doc TaxiMapDocumentation" },
+    { id = "BindingKey", path = "GetBindingKey", kind = "function", src = "xml Blizzard_ActionBar\\Shared\\ActionButton.lua" },
+    { id = "PlaySound", path = "PlaySound", kind = "function", src = "doc SoundDocumentation" },
+
+    -- v0.2 M3: the corpse arrow
+    { id = "UnitIsGhost", path = "UnitIsGhost", kind = "function", src = "doc UnitDocumentation" },
+    { id = "CorpsePos", path = "C_DeathInfo.GetCorpseMapPosition", kind = "function", secret = "args", src = "doc DeathInfoDocumentation (nilable vector2)" },
+
+    -- v0.2 M3 part 2: hooks, map pins, minimap pins, step clicks, notice snooze (plans\v0.2\api-16001-v0.2.md)
+    { id = "hooksecurefunc", path = "hooksecurefunc", feature = "hooks", kind = "function", src = "xml (used across FrameXML; not in the docs)" },
+    { id = "WorldMapFrame", path = "WorldMapFrame", feature = "mappins", kind = "table", src = "xml Blizzard_WorldMap\\Blizzard_WorldMap.xml" },
+    { id = "MapProviderMixin", path = "MapCanvasDataProviderMixin", feature = "mappins", kind = "table", src = "xml Blizzard_MapCanvas\\MapCanvas_DataProviderBase.lua" },
+    { id = "CreateFromMixins", path = "CreateFromMixins", feature = "mappins", kind = "function", src = "xml Blizzard_SharedXMLBase\\Mixin.lua" },
+    { id = "Minimap", path = "Minimap", feature = "minimappins", kind = "table", src = "xml Blizzard_Minimap\\Mainline\\Minimap.xml" },
+    { id = "MinimapRadius", path = "C_Minimap.GetViewRadius", feature = "minimappins", kind = "function", src = "doc MinimapDocumentation" },
+    { id = "CVarBool", path = "C_CVar.GetCVarBool", kind = "function", src = "doc CVarDocumentation" },
+    { id = "MapInfo", path = "C_Map.GetMapInfo", kind = "function", src = "doc MapDocumentation" },
+    { id = "QuestLink", path = "GetQuestLink", kind = "function", src = "xml Blizzard_ChatFrameBase\\Shared\\ChatFrameUtil.lua (not in the docs)" },
+    { id = "ChatInsertLink", path = "ChatFrameUtil.InsertLink", kind = "function", src = "xml Blizzard_ChatFrameBase\\Mainline\\ChatFrameUtilOverrides.lua" },
+    { id = "ChatActiveWindow", path = "ChatFrameUtil.GetActiveWindow", kind = "function", src = "xml Blizzard_ChatFrameBase\\Shared\\ChatFrameUtil.lua" },
+    { id = "OpenWorldMap", path = "OpenWorldMap", kind = "function", src = "xml Blizzard_WorldMap\\Blizzard_WorldMap.lua" },
+    { id = "IsShiftKeyDown", path = "IsShiftKeyDown", kind = "function", src = "doc InputDocumentation" },
+    { id = "IsControlKeyDown", path = "IsControlKeyDown", kind = "function", src = "doc InputDocumentation" },
+    { id = "IsAltKeyDown", path = "IsAltKeyDown", kind = "function", src = "doc InputDocumentation" },
+    { id = "GetCursorPosition", path = "GetCursorPosition", kind = "function", src = "doc InputDocumentation" },
+    { id = "GetServerTime", path = "GetServerTime", kind = "function", src = "doc SystemTimeDocumentation" },
+
+    -- v0.2 M4: the settings panel (Blizzard_Settings_Shared\Blizzard_Settings.lua, loaded with the UI, not on
+    -- demand: its .toc has no LoadOnDemand), the button initializer (Blizzard_SettingControls.lua)
+    { id = "SetRegCat", path = "Settings.RegisterVerticalLayoutCategory", feature = "settings", kind = "function", src = "xml Blizzard_Settings_Shared\\Blizzard_Settings.lua" },
+    { id = "SetRegSub", path = "Settings.RegisterVerticalLayoutSubcategory", feature = "settings", kind = "function", src = "xml Blizzard_Settings_Shared\\Blizzard_Settings.lua" },
+    { id = "SetRegAddOn", path = "Settings.RegisterAddOnCategory", feature = "settings", kind = "function", src = "xml Blizzard_Settings_Shared\\Blizzard_Settings.lua" },
+    { id = "SetProxy", path = "Settings.RegisterProxySetting", feature = "settings", kind = "function", src = "xml Blizzard_Settings_Shared\\Blizzard_Settings.lua" },
+    { id = "SetCheckbox", path = "Settings.CreateCheckbox", feature = "settings", kind = "function", src = "xml Blizzard_Settings_Shared\\Blizzard_Settings.lua" },
+    { id = "SetSlider", path = "Settings.CreateSlider", feature = "settings", kind = "function", src = "xml Blizzard_Settings_Shared\\Blizzard_Settings.lua" },
+    { id = "SetDropdown", path = "Settings.CreateDropdown", feature = "settings", kind = "function", src = "xml Blizzard_Settings_Shared\\Blizzard_Settings.lua" },
+    { id = "SetSliderOptions", path = "Settings.CreateSliderOptions", feature = "settings", kind = "function", src = "xml Blizzard_Settings_Shared\\Blizzard_Settings.lua" },
+    { id = "SetTextContainer", path = "Settings.CreateControlTextContainer", feature = "settings", kind = "function", src = "xml Blizzard_Settings_Shared\\Blizzard_Settings.lua" },
+    { id = "SetOpen", path = "Settings.OpenToCategory", feature = "settings", kind = "function", src = "xml Blizzard_Settings_Shared\\Blizzard_Settings.lua" },
+    { id = "SetButtonInit", path = "CreateSettingsButtonInitializer", kind = "function", src = "xml Blizzard_Settings_Shared\\Blizzard_SettingControls.lua" },
+    -- v0.2 M4: the minimap button (Minimap's size / scale; the cursor for dragging around the ring)
+    { id = "MinimapButton", path = "Minimap", feature = "minimap", kind = "table", src = "xml Blizzard_Minimap\\Mainline\\Minimap.xml" },
+
+    -- v0.2 M5 / M6: NPC ids from a GUID (report evidence, dev recorder; never Player- or Pet- GUIDs)
+    { id = "UnitGUID", path = "UnitGUID", kind = "function", secret = "returns", src = "doc UnitDocumentation" },
+    -- v0.2 M6: dev recorder and /aog where (report only: a missing one just records less)
+    { id = "LootNum", path = "GetNumLootItems", kind = "function", src = "xml Blizzard_UIPanels_Game\\Mainline\\LootFrame.lua" },
+    { id = "LootLink", path = "GetLootSlotLink", kind = "function", src = "xml Blizzard_UIPanels_Game\\Mainline\\LootFrame.lua" },
+    { id = "LootSource", path = "GetLootSourceInfo", kind = "function", secret = "returns", src = "warcraft.wiki.gg API_GetLootSourceInfo (lists Forever 1.60.1; not used in the UI source)" },
+    { id = "InstanceInfo", path = "GetInstanceInfo", kind = "function", src = "xml Blizzard_FrameXML\\InstanceDifficulty.lua (8th return = instance map id)" },
+    { id = "QuestSelected", path = "C_QuestLog.GetSelectedQuest", kind = "function", src = "doc QuestLogDocumentation" },
+
     -- bags, rules
     { id = "ItemCount", path = "C_Item.GetItemCount", feature = "bags", kind = "function", secret = "args", src = "doc ItemDocumentation" },
+    { id = "ItemCountOld", path = "GetItemCount", kind = "function", src = "xml (global before C_Item; fallback only)" },
+    -- v0.2 First Aid: skill lines, read only (never Expand / CollapseSkillHeader; tos plans\first-aid)
+    { id = "SkillLines", path = "C_SkillInfo.GetNumSkillLines", kind = "function", src = "doc SkillInfoDocumentation (line 41); Camelot SkillsFrame.lua:153" },
+    { id = "SkillLineInfo", path = "C_SkillInfo.GetSkillLineInfo", kind = "function", secret = "args", src = "doc SkillInfoDocumentation (line 59); Camelot SkillsFrame.lua:154" },
+    { id = "SkillLineByID", path = "C_SkillInfo.GetSkillLineInfoByID", kind = "function", secret = "args", src = "doc SkillInfoDocumentation (line 74); Camelot PaperDollFrame.lua:730" },
+    -- v0.2 quest items in the bags (read only; missing = no quest-item advice, nothing else changes)
+    { id = "BagSlots", path = "C_Container.GetContainerNumSlots", kind = "function", secret = "args", src = "doc ContainerDocumentation (line 313)" },
+    { id = "BagItemID", path = "C_Container.GetContainerItemID", kind = "function", secret = "args", src = "doc ContainerDocumentation (line 175)" },
+    { id = "BagQuestInfo", path = "C_Container.GetContainerItemQuestInfo", kind = "function", secret = "args", src = "doc ContainerDocumentation (line 281; ItemQuestInfo line 817)" },
     { id = "Hardcore", path = "C_GameRules.IsHardcoreActive", feature = "hardcore", kind = "function", secret = "returns", src = "doc GameRulesDocumentation" },
 
     -- the window and arrow (M3)
     { id = "UIParent", path = "UIParent", feature = "ui", kind = "table", src = "xml (parent across the UI source)" },
     { id = "CreateColor", path = "CreateColor", feature = "ui", kind = "function", src = "xml Blizzard_SharedXMLBase\\Color.lua" },
     { id = "GameTooltip", path = "GameTooltip", kind = "table", src = "xml Blizzard_GameTooltip\\Mainline\\GameTooltip.xml" },
-    { id = "ReloadUI", path = "ReloadUI", kind = "function", src = "xml Blizzard_ChatFrameBase\\Shared\\SlashCommands.lua" },
+    -- ReloadUI / C_UI.Reload: PROTECTED on 16001 (ADDON_ACTION_BLOCKED from addon code, beta.1). Not listed so
+    -- it is never resolved; the player types /reload. The offline tester traps both (world\interact.lua).
     { id = "SpecialFrames", path = "UISpecialFrames", kind = "table", src = "xml Blizzard_UIParentPanelManager\\Shared\\UIParentPanelManager.lua" },
 
     -- the self-test's perf check (M4; only when the player runs it or once per new version)
@@ -80,9 +156,9 @@ ns.ApiList = {
     -- recorded for later versions (probe only)
     { id = "SetUserWaypoint", path = "C_Map.SetUserWaypoint", kind = "function", later = "v0.2", src = "doc MapDocumentation" },
     { id = "SuperTrack", path = "C_SuperTrack.SetSuperTrackedUserWaypoint", kind = "function", later = "v0.2", src = "doc SuperTrackManagerDocumentation" },
-    { id = "AtlasInfo", path = "C_Texture.GetAtlasInfo", kind = "function", later = "v0.3", src = "doc TextureUtilsDocumentation" },
+    { id = "AtlasInfo", path = "C_Texture.GetAtlasInfo", kind = "function", src = "doc TextureUtilsDocumentation (atlas check helper, v0.1.1)" },
     { id = "Spec", path = "C_SpecializationInfo.GetSpecialization", kind = "function", later = "v0.4", src = "doc SpecializationInfoDocumentation" },
-    { id = "UnitHealth", path = "UnitHealth", kind = "function", secret = "returns", later = "v0.2", src = "doc UnitDocumentation" },
+    { id = "UnitHealth", path = "UnitHealth", kind = "function", secret = "returns", later = "not used (tos R1)", src = "doc UnitDocumentation" },
     { id = "ConfirmBinder", path = "ConfirmBinder", kind = "function", later = "v0.3 (player's click only)", src = "doc UnitDocumentation" },
     { id = "BinderInteraction", path = "C_PlayerInteractionManager.ConfirmationInteraction", kind = "function", later = "v0.3 (player's click only)", src = "doc PlayerInteractionManagerDocumentation" },
     { id = "issecurevariable", path = "issecurevariable", kind = "function", later = "v0.1 probe (not in the UI source docs)", src = "not found in the 1.60.1 UI source" },

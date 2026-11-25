@@ -19,6 +19,20 @@ local function Handler(msg)
 end
 E.Handler = Handler
 
+-- The chat line names the part in plain words (ui-text review); the internal name stays in /aog error.
+local PLAIN = { ui = "WINDOW", notice = "WINDOW", theme = "WINDOW", engine = "STEPS", slash = "COMMAND",
+    arrow = "ARROW", position = "ARROW", worldpos = "ARROW", facing = "ARROW",
+    questlog = "QUESTS", gamestate = "QUESTS", questdata = "QUESTS", names = "QUESTS", questlimit = "QUESTS",
+    bags = "BAGS", selftest = "SELFTEST", api = "LINK", gearset = "LINK",
+    pins = "MAP", mappins = "MAP", minimappins = "MAP", waypoint = "ARROW", smartarrow = "ARROW", hooks = "WINDOW", conflicts = "LINK",
+    settings = "WINDOW", minimap = "WINDOW", hub = "WINDOW", report = "WINDOW", recorder = "OTHER" }
+E.PLAIN = PLAIN
+function E.PlainName(feature)
+    local L = ns.L
+    local key = "FEAT_" .. (PLAIN[feature] or "OTHER")
+    return (L and L[key]) or (L and L.FEAT_OTHER) or "the addon"
+end
+
 function E.Record(feature, msg)
     feature = feature or "core"
     local text = U.Plain(msg)
@@ -29,8 +43,8 @@ function E.Record(feature, msg)
     if not E.shown[feature] then
         E.shown[feature] = true
         local L = ns.L
-        local line = L and L.ERROR_LINE or "something went wrong in {feature}. Type /aog error to copy the details."
-        ns.Print(U.Fill(line, { feature = feature }))
+        local line = L and L.ERROR_LINE or "something went wrong ({feature}). Type /aog error for details."
+        ns.Print(U.Fill(line, { feature = E.PlainName(feature) }))
     end
     if E.counts[feature] >= MAX_ERRORS and ns.Feature and feature ~= "core" then
         ns.Feature.Set(feature, "errors", "3 errors")
@@ -63,7 +77,7 @@ function E.Debug(fmt, ...)
     local ok, line = pcall(string.format, fmt, ...)
     if not ok then line = tostring(fmt) end
     E.logPos = E.logPos % E.logSize + 1
-    E.log[E.logPos] = U.Plain(line)
+    E.log[E.logPos] = U.StripNames(U.Plain(line))   -- v0.2 M5: never a name in the log (reports read it)
 end
 
 function E.DebugLines(n)

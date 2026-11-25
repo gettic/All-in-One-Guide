@@ -22,8 +22,19 @@ local function Saved(scope, name, create)
     return type(m) == "table" and m or nil
 end
 
+local function Snoozed(id)
+    local c = Saved("char", "notice")
+    local untilT = c and type(c.snooze) == "table" and c.snooze[id]
+    if type(untilT) ~= "number" then return false end
+    local now = ns.Compat.ServerTime()
+    if not now then return false end
+    return now < untilT
+end
+N.Snoozed = Snoozed
+
 local function Hidden(n)
     if n.kind == DANGER then return false end
+    if Snoozed(n.id) then return true end
     local c = Saved("char", "notice")
     if c and type(c.hidden) == "table" and c.hidden[n.id] then return true end
     local a = Saved("account", "noticeKinds")
@@ -69,7 +80,40 @@ function N.Top()
     return best
 end
 
-function N.Later(id) N.later[id] = true Changed() end
+-- Later: "session" (default, not saved), "hour" or "day" (saved per character with the server time;
+-- without a server time it falls back to this session). Old snoozes are dropped when a new one is set.
+N.SNOOZE = { hour = 3600, day = 86400 }
+function N.Later(id, how)
+    local secs = N.SNOOZE[how or "session"]
+    local now = secs and ns.Compat.ServerTime()
+    if not secs or not now or ns.safeMode or ns.DB.readOnly.char then
+        N.later[id] = true
+        Changed()
+        return "session"
+    end
+    local c = Saved("char", "notice", true)
+    if not c then N.later[id] = true Changed() return "session" end
+    c.snooze = type(c.snooze) == "table" and c.snooze or {}
+    for k, v in pairs(c.snooze) do if type(v) ~= "number" or v <= now then c.snooze[k] = nil end end
+    c.snooze[id] = now + secs
+    Changed()
+    return how
+end
+
+-- "Why am I seeing this?": which part sent it and its off switch (lines for the hover tooltip).
+local SOURCE = { reminders = "STEPS", logfull = "QUESTS", undo = "STEPS", lang = "OTHER", selftest = "SELFTEST", conflicts = "LINK",
+    questitems = "QUESTS" }
+function N.Why(n)
+    local L = ns.L
+    local part = SOURCE[n.source or ""] or SOURCE[n.id] or SOURCE[n.kind] or "OTHER"
+    local lines = { L.NOTICE_WHY, ns.U.Fill(L.NOTICE_FROM, { part = L["FEAT_" .. part] or L.FEAT_OTHER }) }
+    if n.kind ~= DANGER then
+        local how = n.source == "reminders" and n.id == "useitem"
+            and ns.U.Fill(L.MENU_REMINDER, { level = L.REMINDER_OFF }) or L.NOTICE_HIDE_KIND
+        lines[#lines + 1] = ns.U.Fill(L.NOTICE_OFF, { how = how })
+    end
+    return lines
+end
 
 function N.HideChar(id)
     local c = Saved("char", "notice", true)
@@ -98,7 +142,9 @@ function N.Cut(text) return (ns.U.Utf8Cut(text or "", N.MaxChars())) end
 function N.MenuItems(n)
     local L = ns.L
     return {
-        { text = L.NOTICE_LATER, fn = function() N.Later(n.id) end },
+        { text = L.NOTICE_LATER_HOUR, fn = function() N.Later(n.id, "hour") end, disabled = n.kind == DANGER },
+        { text = L.NOTICE_LATER_SESSION, fn = function() N.Later(n.id, "session") end },
+        { text = L.NOTICE_LATER_DAY, fn = function() N.Later(n.id, "day") end, disabled = n.kind == DANGER },
         { text = L.NOTICE_HIDE_CHAR, fn = function() N.HideChar(n.id) end, disabled = n.kind == DANGER },
         { text = L.NOTICE_HIDE_KIND, fn = function() N.HideKind(n.kind) end, disabled = n.kind == DANGER },
     }

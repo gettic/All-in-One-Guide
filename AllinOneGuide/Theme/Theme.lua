@@ -7,7 +7,9 @@
 --   ns.Theme.Glyph(tex, key [, flip])      (slot key -> media through Theme\Media.lua)
 -- Fonts: Blizzard's own font files only (SetFont on our font strings; nothing copied, no new globals).
 local _, ns = ...
-local Th = { themes = {}, name = nil, cache = {}, MIN_FONT = 9 }
+-- overlays (v0.2 M4, Theme\Overlay.lua): tables laid over any theme (high contrast, colour-blind), last
+-- one wins; fontDelta: points added to every font size (font size setting, large text)
+local Th = { themes = {}, name = nil, cache = {}, MIN_FONT = 9, MAX_FONT = 24, overlays = {}, fontDelta = 0 }
 ns.Theme = Th
 
 function Th.Register(name, t)
@@ -15,8 +17,16 @@ function Th.Register(name, t)
     Th.themes[name] = t
 end
 
--- A key from the current theme, then its base chain. nil when no theme knows it.
+-- A key from the active overlays, then the current theme, then its base chain. nil when none knows it.
+-- With an explicit theme name the overlays are skipped (the "every key resolves" checks).
 function Th.Raw(key, name)
+    if not name then
+        local o = Th.overlays
+        for i = #o, 1, -1 do
+            local v = o[i][key]
+            if v ~= nil then return v end
+        end
+    end
     local t = Th.themes[name or Th.name or "Dark"]
     for _ = 1, 8 do
         if not t then return nil end
@@ -84,6 +94,20 @@ function Th.Size(key)
     return v
 end
 
+-- An alpha (0..1) from "alpha.<key>"; `fallback` (or 1) when the theme has none.
+function Th.Alpha(key, fallback)
+    local v = Th.Raw("alpha." .. key)
+    if type(v) ~= "number" then Missing("alpha." .. key) return fallback or 1 end
+    return math.max(0, math.min(1, v))
+end
+
+-- A built-in game file path from "file.<key>" (never our media: those go through slot keys).
+function Th.File(key)
+    local v = Th.Raw("file." .. key)
+    if type(v) ~= "string" or v == "" then Missing("file." .. key) return nil end
+    return v
+end
+
 -- The font file for this client: a narrow Western font, or the client's own font for other alphabets.
 local WESTERN = { enUS = true, enGB = true, deDE = true, frFR = true, esES = true, esMX = true, ptBR = true, itIT = true }
 function Th.FontFile()
@@ -106,7 +130,17 @@ local function FontSpec(key)
     return f
 end
 
-function Th.FontSize(key) return math.max(Th.MIN_FONT, math.floor(FontSpec(key).size or 12)) end
+function Th.FontSize(key)
+    local size = math.floor((FontSpec(key).size or 12) + (Th.fontDelta or 0))
+    return math.min(Th.MAX_FONT, math.max(Th.MIN_FONT, size))
+end
+
+-- Sets the overlays and the font delta (Theme\Overlay.lua); colours are parsed again.
+function Th.SetOverlays(list, fontDelta)
+    Th.overlays = list or {}
+    Th.fontDelta = fontDelta or 0
+    Th.cache = {}
+end
 
 -- Row height from the font size x line spacing (whole units), so bigger text never clips.
 function Th.LineHeight(key)

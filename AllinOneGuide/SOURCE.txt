@@ -15,7 +15,14 @@ repository, at the tag that matches this addon's version (## Version in the
   packs-src\          the readable guide pack sources
   packs-src\FORMAT.md the pack format
   tools\              the pack checker and the build script (Routes\*.lua)
+  tools\import\       the offline data importer and its licence / provenance
+                      filter (for packs made from other projects' GPL data)
   art-src\            the scripts that draw the pictures in media\
 
-To rebuild the routes: powershell -NoProfile -File tools\build.ps1
-To rebuild the pictures: python -B art-src\<script>.py
+To rebuild the routes (needs LuaJIT, https://luajit.org), from the
+repository folder:
+  luajit tools/build.lua
+or on Windows:
+  powershell -NoProfile -File tools\build.ps1
+To check that Routes\*.lua match their sources: add --check (or -Check).
+To rebuild the pictures (needs Python 3): python -B art-src\build_<name>.py

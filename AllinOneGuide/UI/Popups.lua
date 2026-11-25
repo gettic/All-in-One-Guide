@@ -7,7 +7,7 @@
 --   ns.Popups.Copy(title, text)
 local _, ns = ...
 local Th, K, L = ns.Theme, ns.UIKit, ns.L
-local Pp = { queue = {}, autoShown = false, ORDER = { safe = 3, crash = 3, move = 2, lang = 1 }, AUTO = { safe = true, crash = true, move = true } }
+local Pp = { queue = {}, autoShown = false, ORDER = { safe = 3, crash = 3, move = 2, route = 1, lang = 1, restore = 1 }, AUTO = { safe = true, crash = true, move = true, route = true } }
 ns.Popups = Pp
 
 local WIDTH = 300
@@ -19,27 +19,22 @@ local function Build()
     f:SetSize(WIDTH, 120)
     f:SetPoint("CENTER", ns.Compat.UIParent(), "CENTER", 0, 120)
     f:SetClampedToScreen(true)
+    f:SetMovable(true)
     f:EnableMouse(true)
     K.Panel(f)
+    -- the shared title bar says which addon asks (look review #5); its X = hiding = the No answer
+    f.titleBar = K.TitleBar(f, { drag = true, close = function() f:Hide() end })
+    f.titleBar.title:SetText(ns.TITLE)
+    local top = Th.Size("title") + 10
     f.text = K.Text(f, "step", "text")
     f.text:SetWordWrap(true)
-    f.text:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -12)
-    f.text:SetPoint("TOPRIGHT", f, "TOPRIGHT", -12, -12)
-    local function Btn(label)
-        local b = CreateFrame("Button", nil, f)
-        b:SetSize(110, Th.LineHeight("step") + 8)
-        K.Fill(b, "BACKGROUND", "barTrack"):SetAllPoints()
-        b.text = K.Text(b, "step", "text", "CENTER")
-        b.text:SetPoint("CENTER")
-        b.text:SetText(label)
-        return b
-    end
-    f.yes = Btn(L.POPUP_YES)
+    f.text:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -top)
+    f.text:SetPoint("TOPRIGHT", f, "TOPRIGHT", -12, -top)
+    -- primary = the accept answer (accent text), the other a plain button
+    f.yes = K.Button(f, L.POPUP_YES, function() Pp.Answer(true) end, { primary = true })
     f.yes:SetPoint("BOTTOMRIGHT", f, "BOTTOM", -6, 12)
-    f.no = Btn(L.POPUP_NO)
+    f.no = K.Button(f, L.POPUP_NO, function() Pp.Answer(false) end)
     f.no:SetPoint("BOTTOMLEFT", f, "BOTTOM", 6, 12)
-    f.yes:SetScript("OnClick", function() Pp.Answer(true) end)
-    f.no:SetScript("OnClick", function() Pp.Answer(false) end)
     f:Hide()
     -- hidden while a question is open (Esc): the answer is No (noCancel dialogs: their only button)
     f:SetScript("OnHide", function()
@@ -69,9 +64,12 @@ function Pp.Next()
     if not Pp.frame then Build() end
     local f = Pp.frame
     Pp.current = p
+    f.yes:SetLabel(p.acceptText or L.POPUP_YES)
+    f.no:SetLabel(p.cancelText or L.POPUP_NO)
+    -- wide enough for both buttons (long Danish words)
+    local need = f.yes:GetWidth() + (p.noCancel and 0 or f.no:GetWidth() + 12) + 24
+    f:SetWidth(math.max(WIDTH, need))
     f.text:SetText(p.text or "")
-    f.yes.text:SetText(p.acceptText or L.POPUP_YES)
-    f.no.text:SetText(p.cancelText or L.POPUP_NO)
     f.no:SetShown(not p.noCancel)
     if p.noCancel then
         f.yes:ClearAllPoints()
@@ -81,7 +79,7 @@ function Pp.Next()
         f.yes:SetPoint("BOTTOMRIGHT", f, "BOTTOM", -6, 12)
     end
     local textH = f.text:GetStringHeight() or Th.LineHeight("step")
-    f:SetHeight(math.max(90, textH + 24 + Th.LineHeight("step") + 28))
+    f:SetHeight(math.max(90, Th.Size("title") + textH + 22 + Th.LineHeight("step") + 28))
     f:Show()
 end
 
@@ -102,16 +100,21 @@ function Pp.Current() return Pp.current end
 local function BuildCopy()
     local f = CreateFrame("Frame", nil, ns.Compat.UIParent())
     f:SetFrameStrata("DIALOG")
-    f:SetSize(360, 96)
+    local top = Th.Size("title")
+    f:SetSize(360, 96 + top)
     f:SetPoint("CENTER", ns.Compat.UIParent(), "CENTER", 0, 40)
     f:SetClampedToScreen(true)
+    f:SetMovable(true)
     f:EnableMouse(true)
     K.Panel(f)
+    -- the shared title bar (look review #5) with its close button; what is copied stays the heading below
+    f.titleBar = K.TitleBar(f, { drag = true, close = function() f:Hide() end })
+    f.titleBar.title:SetText(ns.TITLE)
     f.title = K.Text(f, "header", "zone")
-    f.title:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -8)
+    f.title:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -(top + 8))
     local e = CreateFrame("EditBox", nil, f)
-    e:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -30)
-    e:SetPoint("TOPRIGHT", f, "TOPRIGHT", -10, -30)
+    e:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -(top + 30))
+    e:SetPoint("TOPRIGHT", f, "TOPRIGHT", -10, -(top + 30))
     e:SetHeight(Th.LineHeight("step") + 6)
     e:SetAutoFocus(false)
     Th.Font(e, "step")
@@ -122,8 +125,12 @@ local function BuildCopy()
     -- the text can't be edited: typing puts it back
     e:SetScript("OnTextChanged", function(self, user) if user then self:SetText(f.value or "") self:HighlightText() end end)
     f.edit = e
-    local close = K.GlyphButton(f, "btn.close", Th.Size("button"), nil, function() f:Hide() end)
-    close:SetPoint("TOPRIGHT", f, "TOPRIGHT", -6, -6)
+    -- an optional line under the text (where to paste it); the box grows to fit it
+    f.note = K.Text(f, "goal", "text")
+    f.note:SetWordWrap(true)
+    f.note:SetWidth(340)
+    f.note:SetPoint("TOPLEFT", e, "BOTTOMLEFT", 0, -6)
+    f.note:Hide()
     f.hint = K.Text(f, "small", "text.dim")
     f.hint:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 10, 8)
     f.hint:SetText(L.COPY_HINT)
@@ -131,11 +138,22 @@ local function BuildCopy()
     Pp.copy = f
 end
 
-function Pp.Copy(title, text)
+-- note (optional): one or two lines under the text, e.g. the web address to paste it at.
+function Pp.Copy(title, text, note)
     if not Pp.copy then BuildCopy() end
     local f = Pp.copy
     f.value = tostring(text or "")
     f.title:SetText(title or "")
+    local extra = 0
+    if note and note ~= "" then
+        f.note:SetText(note)
+        f.note:Show()
+        extra = math.max(Th.LineHeight("goal"), f.note:GetStringHeight() or 0) + 8
+    else
+        f.note:SetText("")
+        f.note:Hide()
+    end
+    f:SetHeight(96 + Th.Size("title") + extra)
     f.edit:SetText(f.value)
     f:Show()
     f.edit:SetFocus()

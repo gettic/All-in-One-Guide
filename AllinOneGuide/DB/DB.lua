@@ -74,6 +74,29 @@ local function FixVersion(t)
     return true
 end
 
+-- Backup before a migration (v0.2, G-B16): before the chain runs on a save that already had a version,
+-- a copy of it (not the boot record, not older backups) goes to _backup. One is kept; it ages one step
+-- per normal load and is dropped on the third load after it (crash / safe-mode loads never get here).
+-- `/aog restore` puts it back (what was there before goes to _beforeRestore, one kept); the player types /reload.
+local NO_COPY = { boot = true, _backup = true, _beforeRestore = true }
+DB.BACKUP_LOADS = 3
+local function Backup(t, version)
+    local data = {}
+    for k, v in pairs(t) do if not NO_COPY[k] then data[k] = U.Copy(v) end end
+    t._backup = { from = version, to = DB.CURRENT, data = data, loads = 0 }
+end
+local function AgeBackup(t)
+    local b = t._backup
+    if b == nil then return end
+    if type(b) ~= "table" or type(b.data) ~= "table" then
+        KeepAside(t, "_backup", b)
+        t._backup = nil
+        return
+    end
+    b.loads = (tonumber(b.loads) or 0) + 1
+    if b.loads >= DB.BACKUP_LOADS then t._backup = nil end
+end
+
 -- Repair, then the migration chain, then Ensure. A newer save isn't migrated: it gets a working
 -- copy (Ensure on the copy only). Returns the table to use and whether it's a read-only copy.
 local function Prepare(t, kind)
@@ -88,6 +111,7 @@ local function Prepare(t, kind)
         Ensure(copy, kind)
         return copy, true
     end
+    if version >= 1 and version < DB.CURRENT then Backup(t, version) else AgeBackup(t) end
     for v = version + 1, DB.CURRENT do
         mig[v](t)
         t.dbVersion = v
@@ -126,6 +150,8 @@ function DB.Init()
     DB.freshChar = _G[CHAR] == nil
     -- 1. the boot record first (crash-during-load check), before anything else touches the saves
     local raw = _G[ACC]
+    -- a first install = no account save with a version stamp yet (every version since v0.1 writes dbVersion)
+    DB.freshAccount = not (type(raw) == "table" and raw.dbVersion ~= nil)
     local boot = (type(raw) == "table" and type(raw.boot) == "table") and raw.boot or {}
     DB.boot = boot
     if ns.Errors.BootStart(boot) then
@@ -149,6 +175,42 @@ function DB.Init()
 end
 
 function DB.BootDone() ns.Errors.BootDone(DB.boot) end
+
+local SAVES = { { ACC, "account" }, { CHAR, "char" } }
+function DB.HasBackup()
+    if ns.safeMode then return false end
+    for _, s in ipairs(SAVES) do
+        local raw = _G[s[1]]
+        if type(raw) == "table" and type(raw._backup) == "table" and type(raw._backup.data) == "table" and not DB.readOnly[s[2]] then return true end
+    end
+    return false
+end
+
+-- Puts the backups back into the real saves (the caller reloads right after). Nothing is thrown away:
+-- the data from before the restore is kept in _beforeRestore.
+function DB.Restore()
+    if not DB.HasBackup() then return false end
+    for _, s in ipairs(SAVES) do
+        local raw = _G[s[1]]
+        local b = type(raw) == "table" and raw._backup
+        if type(b) == "table" and type(b.data) == "table" and not DB.readOnly[s[2]] then
+            local now = {}
+            for k, v in pairs(raw) do if not NO_COPY[k] then now[k] = v end end
+            for k in pairs(now) do raw[k] = nil end
+            for k, v in pairs(b.data) do raw[k] = v end
+            raw._beforeRestore = now
+            raw._backup = nil
+        end
+    end
+    return true
+end
+
+ns.Slash.Add("restore", function()
+    if not DB.HasBackup() then ns.Print(ns.L.RESTORE_NONE) return end
+    ns.Popups.Confirm({ kind = "restore", text = ns.L.DIALOG_RESTORE,
+        -- ReloadUI is protected on 16001: the player types /reload to finish (the chat line says so)
+        accept = function() if DB.Restore() then ns.Print(ns.L.RESTORE_RELOAD) end end })
+end, "HELP_RESTORE")
 
 -- ------------------------------------------------------------------ per guide
 -- Guide key "packId/routeId". Created on first use.

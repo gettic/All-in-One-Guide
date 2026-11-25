@@ -1,29 +1,77 @@
 -- SPDX-License-Identifier: GPL-3.0-or-later
 -- Copyright (C) 2026 gettic
--- One declarative settings schema. It feeds the title menu and slash commands now, and the settings
--- panel, search, profiles, reset and export allowlist later. Defaults are read through a metatable,
--- so only values the player changed are written to the save.
---   key, scope ("account" | "char"), kind ("bool" | "number" | "choice"), default, min / max / choices,
+-- One declarative settings schema. It feeds the title menu, slash commands and the settings panel
+-- (UI\Settings.lua), and the reset per page and the export allowlist. Defaults are read through a
+-- metatable, so only values the player changed are written to the save.
+--   key, scope ("account" | "char"), kind ("bool" | "number" | "choice"), default, min / max / step / choices,
 --   export (may go into a settings export later; never for personal things)
+--   v0.2 M4: page ("general" | "window" | "arrow" | "map" | "advanced"; nil = not in the panel),
+--   label / tip (locale keys; default "SET_<KEY>" / "SETTIP_<KEY>"; the panel adds the default to the tip),
+--   combat (true = only changed out of combat: the change waits for the combat queue),
+--   choiceLabels (choice value -> locale key)
+-- Recommended defaults (BUILD-PLAN M4): arrow on, small window off, sounds off, minimap button on.
 local _, ns = ...
 local S = {}
 ns.Settings = S
 
+S.PAGES = { "general", "window", "arrow", "map", "advanced" }
+
 S.schema = {
-    { key = "lang", scope = "account", kind = "choice", default = "auto", choices = { "auto", "en", "da" }, export = true },
-    { key = "quiet", scope = "account", kind = "bool", default = false, export = true },
-    { key = "debug", scope = "account", kind = "bool", default = false, export = false },
-    { key = "locked", scope = "char", kind = "bool", default = false, export = true },
-    { key = "small", scope = "char", kind = "bool", default = false, export = true },
-    { key = "opacity", scope = "char", kind = "number", default = 0.8, min = 0.2, max = 1, export = true },
+    { key = "lang", scope = "account", kind = "choice", default = "auto", choices = { "auto", "en", "da" }, export = true,
+        page = "general", choiceLabels = { auto = "CHOICE_LANG_AUTO", en = "CHOICE_LANG_EN", da = "CHOICE_LANG_DA" } },
+    { key = "useOnChar", scope = "char", kind = "bool", default = true, export = false, page = "general" },
+    { key = "minimap", scope = "account", kind = "bool", default = true, export = true, page = "general" },
+    { key = "quiet", scope = "account", kind = "bool", default = false, export = true, page = "general" },
+    { key = "reminder", scope = "account", kind = "choice", default = "glow", choices = { "off", "glow", "text", "sound" }, export = true,
+        page = "general", choiceLabels = { off = "REMINDER_OFF", glow = "REMINDER_GLOW", text = "REMINDER_TEXT", sound = "REMINDER_SOUND" } },
+    { key = "offInBG", scope = "account", kind = "bool", default = false, export = true, page = "general" },
+    { key = "offInRaid", scope = "account", kind = "bool", default = false, export = true, page = "general" },
+    { key = "reducedMotion", scope = "account", kind = "bool", default = false, export = true, page = "general" },
+    -- v0.2: optional First Aid "level up" lines from your cloth and skill (Engine\FirstAid.lua)
+    { key = "firstAidSteps", scope = "account", kind = "bool", default = true, export = true, page = "general" },
+
+    { key = "locked", scope = "char", kind = "bool", default = false, export = true, page = "window" },
+    { key = "small", scope = "char", kind = "bool", default = false, export = true, page = "window" },
+    { key = "opacity", scope = "char", kind = "number", default = 0.8, min = 0.2, max = 1, step = 0.1, export = true, page = "window" },
+    { key = "width", scope = "char", kind = "number", default = 272, min = 240, max = 420, step = 4, export = true, page = "window" },
+    { key = "scale", scope = "char", kind = "number", default = 1, min = 0.6, max = 1.6, step = 0.05, export = true, page = "window",
+        combat = true },   -- moves the window the secure step button docks to
+    { key = "followUIScale", scope = "account", kind = "bool", default = true, export = true, page = "window" },
+    { key = "fontSize", scope = "account", kind = "number", default = 0, min = -2, max = 4, step = 1, export = true, page = "window" },
+    { key = "highContrast", scope = "account", kind = "bool", default = false, export = true, page = "window" },
+    { key = "colorBlind", scope = "account", kind = "bool", default = false, export = true, page = "window" },
+
+    { key = "arrow", scope = "char", kind = "bool", default = true, export = true, page = "arrow" },
+    { key = "arrowScale", scope = "char", kind = "number", default = 1, min = 0.6, max = 1.6, step = 0.05, export = true, page = "arrow" },
+    { key = "arrowAlpha", scope = "char", kind = "number", default = 1, min = 0.3, max = 1, step = 0.1, export = true, page = "arrow" },
+    { key = "arrowClickThrough", scope = "char", kind = "bool", default = false, export = true, page = "arrow" },
+    { key = "arrowUnit", scope = "account", kind = "choice", default = "yards", choices = { "yards", "time" }, export = true,
+        page = "arrow", choiceLabels = { yards = "CHOICE_YARDS", time = "CHOICE_TIME" } },
+    { key = "arrivalSound", scope = "account", kind = "bool", default = false, export = true, page = "arrow" },
+    -- smart arrow: lead through doors, gates and paths (Engine\SmartRoute.lua); off = the straight arrow
+    { key = "smartArrow", scope = "account", kind = "bool", default = true, export = true, page = "arrow" },
+
+    { key = "mapPins", scope = "account", kind = "bool", default = true, export = true, page = "map" },
+    { key = "minimapPins", scope = "account", kind = "bool", default = true, export = true, page = "map" },
+
+    { key = "chatTab", scope = "account", kind = "number", default = 1, min = 1, max = 10, step = 1, export = true, page = "advanced" },
+    { key = "gearSetLink", scope = "account", kind = "bool", default = true, export = true, page = "advanced" },
+    { key = "debug", scope = "account", kind = "bool", default = false, export = false, page = "advanced" },
+
+    -- not in the panel
     { key = "hintLang", scope = "account", kind = "bool", default = false, export = false },   -- first-run "Dansk?" hint shown
     { key = "shown", scope = "char", kind = "bool", default = true, export = false },          -- guide window open
-    { key = "arrow", scope = "char", kind = "bool", default = true, export = true },           -- waypoint arrow on
     { key = "theme", scope = "account", kind = "choice", default = "Dark", choices = { "Dark" }, export = true },
-    { key = "reducedMotion", scope = "account", kind = "bool", default = false, export = true },
+    { key = "minimapAngle", scope = "account", kind = "number", default = 210, min = 0, max = 360, export = true },
 }
 local byKey = {}
-for _, d in ipairs(S.schema) do byKey[d.key] = d end
+for _, d in ipairs(S.schema) do
+    byKey[d.key] = d
+    if d.page then
+        d.label = d.label or ("SET_" .. d.key:upper())
+        d.tip = d.tip or ("SETTIP_" .. d.key:upper())
+    end
+end
 S.byKey = byKey
 
 local function Valid(d, v)
@@ -67,8 +115,53 @@ function S.Set(key, value)
     local d = byKey[key]
     if not d then error("unknown setting " .. tostring(key), 2) end
     if not Valid(d, value) then return false end
+    -- settings that touch secure parts wait for the end of combat (last change wins)
+    if d.combat and ns.Compat.InCombat() and ns.CombatQueue then
+        ns.CombatQueue.Run("setting." .. key, S.Set, key, value)
+        return true
+    end
     local t = Store(d.scope)
     if value == d.default then rawset(t, key, nil) else rawset(t, key, value) end
     ns.Bus.Fire("SettingsChanged", key, value)
     return true
+end
+
+-- The entries on one panel page, in schema order.
+function S.Page(page)
+    local out = {}
+    for _, d in ipairs(S.schema) do if d.page == page then out[#out + 1] = d end end
+    return out
+end
+
+-- "Reset this page": every setting on the page back to its default (only those that differ, so nothing
+-- else in the save is touched). Returns how many changed.
+function S.ResetPage(page)
+    local n = 0
+    for _, d in ipairs(S.Page(page)) do
+        if S.Get(d.key) ~= d.default then
+            S.Set(d.key, d.default)
+            n = n + 1
+        end
+    end
+    return n
+end
+
+-- The default as the player reads it ("on", "off", "80%", a choice's name).
+function S.DefaultText(d)
+    local L = ns.L
+    if d.kind == "bool" then return d.default and L.SET_ON or L.SET_OFF end
+    if d.kind == "choice" then
+        local k = d.choiceLabels and d.choiceLabels[d.default]
+        return k and L[k] or tostring(d.default)
+    end
+    return S.NumberText(d, d.default)
+end
+
+-- A number setting's value as shown next to its slider.
+function S.NumberText(d, v)
+    if d.key == "opacity" or d.key == "arrowAlpha" or d.key == "scale" or d.key == "arrowScale" then
+        return ("%d%%"):format(math.floor(v * 100 + 0.5))
+    end
+    if d.key == "fontSize" and v > 0 then return "+" .. v end
+    return tostring(math.floor(v + 0.5))
 end

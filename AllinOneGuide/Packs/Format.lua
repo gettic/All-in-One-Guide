@@ -4,20 +4,34 @@
 -- script and the pack checker, so all three read rows the same way. Depends on nothing else in ns.
 -- Row: id|type|quest|npc|map|x|y|r|text|da|flags|cond|src|extra   (extra = key=value;key=value)
 local _, ns = ...
-local Fm = { VERSION = 1 }
+-- Format 2 (v0.2) adds step types, the `optional` flag and extra keys; rows look the same, so a v0.1 reader
+-- shows the new types as manual steps (packs using them write formatVersion = 2, minFormat = 1).
+local Fm = { VERSION = 2 }
 ns.Format = Fm
 
 Fm.FIELDS = { "id", "type", "quest", "npc", "map", "x", "y", "r", "text", "da", "flags", "cond", "src", "extra" }
-Fm.TYPES = { accept = true, turnin = true, objective = true, ["goto"] = true, level = true }
+Fm.TYPES = { accept = true, turnin = true, objective = true, ["goto"] = true, level = true,
+    -- format 2
+    learn = true, fly = true, getfp = true, sethearth = true, hearth = true, useitem = true, train = true, note = true,
+    grind = true }
 Fm.FLAGS = { elite = true, group = true, deadly = true, ahStep = true, tradeStep = true, extra = true, future = true,
-    noAutoAccept = true, walk = true, leaveArea = true, grind = true }
+    noAutoAccept = true, walk = true, leaveArea = true, grind = true,
+    optional = true }   -- format 2
 Fm.SOURCES = { own = true, rec = true, lookup = true, wiki = true, client = true, questie = true, forevdb = true,
     codex = true, cmangos = true, lpdb = true, att = true, legacy = true }
 -- extra keys and their kinds: "number", "string", "list" (numbers, comma-separated), "bool"
 Fm.EXTRA = { obj = "list", any = "number", override = "string", whileUntil = "string", leadsTo = "string",
     why = "string", level = "number", item = "number", count = "number", useItem = "number", targetNpc = "number",
     model = "number", useWhen = "string", classQuest = "number", qname = "string", seen = "string",
-    confirmed = "bool", knownIssue = "number", inc = "string" }
+    confirmed = "bool", knownIssue = "number", inc = "string",
+    -- format 2: any-order group id (`anyOrder`; not the `group` flag, which means "needs a group"), accept
+    -- source (npc / item / object), pre-quests, quest XP, minutes, taxi node, inn (the bind location the
+    -- route expects), spell, minimum level, dungeon id (for the repeat check)
+    anyOrder = "string", from = "string", pre = "list", xp = "number", estMin = "number", node = "number",
+    inn = "string", spell = "number", minLevel = "number", dungeon = "string",
+    -- smart arrow: the step's own way (connector ids and inline points, or false = straight), and the
+    -- connector room the goal is in (written by the build from packs-src\connectors\)
+    via = "via", room = "string" }
 Fm.DEFAULT_RADIUS = 10
 
 local tonumber, tostring, concat, sort = tonumber, tostring, table.concat, table.sort
@@ -55,6 +69,39 @@ local function Split(row, sep, out)
     end
 end
 Fm.Split = Split
+
+-- `via` in a row: "-" = false (point straight); else comma-separated items, each a connector id or an inline
+-- point "map/x/y" or "map/x/y/HINT_KEY" (x / y in percent, like the sources).
+local function DecodeVia(v)
+    if v == "-" then return false end
+    local list = {}
+    for item in v:gmatch("[^,]+") do
+        local map, x, y, rest = item:match("^(%d+)/([%d%.]+)/([%d%.]+)(.*)$")
+        if map then
+            local hint = rest:match("^/([%w_]+)$")
+            list[#list + 1] = { map = tonumber(map), x = tonumber(x), y = tonumber(y), hint = hint }
+        else
+            list[#list + 1] = item
+        end
+    end
+    return list
+end
+Fm.DecodeVia = DecodeVia
+
+function Fm.EncodeVia(v)
+    if v == false then return "-" end
+    local items = {}
+    for i, item in ipairs(v) do
+        if type(item) == "table" then
+            local s = Fm.Num(item.map) .. "/" .. Fm.Num(item.x) .. "/" .. Fm.Num(item.y)
+            if item.hint then s = s .. "/" .. tostring(item.hint) end
+            items[i] = s
+        else
+            items[i] = tostring(item)
+        end
+    end
+    return concat(items, ",")
+end
 
 local parts, kv = {}, {}
 
@@ -104,6 +151,8 @@ function Fm.DecodeRow(row)
                     step[k] = tonumber(v)
                 elseif kind == "bool" then
                     step[k] = (v == "1")
+                elseif kind == "via" then
+                    step[k] = DecodeVia(v)
                 elseif kind == "list" then
                     local list = {}
                     for item in v:gmatch("[^,]+") do list[#list + 1] = tonumber(item) or item end
@@ -149,14 +198,16 @@ function Fm.EncodeRow(s)
     out[13] = Field(s.src)
     local keys = {}
     for k in pairs(s) do
-        if Fm.EXTRA[k] then keys[#keys + 1] = k end
+        if Fm.EXTRA[k] and s[k] ~= nil then keys[#keys + 1] = k end
     end
     sort(keys)
     local ex = {}
     for _, k in ipairs(keys) do
         local v, kind = s[k], Fm.EXTRA[k]
         local text
-        if kind == "list" then
+        if kind == "via" then
+            text = Fm.EncodeVia(v)
+        elseif kind == "list" then
             local items = {}
             for i, item in ipairs(v) do items[i] = type(item) == "number" and Fm.Num(item) or tostring(item) end
             text = concat(items, ",")
@@ -177,4 +228,26 @@ end
 function Fm.CanRead(header)
     local minFormat = tonumber(header and header.minFormat) or tonumber(header and header.formatVersion) or 1
     return minFormat <= Fm.VERSION
+end
+
+-- v0.2 M5: Adler-32 as 8 hex digits, plain arithmetic (no bit library: the same in the game's Lua 5.1, LuaJIT
+-- and the report decoder). Shared by the report string (Data\Report.lua) and plans\tools\report-decode.lua.
+function Fm.Adler32(s)
+    local a, b = 1, 0
+    for i = 1, #s do
+        a = (a + s:byte(i)) % 65521
+        b = (b + a) % 65521
+    end
+    return ("%04x%04x"):format(b, a)
+end
+
+-- A step's content hash (8 hex digits): type, quest, map, x, y and English text of a decoded step. A report
+-- carries it so the decoder can tell whether the step changed since the report was made.
+function Fm.StepHash(step)
+    local function F(v)
+        if v == nil then return "" end
+        if type(v) == "number" then return Fm.Num(v) end
+        return tostring(v)
+    end
+    return Fm.Adler32(concat({ F(step.type), F(step.quest), F(step.map), F(step.x), F(step.y), F(step.text) }, "|"))
 end

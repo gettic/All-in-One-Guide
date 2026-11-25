@@ -126,6 +126,39 @@ https://warcraft.wiki.gg/wiki/Shikrik
 https://warcraft.wiki.gg/wiki/Nartok
 https://warcraft.wiki.gg/wiki/Ken%27jai
 https://warcraft.wiki.gg/wiki/Mai%27ah
+https://warcraft.wiki.gg/wiki/Elwynn_Forest_(Classic)_quests
+https://warcraft.wiki.gg/wiki/Etched_Parchment_(Classic)
+https://warcraft.wiki.gg/wiki/Verner_Osgood
+https://warcraft.wiki.gg/wiki/Mountaineer_Rockgar
+https://warcraft.wiki.gg/wiki/Einar_Stonegrip
+https://warcraft.wiki.gg/wiki/Valstag_Ironjaw
+https://warcraft.wiki.gg/wiki/James_Halloran
+https://warcraft.wiki.gg/wiki/Vrang_Wildgore
+https://warcraft.wiki.gg/wiki/Bruised_Pride_and_Lion_Hides
+https://warcraft.wiki.gg/wiki/Vrang%27s_Game
+https://warcraft.wiki.gg/wiki/The_Hermit_Tanner
+https://warcraft.wiki.gg/wiki/Trouble_in_the_Valley
+https://warcraft.wiki.gg/wiki/Kuray%27bin
+https://warcraft.wiki.gg/wiki/Lazy_Peons
+https://warcraft.wiki.gg/wiki/Vile_Familiars_(Warlock)
+https://warcraft.wiki.gg/wiki/Vile_Familiars_(Warlock_2)
+https://warcraft.wiki.gg/wiki/Ruzan
+
+CMaNGOS classic-db (https://github.com/cmangos/classic-db), GPL-3.0.
+Some NPC positions, quest giver/turn-in ids, creature spawn areas
+(grid-snapped), city gate object positions (smart arrow), quest item
+and loot/vendor ids and model
+display ids were checked against or derived
+from this database. Game facts in it come from World of Warcraft,
+(c) Blizzard Entertainment; they are not covered by our GPL licence
+and are used here only as reference facts in a free, non-commercial
+addon. Not affiliated with or endorsed by CMaNGOS or Blizzard.
+
+Data from ForeverDB.net (https://foreverdb.net): some quest ids, levels,
+XP, prerequisites, NPC ids and quest-item ids for WoW Forever-only quests,
+used as reference facts. ForeverDB states no licence for its data; no
+texts were copied. Not affiliated with ForeverDB or Blizzard.
+https://foreverdb.net/
 
 
 World of Warcraft and its content are trademarks and copyrights of
