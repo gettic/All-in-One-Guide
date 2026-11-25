@@ -235,9 +235,14 @@ function Guide:TravelDone(step, i)
         target = j and self:Step(j)
     else
         local n = self:Count()
+        -- background goals (whileUntil) and optional steps ride along: they are never what a walk leads to
+        -- (fix: a walk followed by an already-done "as you go" goal skipped itself)
         for j = i + 1, n do
             local s = self:Step(j)
-            if s and not ST.Get(s.type).travel then target = s break end
+            if s and not ST.Get(s.type).travel and not s.whileUntil and not s.flags.optional then
+                target = s
+                break
+            end
         end
     end
     if not target or not self:Applicable(target) then return false end
@@ -248,11 +253,39 @@ function Guide:IsStop(step, i)
     return self:Applicable(step) and not self:Skipped(step) and not self:Done(step) and not self:TravelDone(step, i)
 end
 
+-- Travel side goals (hand-over): a background goal whose target is an objective step of the same quest isn't
+-- due there; that step shows the same objectives at the right spot, so the goal just stops riding along.
+-- Only when that step covers the goal's objectives (its obj list is empty = all, or holds each of the goal's;
+-- the same rule as tools\packlib.lua Lib.Covers). Returns the target's index for such a goal, else nil.
+local function Covers(t, s)
+    local Pk = ns.Packs
+    if Pk.Len(t.obj) == 0 then return true end
+    if Pk.Len(s.obj) == 0 then return false end
+    local have = {}
+    for _, i in Pk.Each(t.obj) do have[i] = true end
+    for _, i in Pk.Each(s.obj) do if not have[i] then return false end end
+    return true
+end
+
+function Guide:HandOverAt(step)
+    local u = step.whileUntil and step.quest and self:IndexOf(step.whileUntil)
+    if not u then return nil end
+    local t = self:Step(u)
+    if t and t.type == "objective" and t.quest == step.quest and not t.whileUntil and Covers(t, step) then return u end
+    return nil
+end
+
+-- True when a hand-over goal's target has been reached (it no longer shows).
+function Guide:HandedOver(step)
+    local u = self:HandOverAt(step)
+    return u ~= nil and self.pos >= u
+end
+
 -- A background step waiting for the step `id` (it must be done there), or nil.
 function Guide:WaitingFor(id)
     for _, b in ipairs(self.bg) do
         local s = self:Step(b)
-        if s and s.whileUntil == id and self:IsStop(s, b) then return b end
+        if s and s.whileUntil == id and self:IsStop(s, b) and not self:HandOverAt(s) then return b end
     end
 end
 
@@ -384,7 +417,7 @@ function Guide:Background()
     local out = {}
     for _, b in ipairs(self.bg) do
         local s = self:Step(b)
-        if s and self:IsStop(s, b) then out[#out + 1] = s end
+        if s and self:IsStop(s, b) and not self:HandedOver(s) then out[#out + 1] = s end
     end
     return out
 end
@@ -417,7 +450,7 @@ function Guide:Load()
         for j = 1, i - 1 do
             local s = self:Step(j)
             local u = s and s.whileUntil and self:IndexOf(s.whileUntil)
-            if u and u >= i and self:IsStop(s, j) then AddBg(self, j) end
+            if u and u >= i and self:IsStop(s, j) and not self:HandedOver(s) then AddBg(self, j) end
             -- optional steps not done yet, from the last 15 steps
             if s and s.flags.optional and j >= i - 15 and self:IsStop(s, j) then AddOptional(self, j) end
             if s and s.flags.optional and j >= i - Guide.ITEM_BACK and s.condAst and next(Cd.Items(s.condAst))
@@ -469,7 +502,7 @@ function Guide:Refresh()
     -- drop finished background goals
     for k = #self.bg, 1, -1 do
         local s = self:Step(self.bg[k])
-        if not s or not self:IsStop(s, self.bg[k]) then table.remove(self.bg, k) end
+        if not s or not self:IsStop(s, self.bg[k]) or self:HandedOver(s) then table.remove(self.bg, k) end
     end
     -- v0.2: steps passed over for their level: once the level is there they are background goals
     -- (or the current step when the route had run out)

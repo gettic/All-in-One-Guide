@@ -24,17 +24,21 @@ GS.LAST_BAG = 4
 
 -- ------------------------------------------------------------------ quests
 local function ReadQuest(id, old)
-    local q = { complete = Co.QuestComplete(id), failed = Co.QuestFailed(id), have = {}, need = {}, text = {} }
+    local q = { complete = Co.QuestComplete(id), failed = Co.QuestFailed(id), have = {}, need = {}, text = {}, kind = {} }
     local objs = Co.Objectives(id)
     local changed = old == nil or old.complete ~= q.complete or old.failed ~= q.failed
     if objs then
         for i, o in ipairs(objs) do
-            local have, need = tonumber(o.numFulfilled) or 0, tonumber(o.numRequired) or 0
-            if o.finished and have < need then have = need end
+            -- (secret counts / flags = unknown: Co.Num / Co.IsTrue never convert or compare them)
+            local have, need = Co.Num(o.numFulfilled) or 0, Co.Num(o.numRequired) or 0
+            if Co.IsTrue(o.finished) and have < need then have = need end
             q.have[i], q.need[i] = have, need
             -- the game's objective text without its "3/8" count (the window shows its own count)
-            local t = type(o.text) == "string" and o.text or ""
+            -- (a secret text / type counts as unknown: the window then shows our own step text, no icon)
+            local t = not Co.IsSecret(o.text) and type(o.text) == "string" and o.text or ""
             q.text[i] = t:gsub("[:%s]*%d+%s*/%s*%d+%s*$", "")
+            -- the objective's kind ("monster", "item", "object", ...): only picks the side line's icon
+            q.kind[i] = not Co.IsSecret(o.type) and type(o.type) == "string" and o.type or nil
             if old and (old.have[i] ~= have or old.need[i] ~= need) then changed = true end
         end
     end

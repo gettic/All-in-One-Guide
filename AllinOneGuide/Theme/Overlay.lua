@@ -68,8 +68,9 @@ function Ov.Opacity(a)
 end
 
 -- The window's own scale; with followUIScale off it cancels the UI scale out (same size on screen).
-function Ov.WindowScale()
-    local s = ns.Settings.Get("scale")
+-- key: the scale setting ("scale" = the guide window and the attached NOW window; "nowScale" = the free one)
+function Ov.WindowScale(key)
+    local s = ns.Settings.Get(key or "scale")
     if not ns.Settings.Get("followUIScale") then
         local p = ns.Compat.UIParent()
         local ui = p and p.GetScale and p:GetScale() or 1
@@ -83,6 +84,9 @@ end
 function Ov.KeepOnScreen(f)
     if not (f and f.GetLeft and f:IsShown()) then return false end
     local p = ns.Compat.UIParent()
+    -- a frame hanging on another of our frames (the guide window under the NOW window) moves with it
+    local _, rel = f:GetPoint(1)
+    if type(rel) == "table" and rel ~= p then return false end
     local l, r, t, b = f:GetLeft(), f:GetRight(), f:GetTop(), f:GetBottom()
     if not (l and r and t and b and p) then return false end
     local fs, ps = f:GetEffectiveScale(), p:GetEffectiveScale()

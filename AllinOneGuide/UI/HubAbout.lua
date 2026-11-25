@@ -64,6 +64,6 @@ local function Build(parent, width)
     return y + 8
 end
 
-ns.Hub.AddPage("about", { title = "HUB_ABOUT", icon = "hub.about", order = 70, build = Build, refresh = function()
+ns.Hub.AddPage("about", { title = "HUB_ABOUT", icon = "hub.about", order = 65, build = Build, refresh = function()
     HA.page.version:SetText(ns.U.Fill(L().ABOUT_VERSION, { v = ns.version }))
 end })

@@ -13,7 +13,7 @@ ns.Menu = Mn
 local function Build()
     -- named only so Blizzard's Esc list (UISpecialFrames) can hide it; nothing else uses the name
     local f = CreateFrame("Frame", "AllinOneGuideMenu", ns.Compat.UIParent())
-    f:SetFrameStrata("DIALOG")
+    f:SetFrameStrata("FULLSCREEN_DIALOG")   -- above the main window (DIALOG)
     f:SetClampedToScreen(true)
     f:SetWidth(Mn.WIDTH)
     f:EnableMouse(true)

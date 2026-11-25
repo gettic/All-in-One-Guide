@@ -103,18 +103,11 @@ ns.ApiList = {
     { id = "GetCursorPosition", path = "GetCursorPosition", kind = "function", src = "doc InputDocumentation" },
     { id = "GetServerTime", path = "GetServerTime", kind = "function", src = "doc SystemTimeDocumentation" },
 
-    -- v0.2 M4: the settings panel (Blizzard_Settings_Shared\Blizzard_Settings.lua, loaded with the UI, not on
-    -- demand: its .toc has no LoadOnDemand), the button initializer (Blizzard_SettingControls.lua)
+    -- v0.2 M4: our one entry in Options > AddOns (Blizzard_Settings_Shared\Blizzard_Settings.lua, loaded with
+    -- the UI, not on demand: its .toc has no LoadOnDemand), the button initializer (Blizzard_SettingControls.lua).
+    -- 2026-11-25: the settings themselves moved into the main window, so the proxy / control calls are gone.
     { id = "SetRegCat", path = "Settings.RegisterVerticalLayoutCategory", feature = "settings", kind = "function", src = "xml Blizzard_Settings_Shared\\Blizzard_Settings.lua" },
-    { id = "SetRegSub", path = "Settings.RegisterVerticalLayoutSubcategory", feature = "settings", kind = "function", src = "xml Blizzard_Settings_Shared\\Blizzard_Settings.lua" },
     { id = "SetRegAddOn", path = "Settings.RegisterAddOnCategory", feature = "settings", kind = "function", src = "xml Blizzard_Settings_Shared\\Blizzard_Settings.lua" },
-    { id = "SetProxy", path = "Settings.RegisterProxySetting", feature = "settings", kind = "function", src = "xml Blizzard_Settings_Shared\\Blizzard_Settings.lua" },
-    { id = "SetCheckbox", path = "Settings.CreateCheckbox", feature = "settings", kind = "function", src = "xml Blizzard_Settings_Shared\\Blizzard_Settings.lua" },
-    { id = "SetSlider", path = "Settings.CreateSlider", feature = "settings", kind = "function", src = "xml Blizzard_Settings_Shared\\Blizzard_Settings.lua" },
-    { id = "SetDropdown", path = "Settings.CreateDropdown", feature = "settings", kind = "function", src = "xml Blizzard_Settings_Shared\\Blizzard_Settings.lua" },
-    { id = "SetSliderOptions", path = "Settings.CreateSliderOptions", feature = "settings", kind = "function", src = "xml Blizzard_Settings_Shared\\Blizzard_Settings.lua" },
-    { id = "SetTextContainer", path = "Settings.CreateControlTextContainer", feature = "settings", kind = "function", src = "xml Blizzard_Settings_Shared\\Blizzard_Settings.lua" },
-    { id = "SetOpen", path = "Settings.OpenToCategory", feature = "settings", kind = "function", src = "xml Blizzard_Settings_Shared\\Blizzard_Settings.lua" },
     { id = "SetButtonInit", path = "CreateSettingsButtonInitializer", kind = "function", src = "xml Blizzard_Settings_Shared\\Blizzard_SettingControls.lua" },
     -- v0.2 M4: the minimap button (Minimap's size / scale; the cursor for dragging around the ring)
     { id = "MinimapButton", path = "Minimap", feature = "minimap", kind = "table", src = "xml Blizzard_Minimap\\Mainline\\Minimap.xml" },

@@ -66,6 +66,16 @@ local function Secret(v)
     return f ~= nil and f(v) == true
 end
 Co.IsSecret = Secret
+-- A number / a true flag from the game, never compared or converted while secret (beta.3 robustness: a
+-- secret value counts as unknown = nil / false, so tonumber or "<" on it can't error)
+function Co.Num(v)
+    if Secret(v) then return nil end
+    return type(v) == "number" and v or (type(v) == "string" and tonumber(v)) or nil
+end
+function Co.IsTrue(v)
+    if Secret(v) then return false end
+    return v == true
+end
 
 -- ------------------------------------------------------------------ time, combat, client
 function Co.Now() return F.GetTime() end
@@ -333,11 +343,11 @@ function Co.Objectives(questID)
     return t
 end
 
-function Co.QuestComplete(questID) local f = F.QuestIsComplete return f ~= nil and f(questID) == true end
-function Co.QuestReady(questID) local f = F.QuestReady return f ~= nil and f(questID) == true end
-function Co.OnQuest(questID) local f = F.QuestOnQuest return f ~= nil and f(questID) == true end
-function Co.QuestFlagged(questID) local f = F.QuestFlagged return f ~= nil and f(questID) == true end
-function Co.QuestFailed(questID) local f = F.QuestFailed return f ~= nil and f(questID) == true end
+function Co.QuestComplete(questID) local f = F.QuestIsComplete return f ~= nil and Co.IsTrue(f(questID)) end
+function Co.QuestReady(questID) local f = F.QuestReady return f ~= nil and Co.IsTrue(f(questID)) end
+function Co.OnQuest(questID) local f = F.QuestOnQuest return f ~= nil and Co.IsTrue(f(questID)) end
+function Co.QuestFlagged(questID) local f = F.QuestFlagged return f ~= nil and Co.IsTrue(f(questID)) end
+function Co.QuestFailed(questID) local f = F.QuestFailed return f ~= nil and Co.IsTrue(f(questID)) end
 
 -- The quest log limit from the game; nil when the API is missing (then no limit checks).
 function Co.QuestMax()

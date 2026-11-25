@@ -162,6 +162,12 @@ return {
                   src = "wiki", seen = "2026-11", confirmed = false },
                 { id = "dur-go-hanazua", type = "goto", map = 1411, x = 40.6, y = 62.58, r = 15,
                   text = "Go north-west to the wounded orc", da = "Gå mod nordvest til den sårede ork",
+                  -- travel side goal: scorpid workers line this walk (QuestieDB); hand-over to dur-obj-789
+                  onWay = {
+                    { id = "tails", quest = 789, qname = "Sting of the Scorpid",
+                      text = "Kill scorpid workers on the way and loot their tails for {quest}",
+                      src = "questie", seen = "2026-11", confirmed = false },
+                  },
                   src = "cmangos", seen = "2026-11", confirmed = false },
                 { id = "dur-acc-790", type = "accept", quest = 790, npc = 3287, map = 1411, x = 40.6, y = 62.58,
                   qname = "Sarkoth",

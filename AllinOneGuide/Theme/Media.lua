@@ -17,6 +17,9 @@ Md.FILES = {
     -- v0.2 (art agent, 2026-11-25)
     frames = { w = 128, h = 64 },
     minimap = { w = 32, h = 32 },
+    -- NOW window + main window (art agent, 2026-11-25): one row of 32 x 32 cells; four 64 x 64 shields
+    glyphs2 = { w = 256, h = 32 },
+    emblems = { w = 256, h = 64 },
 }
 
 -- glyphs.tga slot numbers (plans\default-theme\theme-notes.md, "Art files")
@@ -40,7 +43,14 @@ Md.SLOTS = {
     ["glyph.hub.settings"] = 55, ["glyph.report.coords"] = 56, ["glyph.report.order"] = 57,
     ["glyph.report.missing"] = 58, ["glyph.report.notick"] = 59, ["glyph.report.text"] = 60,
     ["glyph.report.other"] = 61, ["glyph.btn.copy"] = 62,
+    -- glyphs2.tga (one row of 8 cells; MANIFEST "glyphs2.tga cells")
+    ["glyph.btn.grip"] = 0, ["glyph.btn.attach"] = 1, ["glyph.btn.detach"] = 2, ["glyph.btn.search"] = 3,
+    ["glyph.btn.resize"] = 4,
 }
+-- Slots that live in another grid file than glyphs.tga: key -> file; Md.GRIDS: file -> rows (8 cells a row).
+Md.SLOT_FILE = { ["glyph.btn.grip"] = "glyphs2", ["glyph.btn.attach"] = "glyphs2", ["glyph.btn.detach"] = "glyphs2",
+    ["glyph.btn.search"] = "glyphs2", ["glyph.btn.resize"] = "glyphs2" }
+Md.GRIDS = { glyphs = 8, glyphs2 = 1 }
 -- Whole-file textures.
 Md.WHOLE = { ["tex.arrow"] = "arrow", ["tex.arrived"] = "arrived", ["tex.logo"] = "logo_64",
     ["tex.minimap"] = "minimap" }
@@ -48,6 +58,11 @@ Md.WHOLE = { ["tex.arrow"] = "arrow", ["tex.arrived"] = "arrived", ["tex.logo"] 
 Md.REGIONS = {
     ["frame.stepbutton"] = { "frames", 0, 0.5, 0, 1 },
     ["frame.glow"] = { "frames", 0.5, 1, 0, 1 },
+    -- emblems.tga (MANIFEST "emblems.tga regions")
+    ["emblem.alliance"] = { "emblems", 0, 0.25, 0, 1 },
+    ["emblem.horde"] = { "emblems", 0.25, 0.5, 0, 1 },
+    ["emblem.neutral"] = { "emblems", 0.5, 0.75, 0, 1 },
+    ["emblem.soon"] = { "emblems", 0.75, 1, 0, 1 },
 }
 
 local PER_ROW, CELL = 8, 1 / 8
@@ -59,8 +74,10 @@ function Md.Get(key)
     if reg then return Md.PATH .. reg[1], reg[2], reg[3], reg[4], reg[5] end
     local n = Md.SLOTS[key]
     if not n then return nil end
+    local file = Md.SLOT_FILE[key] or "glyphs"
+    local rowH = 1 / (Md.GRIDS[file] or 8)
     local col, row = n % PER_ROW, math.floor(n / PER_ROW)
-    return Md.PATH .. "glyphs", col * CELL, (col + 1) * CELL, row * CELL, (row + 1) * CELL
+    return Md.PATH .. file, col * CELL, (col + 1) * CELL, row * rowH, (row + 1) * rowH
 end
 
 -- Keys asked for that resolve to no art (the self-test names them: a placeholder is never silent).

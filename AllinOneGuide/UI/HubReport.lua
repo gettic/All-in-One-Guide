@@ -207,6 +207,7 @@ local function Build(parent, width)
         ns.Errors.Call("report", HR.Update)
     end)
     p.note = e
+    K.searchBoxes[#K.searchBoxes + 1] = e   -- lets go of the keyboard when combat starts (tos-beta3)
     y = y + Th.LineHeight("step") + 14
     p.noloc = Choice(parent, L().REPORT_NOLOC, function()
         HR.opts.noloc = not HR.opts.noloc
@@ -283,7 +284,7 @@ local function Build(parent, width)
     return y + 8
 end
 
-ns.Hub.AddPage("report", { title = "HUB_REPORT", icon = "hub.report", order = 10, build = Build, refresh = function()
+ns.Hub.AddPage("report", { title = "HUB_REPORT", icon = "hub.report", order = 57, build = Build, refresh = function()
     ns.Report.NewId()
     HR.opts.stepId = nil
     HR.Update()

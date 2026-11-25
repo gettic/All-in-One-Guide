@@ -1433,8 +1433,21 @@ return {
 
             -- ===== Elwynn Forest, Goldshire to Westfall (plans\v0.3\data\lookups.md) =====
             { title = "Farms south of Goldshire", da = "Gårdene syd for Goldshire", steps = {
+                -- travel side goals: kobold workers and vermin on the surface by the mine yard and the farm fields
+                -- (QuestieDB drops, CMaNGOS heights); the rest is done in the mine (hand-over to eln-obj-60/47/91775)
                 { id = "eln-go-maclure", type = "goto", map = 1429, x = 43.1, y = 89.6, r = 20,
                   text = "Follow the road south to the Maclure vineyards", da = "Følg vejen sydpå til Maclure-vingårdene",
+                  onWay = {
+                    { id = "candles", quest = 60, qname = "Kobold Candles",
+                      text = "Kill the kobolds you pass by Fargodeep Mine for candles for {quest}",
+                      src = "questie", seen = "2026-11", confirmed = false },
+                    { id = "dust", quest = 47, qname = "Gold Dust Exchange",
+                      text = "Loot gold dust from the same kobolds for {quest}",
+                      src = "questie", seen = "2026-11", confirmed = false },
+                    { id = "books", quest = 91775, flags = { "optional" }, qname = "Book Return",
+                      text = "Loot lost books from the same kobolds for {quest}",
+                      src = "questie", seen = "2026-11", confirmed = false },
+                  },
                   src = "wiki", seen = "2026-11", confirmed = false },
                 { id = "eln-acc-106", type = "accept", quest = 106, npc = 251, map = 1429, x = 43.1, y = 89.6,
                   qname = "Young Lovers",
@@ -1944,6 +1957,11 @@ return {
                   src = "wiki", seen = "2026-11", confirmed = false },
                 { id = "wfl-go-lighthouse", type = "goto", flags = { "elite" }, map = 1436, x = 30.0, y = 86.0, r = 20,
                   text = "Go south-west to the lighthouse on the coast", da = "Gå mod sydvest til fyrtårnet ved kysten",
+                  onWay = {
+                    { id = "militia", quest = 13, qname = "The People's Militia",
+                      text = "Kill Defias pillagers and looters you pass near Moonbrook for {quest}",
+                      src = "questie", seen = "2026-11", confirmed = false },
+                  },
                   src = "wiki", seen = "2026-11", confirmed = false },
                 { id = "wfl-acc-103", type = "accept", quest = 103, npc = 392, map = 1436, x = 30.0, y = 86.0,
                   qname = "Keeper of the Flame",
@@ -2530,6 +2548,12 @@ return {
             } },
 
             { title = "The southern road", da = "Den sydlige vej", steps = {
+                -- fix: the thrashers live along the southern road (x 9-24, y 61-81); this rides along there and, if
+                -- still open, becomes current at Guard Parker before the walk back north (no return trip south)
+                { id = "rr-obj-98407", type = "objective", quest = 98407, whileUntil = "rr-ti-130",
+                  qname = "Show of Force",
+                  text = "Loot 5 spiked collars from thrashers on the southern road for {quest}",
+                  src = "forevdb", seen = "2026-11", confirmed = false },
                 { id = "rr-obj-246", type = "objective", quest = 246,
                   qname = "Assessing the Threat",
                   text = "Kill 10 mongrels and 6 poachers in the gnoll camps along the southern road for {quest}", da = "Dræb 10 køtere og 6 krybskytter i gnoll-lejrene langs den sydlige vej til {quest}",
@@ -2554,10 +2578,6 @@ return {
                   qname = "Delivering Daffodils",
                   text = "Turn in {quest} to Darcy in the inn", da = "Aflever {quest} til Darcy i kroen",
                   src = "wiki", seen = "2026-11", confirmed = false },
-                { id = "rr-obj-98407", type = "objective", quest = 98407,
-                  qname = "Show of Force",
-                  text = "Loot 5 spiked collars from Redridge thrashers as you go for {quest}",
-                  src = "forevdb", seen = "2026-11", confirmed = false },
                 { id = "rr-ti-246", type = "turnin", quest = 246, npc = 1070, xp = 950,
                   qname = "Assessing the Threat",
                   text = "Turn in {quest} to the deputy south of the bridge", da = "Aflever {quest} til vicesheriffen syd for broen",
@@ -2867,7 +2887,18 @@ return {
                   qname = "The Algaz Gauntlet",
                   text = "Accept {quest} from Rockgar", da = "Tag imod {quest} fra Rockgar",
                   src = "cmangos", seen = "2026-11", confirmed = false },
-                { id = "wet-obj-455", type = "objective", quest = 455, flags = { "deadly" },
+                -- travel side goal: all Dragonmaw scout / grunt spawns are in the pass (QuestieDB, x 47-52, y 66-83);
+                -- what is left after the walk is finished at wet-obj-455 (hand-over), before the road west. The goto ends
+                -- at the middle of the spawns (most at y 74-80), the hand-over spot is the same: no walking back south
+                { id = "wet-go-pass", type = "goto", map = 1437, x = 48.0, y = 76.5, r = 20,
+                  text = "Go north through the Algaz pass into the Wetlands",
+                  onWay = {
+                    { id = "gauntlet", quest = 455, flags = { "deadly" }, qname = "The Algaz Gauntlet",
+                      text = "Kill the Dragonmaw scouts and grunts on the pass as you walk for {quest}",
+                      src = "questie", seen = "2026-11", confirmed = false },
+                  },
+                  src = "questie", seen = "2026-11", confirmed = false },
+                { id = "wet-obj-455", type = "objective", quest = 455, flags = { "deadly" }, map = 1437, x = 48.0, y = 76.5, r = 30,
                   qname = "The Algaz Gauntlet",
                   text = "Kill 8 Dragonmaw scouts and 6 grunts on the pass north into the Wetlands for {quest}", da = "Dræb 8 Dragonmaw-spejdere og 6 grunts på passet nordpå ind i Wetlands til {quest}",
                   src = "cmangos", seen = "2026-11", confirmed = false },

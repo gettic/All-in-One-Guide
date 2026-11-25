@@ -35,12 +35,51 @@ This is a beta. It has two demo routes:
 | Quest items | Tells you when a looted item starts a quest, and gives advice for each quest item in your bags. See [Quest items](#quest-items). |
 | First Aid | With First Aid learned, optional lines say what bandages to make and when to train. See [First Aid](#first-aid). |
 | Map pins | Pins for the current step only (an any-order group's other open stops too, at most 12) on the world map and the minimap, in the same colours as the step icons. Minimap pins follow you smoothly as you move. Click one to point the arrow there. Each kind can be turned off in the menu. |
-| Window | The NOW box sits at the top, right under the section header. The tip line and the "n done" button are under the steps. Drag the right edge to make it wider or narrower. Window size is in the settings. The window looks the same in and out of combat. |
+| Window | The tip line and the "n done" button are under the steps. Drag the right edge to make it wider or narrower. A step with very many goal lines makes the window taller, so nothing draws over anything else. Window size is in the settings. The window looks the same in and out of combat. It stays put at login, also when its scale isn't 100 %. |
+| NOW window | The current step has its own small window on top of the guide window, with the step button inside it. See [NOW window](#now-window). |
+| "On the way" goals | Kill and loot goals you can do while walking show under the current step. See [On the way goals](#on-the-way-goals). |
+| Main window | One window for guides, settings, quest items, reports, About and What's new. See [The main window](#the-main-window). |
 | Ghost | Walking as a ghost doesn't tick travel steps. |
 | Full quest log | Shows which quests the route doesn't need. |
 | Travel steps | Fly, hearthstone, get a flight path, set your hearthstone, learn, train, use an item, notes, and grind as a last resort. |
 
 The route packs for levels 1-20 are not in this beta yet.
+
+### NOW window
+
+- The current step sits in its own small window on top of the guide window. The step button is inside it. The NEXT steps stay in the guide window.
+- Drag the grip (or the guide's title bar) to move both windows together.
+- The chain button takes the NOW window off the guide, so it can go anywhere with its own lock and size (Settings > Guide window: "Free step window size"). Press it again to put it back on top.
+- It hides with the guide window.
+- Turn it off with "Current step in its own window" (title menu or Settings > Guide window) for the one-window look.
+- In combat the windows can't be dragged while the step button shows.
+- If the guide window sat at the very top of the screen, the pair is moved down a little so both fit.
+
+### On the way goals
+
+- Kill and loot goals you can do while walking show under the current step with a live count (for example 3/8) and a kill, loot or use icon.
+- At most 3 lines show, then "+n more on the way". Hover the step to see them all.
+- Finished parts get a tick and stay until the whole goal is done.
+- A goal stops showing when you reach the step that does the same work, and hides while its quest isn't in your log.
+- Only quest progress is counted, never kills from the combat log.
+- A walk is not skipped just because the "as you go" goal right after it is already done.
+
+### The main window
+
+Open it with `/aog`, right-click the minimap button, or "Open main window" in the guide's title menu. It opens on the page you used last. Pages:
+
+| Page | What it has |
+|---|---|
+| Guides | Every installed guide as a card with its levels, steps and how far you got. **Switch** changes guide. Search, and Alliance / Horde / Coming soon filters. Guides still being written show as "Coming in vX". |
+| Settings | General, Guide window, Arrow, Map pins, Steps and Advanced, with sliders and drop-downs. |
+| Quest items | Advice for each quest item in your bags. |
+| Report a mistake | See [Report a mistake](#report-a-mistake). |
+| About | Version, licence, links and credits. |
+| What's new | What changed in this version. |
+
+Options > AddOns > All-in-One Guide has one button that opens the main window. The guide's title menu is short; the rest is in Settings.
+
+Settings that move the guide window (width, scale, follow UI scale, "Reset this page" on Guide window, `/aog resetpos`) wait until a fight is over and say so in chat, so the step button stays in place.
 
 ### Smart arrow
 
@@ -54,8 +93,9 @@ The smart arrow is on by default. Switch it in the arrow's right-click menu or o
 
 ### Quest items
 
-- When you loot an item that starts a quest, the hint line says "This starts a quest: right-click it". When the guide knows the quest, it also says where to hand it in and the XP. This shows once per item and character.- After login and on a level-up, the guide gives one piece of advice for each quest item in your bags: **Do it now**, **Keep for later**, **Bank it** (it can't be got again), **Safe to delete** (quest done, or grey and it drops again) or **Keep it** (unknown). An item whose quest is in your log is never called safe to delete.
-- The full list is on the Hub page "Quest items".
+- When you loot an item that starts a quest, the hint line says "This starts a quest: right-click it". When the guide knows the quest, it also says where to hand it in and the XP. This shows once per item and character.
+- After login and on a level-up, the guide gives one piece of advice for each quest item in your bags: **Do it now**, **Keep for later**, **Bank it** (it can't be got again), **Safe to delete** (quest done, or grey and it drops again) or **Keep it** (unknown). An item whose quest is in your log is never called safe to delete.
+- The full list is on the main window's "Quest items" page.
 - The guide never uses, moves or deletes items. You do that yourself.
 
 ### First Aid
@@ -79,9 +119,9 @@ The first time you log in, the addon opens the guide only if it starts where you
 
 If v0.1 gave a character the guide for another start area (for example a gnome on the Elwynn guide) and it hasn't been started, it is closed once at login with a chat line, and the right guide opens (or the list of guides shows). Guides you opened yourself, or made progress in, are never closed.
 
-- `/aog` opens or closes the guide window. Esc never closes it.
+- `/aog` opens the [main window](#the-main-window). `/aog show` shows or hides the guide window. Esc never closes the guide window.
 - Drag the title bar to move the window. The padlock locks it. The minus button switches to a small window (the NOW box and one next line).
-- Right-click the title bar (or click the menu button) for the guide menu: settings, small mode, lock, quiet mode, the arrow, stop flashing and pulsing, map pins, minimap pins, background opacity, reminders, reset positions, report a mistake and the guides.
+- Right-click the title bar (or click the menu button) for the guide menu: open main window, choose a guide, settings, report a mistake, small mode, lock, the current step in its own window, quiet mode and a few more.
 - Hover a step for its quest, zone, coordinates and why it waits. Click it to point the arrow there. Shift-click puts the quest link into an open chat box (it is never sent). Ctrl-click opens the map there.
 - Right-click a step for skip, make current, not doing this quest, point the arrow here, or copy a `/way` line.
 - Right-click the arrow for skip, hide until the next step, clear a picked spot, smart arrow, lock, size, opacity, click-through and arrival sound (off). The mouse wheel changes its size. Alt+drag moves it while it is locked.
@@ -89,15 +129,15 @@ If v0.1 gave a character the guide for another start area (for example a gnome o
 
 ### Minimap button
 
-A round button on the minimap. Drag it around the minimap. Left-click shows or hides the guide, right-click opens the options. `/aog minimap` shows or hides the button. The addon also has an entry in the minimap's addon list. If another addon already provides a data-broker display, the guide shows up there too.
+A round button on the minimap. Drag it around the minimap. Left-click shows or hides the guide, right-click opens the main window. `/aog minimap` shows or hides the button. The addon also has an entry in the minimap's addon list. If another addon already provides a data-broker display, the guide shows up there too.
 
-### The Hub
+### Look of the windows
 
-The Hub is one window with Report mistake, Quest items, What's new, About and a row to the settings. The Hub, dialogs, copy box and menus are almost solid, so they are easy to read over a bright world. Open it with `/aog hub`, or with "Report a mistake" in the title menu. After an update a hint offers "What's new" once. About shows the version, the licence, links to the source and the issues page, and credits.
+The main window, dialogs, copy box and menus are almost solid, so they are easy to read over a bright world. The main window opens on top of the game's Options window. After an update a hint offers "What's new" once.
 
 ### Settings
 
-`/aog config` opens Options > AddOns > All-in-One Guide, with pages General, Guide window, Arrow, Map and Advanced. Each setting has a tooltip with its default. "Reset this page" resets only that page. Among them: language, use the guide on this character, hide it in battlegrounds and raids, First Aid steps, which chat window gets messages, window size, text size, high contrast, colour-blind colours and the smart arrow.
+`/aog config` opens the Settings pages in the main window: General, Guide window, Arrow, Map pins, Steps and Advanced. Each setting has a tooltip with its default. "Reset this page" resets only that page. Among them: language, use the guide on this character, hide it in battlegrounds and raids, First Aid steps, which chat window gets messages, window size, text size, high contrast, colour-blind colours and the smart arrow.
 
 ### Language
 
@@ -117,14 +157,16 @@ If you also run Questie, TomTom, Guidelime or Mapster, one quiet hint says so, o
 
 | Command | What it does |
 |---|---|
-| `/aog` | Open or close the guide window |
+| `/aog` | Open the main window |
+| `/aog show` | Show or hide the guide window |
+| `/aog guides` | Open the guide list in the main window |
 | `/aog help` | Show the main commands (`/aog help all` shows every one) |
 | `/aog guide` | List the guides. `/aog guide elwynn` or `/aog guide durotar` opens one |
 | `/aog skip` | Skip the current step (it is remembered) |
 | `/aog undo` | Take back your last skips |
 | `/aog back` | Go back one step |
 | `/aog way 45.2 61.8` | Point the arrow at a spot (same as `/way`) |
-| `/aog hub` | Open the Hub |
+| `/aog hub` | Open the main window (same as `/aog`) |
 | `/aog report` | Open Report a mistake |
 | `/aog config` | Open the settings |
 | `/aog minimap` | Show or hide the minimap button |

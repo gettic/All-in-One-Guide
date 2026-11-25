@@ -6,7 +6,7 @@
 -- Row fields: id|type|quest|npc|map|x|y|r|text|da|flags|cond|src|extra
 local _, ns = ...
 ns.Packs.Register({ author = "All-in-One Guide", category = "leveling", conditions = "faction=Horde", da = "Durotar 1-6", entry = "race=Orc,Troll", faction = "Horde", formatVersion = 2, id = "demo-durotar", kind = "route", levels = { 1, 6 }, license = "GPL-3.0-or-later", minFormat = 1, renamedSteps = {  }, retiredSteps = {  }, source = "packs-src/durotar.lua at the matching GitHub tag", title = "Durotar 1-6", version = "0.1.0" }, {
-    { id = "normal", title = "Normal", da = "Normal", sections = { "1|The Den|Hulen", "5|Around the valley|Rundt i dalen", "20|Burning Blade Coven|Burning Blade-hulen", "69|Sen'jin and Razor Hill|Sen'jin og Razor Hill" }, rows = {
+    { id = "normal", title = "Normal", da = "Normal", sections = { "1|The Den|Hulen", "5|Around the valley|Rundt i dalen", "21|Burning Blade Coven|Burning Blade-hulen", "70|Sen'jin and Razor Hill|Sen'jin og Razor Hill" }, rows = {
         "dur-acc-4641|accept|4641|10176|1411|43.29|68.53||Accept {quest} from the orc where you start|Tag imod {quest} fra orken, hvor du starter|||cmangos|confirmed=0;qname=Your Place In The World;seen=2026-11",
         "dur-ti-4641|turnin|4641|3143|1411|42.06|68.33||Turn in {quest} to Gornek in the Den|Aflever {quest} til Gornek i hulen|||cmangos|confirmed=0;qname=Your Place In The World;room=vot-den;seen=2026-11",
         "dur-acc-788|accept|788|3143|1411|42.06|68.33||Accept {quest} from Gornek|Tag imod {quest} fra Gornek|||cmangos|confirmed=0;qname=Cutting Teeth;room=vot-den;seen=2026-11",
@@ -20,6 +20,7 @@ ns.Packs.Register({ author = "All-in-One Guide", category = "leveling", conditio
         "dur-acc-792|accept|792|3145|1411|42.85|69.15||Accept {quest} from the warlock outside the Den|Tag imod {quest} fra heksemesteren uden for hulen||class=WARRIOR,HUNTER,ROGUE,SHAMAN,PRIEST,MAGE|cmangos|confirmed=0;qname=Vile Familiars;seen=2026-11",
         "dur-acc-1485|accept|1485|5765|1411|42.59|69||Accept {quest} from Ruzan outside the Den|Tag imod {quest} fra Ruzan uden for hulen||class=WARLOCK|cmangos|confirmed=0;qname=Vile Familiars;seen=2026-11",
         "dur-obj-4402|objective|4402||||||Pick up 6 cactus apples as you go for {quest}|Saml 6 kaktusæbler undervejs til {quest}|||wiki|confirmed=0;qname=Galgar's Cactus Apple Surprise;seen=2026-11;whileUntil=dur-ti-4402",
+        "dur-go-hanazua.tails|objective|789||||||Kill scorpid workers on the way and loot their tails for {quest}||||questie|confirmed=0;onWay=dur-go-hanazua;qname=Sting of the Scorpid;seen=2026-11;whileUntil=dur-obj-789",
         "dur-go-hanazua|goto|||1411|40.6|62.58|15|Go north-west to the wounded orc|Gå mod nordvest til den sårede ork|||cmangos|confirmed=0;seen=2026-11",
         "dur-acc-790|accept|790|3287|1411|40.6|62.58||Accept {quest} from the wounded orc|Tag imod {quest} fra den sårede ork|||cmangos|confirmed=0;qname=Sarkoth;seen=2026-11",
         "dur-obj-789|objective|789|3124|||||Loot 8 tails from scorpid workers for {quest}|Saml 8 haler fra skorpid-arbejdere til {quest}|||wiki|confirmed=0;count=8;item=4862;qname=Sting of the Scorpid;seen=2026-11",

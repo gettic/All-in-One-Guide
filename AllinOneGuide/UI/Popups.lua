@@ -15,7 +15,7 @@ local WIDTH = 300
 local function Build()
     -- named only for Blizzard's Esc list (UISpecialFrames): Esc = "No"
     local f = CreateFrame("Frame", "AllinOneGuideDialog", ns.Compat.UIParent())
-    f:SetFrameStrata("DIALOG")
+    f:SetFrameStrata("FULLSCREEN_DIALOG")   -- above the main window (DIALOG)
     f:SetSize(WIDTH, 120)
     f:SetPoint("CENTER", ns.Compat.UIParent(), "CENTER", 0, 120)
     f:SetClampedToScreen(true)
@@ -99,7 +99,7 @@ function Pp.Current() return Pp.current end
 -- ------------------------------------------------------------------ copy box
 local function BuildCopy()
     local f = CreateFrame("Frame", nil, ns.Compat.UIParent())
-    f:SetFrameStrata("DIALOG")
+    f:SetFrameStrata("FULLSCREEN_DIALOG")   -- above the main window (DIALOG)
     local top = Th.Size("title")
     f:SetSize(360, 96 + top)
     f:SetPoint("CENTER", ns.Compat.UIParent(), "CENTER", 0, 40)
@@ -125,6 +125,7 @@ local function BuildCopy()
     -- the text can't be edited: typing puts it back
     e:SetScript("OnTextChanged", function(self, user) if user then self:SetText(f.value or "") self:HighlightText() end end)
     f.edit = e
+    K.searchBoxes[#K.searchBoxes + 1] = e   -- lets go of the keyboard when combat starts (tos-beta3)
     -- an optional line under the text (where to paste it); the box grows to fit it
     f.note = K.Text(f, "goal", "text")
     f.note:SetWordWrap(true)

@@ -114,7 +114,94 @@ local function Expand(pack, list, depth, prefix, params, cond, inc, out, errs)
             s.cond = JoinCond(cond, s.cond)
             if inc then s.inc = inc end
             if s.flags and #s.flags == 0 then s.flags = nil end
+            local ow = s.onWay
+            if ow ~= nil then
+                s.onWay = nil
+                Lib.ExpandOnWay(s, ow, params, inc, out, errs)
+            end
             out[#out + 1] = s
+        end
+    end
+end
+
+-- ------------------------------------------------------------------ travel side goals (onWay)
+-- A step's `onWay = { { id, quest, obj, any, item, count, useItem, text, da, cond, flags, src, seen,
+-- confirmed, whileUntil }, ... }` becomes ordinary background-goal rows placed right before that step: id
+-- `<step id>.<entry id>`, type objective (useitem with useItem), the entry's whileUntil or the default (filled
+-- in by Lib.Expand: the first later objective step of the same quest that covers it = hand-over, else its
+-- turn-in), extra key onWay = <step id>. Not on fly / hearth steps (you can't fight in the air; the
+-- hearthstone is instant). ("until" is a Lua keyword, so the entry uses the step field name whileUntil.)
+Lib.ONWAY_NO = { fly = true, hearth = true }
+Lib.ONWAY_COPY = { quest = true, obj = true, any = true, item = true, count = true, useItem = true, text = true,
+    da = true, cond = true, flags = true, src = true, seen = true, confirmed = true, qname = true, whileUntil = true }
+
+function Lib.ExpandOnWay(s, ow, params, inc, out, errs)
+    local who = "onWay of '" .. tostring(s.id) .. "'"
+    if type(ow) ~= "table" then errs[#errs + 1] = who .. " must be a list" return end
+    if Lib.ONWAY_NO[s.type] then errs[#errs + 1] = who .. ": not on a " .. tostring(s.type) .. " step" return end
+    for k, w in ipairs(ow) do
+        if type(w) ~= "table" or type(w.id) ~= "string" then
+            errs[#errs + 1] = who .. ": entry " .. k .. " has no id"
+        else
+            local side = {}
+            for key, v in pairs(w) do
+                if key ~= "id" then
+                    if not Lib.ONWAY_COPY[key] then errs[#errs + 1] = who .. " '" .. w.id .. "': unknown field '" .. tostring(key) .. "'" end
+                    if (key == "obj" or key == "flags") and type(v) == "table" then
+                        local c = {}
+                        for i, x in ipairs(v) do c[i] = Subst(x, params) end
+                        side[key] = c
+                    else
+                        side[key] = Subst(v, params)
+                    end
+                end
+            end
+            side.id = tostring(s.id) .. "." .. w.id
+            side.type = side.useItem and "useitem" or "objective"
+            side.onWay = s.id
+            side.cond = JoinCond(s.cond, side.cond)
+            if inc then side.inc = inc end
+            if side.flags and #side.flags == 0 then side.flags = nil end
+            if type(side.text) ~= "string" then errs[#errs + 1] = who .. " '" .. w.id .. "': needs text" end
+            if not side.quest and not side.item then errs[#errs + 1] = who .. " '" .. w.id .. "': needs quest or item" end
+            if not side.whileUntil then
+                if side.quest then side.untilAuto = true
+                else errs[#errs + 1] = who .. " '" .. w.id .. "': an item goal without a quest needs whileUntil" end
+            end
+            out[#out + 1] = side
+        end
+    end
+end
+
+-- Does objective step `t` cover the objectives of side goal `s`? (an empty obj list = all objectives;
+-- the same rule as the addon's Guide:HandOverAt)
+function Lib.Covers(t, s)
+    local tl, sl = t.obj or {}, s.obj or {}
+    if #tl == 0 then return true end
+    if #sl == 0 then return false end
+    local have = {}
+    for _, i in ipairs(tl) do have[i] = true end
+    for _, i in ipairs(sl) do if not have[i] then return false end end
+    return true
+end
+
+-- Fills the default whileUntil of onWay rows (see above) and reports a quest with no later step.
+local function OnWayUntil(steps, errs)
+    for i, s in ipairs(steps) do
+        if s.untilAuto then
+            s.untilAuto = nil
+            -- the first of: an objective step covering it (hand-over) or the turn-in
+            for j = i + 1, #steps do
+                local t = steps[j]
+                if t.quest == s.quest and not t.onWay and not t.whileUntil
+                    and ((t.type == "objective" and Lib.Covers(t, s)) or t.type == "turnin") then
+                    s.whileUntil = t.id
+                    break
+                end
+            end
+            if not s.whileUntil then
+                errs[#errs + 1] = "onWay '" .. tostring(s.id) .. "': no later objective or turn-in step for quest " .. tostring(s.quest)
+            end
         end
     end
 end
@@ -128,6 +215,7 @@ function Lib.Expand(pack)
             route.sections[#route.sections + 1] = { title = sec.title, da = sec.da, first = #route.steps + 1 }
             Expand(pack, sec.steps or {}, 0, nil, nil, nil, nil, route.steps, errs)
         end
+        OnWayUntil(route.steps, errs)
         routes[#routes + 1] = route
     end
     return routes, errs

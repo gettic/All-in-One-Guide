@@ -1109,6 +1109,12 @@ return {
                 { id = "tel-obj-483", type = "objective", quest = 483, map = 1438, x = 45.0, y = 60.0, r = 25,
                   qname = "The Relics of Wakening",
                   text = "Pick up the 4 relics from the chests at Ban'ethil Barrow Den for {quest}", da = "Saml de 4 relikvier op fra kisterne ved Ban'ethil Barrow Den til {quest}",
+                  -- travel side goal: fel cones lie along the walk west (QuestieDB); hand-over to tel-obj-489
+                  onWay = {
+                    { id = "cones", quest = 489, qname = "Seek Redemption!",
+                      text = "Pick up fel cones you pass under the trees for {quest}",
+                      src = "questie", seen = "2026-11", confirmed = false },
+                  },
                   src = "wiki", seen = "2026-11", confirmed = false },
                 { id = "tel-acc-99053", type = "accept", quest = 99053, map = 1438, x = 44.7, y = 58.9,
                   qname = "Escaping Ban'ethil",

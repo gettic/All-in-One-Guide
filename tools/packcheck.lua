@@ -273,6 +273,26 @@ function PC.Check(pack, opts)
                 end
             end
         end
+        -- travel side goals (onWay rows): the quest must be accepted earlier in the route (quest drops only
+        -- fall for players on the quest), and the step it rides on must not be a fly / hearth step
+        local acceptedAt = {}
+        for i, s in ipairs(r.steps) do
+            if s.type == "accept" and s.quest and not acceptedAt[s.quest] then acceptedAt[s.quest] = i end
+        end
+        for i, s in ipairs(r.steps) do
+            if s.onWay ~= nil then
+                local where = r.id .. " #" .. i .. " " .. tostring(s.id)
+                if type(s.onWay) ~= "string" or not seen[s.onWay] then
+                    Err(where, "onWay '" .. tostring(s.onWay) .. "' is not a step")
+                elseif L.ONWAY_NO[r.steps[seen[s.onWay]].type] then
+                    Err(where, "onWay on a " .. r.steps[seen[s.onWay]].type .. " step")
+                end
+                if s.quest and not (acceptedAt[s.quest] and acceptedAt[s.quest] < i) then
+                    Err(where, "onWay goal for quest " .. s.quest .. " with no accept step before it")
+                end
+                if not s.whileUntil then Err(where, "onWay goal without whileUntil") end
+            end
+        end
         -- targets of whileUntil / leadsTo: a later step in the same route
         for i, s in ipairs(r.steps) do
             for _, k in ipairs({ "whileUntil", "leadsTo" }) do
@@ -426,6 +446,37 @@ end
 -- Things a route shouldn't do but that aren't always wrong. opts.previous = { [id] = true } of the step ids
 -- in the last release (for "an id went away without retiredSteps / renamedSteps"); opts.extraMaps = more
 -- known map ids (tests). Returns a list of "route #i id: message".
+-- Travel side goals (onWay rows), WARN only: more than 3 on one step (the window shows 3 + "more"); an
+-- explicit whileUntil on an objective step of the same quest that doesn't cover the goal's objectives (then it is
+-- due there instead of handed over); a quest already riding along as another background goal at that point
+-- (double lines); a side goal with its own spot (side goals have no arrow: put the spot on a real step).
+PC.ONWAY_MAX = 3
+local function OnWayLint(r, W)
+    local per, idx = {}, {}
+    for i, s in ipairs(r.steps) do idx[s.id or ""] = i end
+    for i, s in ipairs(r.steps) do
+        if s.onWay then
+            local where = r.id .. " #" .. i .. " " .. tostring(s.id)
+            per[s.onWay] = (per[s.onWay] or 0) + 1
+            if per[s.onWay] == PC.ONWAY_MAX + 1 then
+                W(where, "more than " .. PC.ONWAY_MAX .. " onWay goals on '" .. s.onWay .. "' (the window shows " .. PC.ONWAY_MAX .. ")")
+            end
+            local t = s.whileUntil and idx[s.whileUntil] and r.steps[idx[s.whileUntil]]
+            if t and t.type == "objective" and t.quest == s.quest and not PC.Lib().Covers(t, s) then
+                W(where, "whileUntil '" .. t.id .. "' doesn't cover these objectives: due there, not handed over")
+            end
+            if s.map or s.x or s.y then W(where, "an onWay goal has no arrow: put its spot on a real step") end
+            for j = 1, i - 1 do
+                local b = r.steps[j]
+                if b.whileUntil and b.quest == s.quest and not b.onWay and idx[b.whileUntil] and idx[b.whileUntil] > i then
+                    W(where, "quest " .. tostring(s.quest) .. " already rides along as '" .. b.id .. "' (double lines)")
+                    break
+                end
+            end
+        end
+    end
+end
+
 function PC.Lint(pack, routes, opts)
     opts = opts or {}
     local F, maps = PC.Facts(), PC.Maps()
@@ -440,6 +491,7 @@ function PC.Lint(pack, routes, opts)
     for _, n in ipairs(pack.knownNodes or {}) do known[n] = true end
     local allIds = {}
     for _, r in ipairs(routes) do
+        OnWayLint(r, W)
         local accepted, inLog, logN = {}, {}, 0
         local level, bound = startLevel, pack.startInn ~= nil
         local nodes = {}

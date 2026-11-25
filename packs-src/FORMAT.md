@@ -67,7 +67,8 @@ return {
 | `obj` | objective step: which quest objectives count (`{ 1, 2 }`; empty = all) |
 | `any` | objective group: done when any `any` of the listed objectives are done |
 | `override` | goal grammar: the step is also done when this is true (e.g. `done=812 or inlog=813`) |
-| `whileUntil` | background goal: shown next to the current step until the step with this id is reached; there it must be done |
+| `whileUntil` | background goal: shown next to the current step until the step with this id is reached; there it must be done. **Hand-over:** when that step is an `objective` step of the same quest that covers the goal's objectives (its `obj` is empty, or holds each of the goal's), the goal just stops showing there (that step shows the same counts at its spot) |
+| `onWay` | (source only) travel side goals of a step: "kill / loot this on the way". A list of entries `{ id, quest, obj, any, item, count, useItem, text, da, cond, flags, src, seen, confirmed, qname, whileUntil }`. The build writes each entry as an `objective` row (`useitem` with `useItem`) **right before** the step, id `<step id>.<entry id>`, the entry's `whileUntil` or the default (the first later step of the same quest that is a covering `objective` step, i.e. a hand-over, or its `turnin`), and the extra key `onWay=<step id>`. Not on `fly` / `hearth` steps. The window shows each goal's objectives with live counts and a kill / loot / use icon (at most 3 lines, then "+n more on the way"); a goal whose quest isn't in the log hides until it is. Kills without a quest objective are never counted (no combat log). |
 | `leadsTo` | travel step (`goto`): auto-skips when the step it leads to is already done (empty = the next non-travel step) |
 | `why` | required on every `grind` step and every return to a zone left earlier (route rules) |
 | `level` | `level` step: the level to reach |
@@ -198,7 +199,12 @@ Errors stop the build: duplicate or malformed ids (after includes), a missing bl
 coordinates outside 0-100, a condition that doesn't parse or uses an unknown word, a `src` not on the list, a `wiki`
 fact without `seen` or without `confirmed`, a step text that doesn't start with a capital letter, a `grind` step or a zone return without `why`, a known-exploit id
 (`packs-src\known-exploits.lua`), an encoded-looking string, a never-use word, a `|` or line break in a text,
-`da` text with different `{placeholders}` than `text`, a `whileUntil` / `leadsTo` target that isn't a later step.
+`da` text with different `{placeholders}` than `text`, a `whileUntil` / `leadsTo` target that isn't a later step,
+an `onWay` on a `fly` / `hearth` step, an `onWay` entry without `id` / `text` / (`quest` or `item`), an item-only
+entry without `whileUntil`, a quest with no later covering objective or turn-in step, an `onWay` goal whose quest has
+no accept step before it. Route lint warns at more than 3 `onWay` goals on one step, an explicit `whileUntil` on an
+objective step that doesn't cover the goal (due there, not handed over), a quest already riding along as another
+background goal, and an `onWay` goal with its own spot.
 Reported (not errors in v0.1): total grind steps, travel per map in map percent, zone changes, backtracking, texts
 over 90 characters, texts that don't start with a known verb.
 

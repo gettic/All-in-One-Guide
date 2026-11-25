@@ -13,8 +13,10 @@ All files: TGA, 32-bit BGRA, straight alpha, uncompressed (type 2), bottom-left 
 | `arrived.tga` | 128x128 | 64 KB | `build_arrow.py` | arrived marker (tick ring), shown 64x64 | v0.1, Dark |
 | `frames.tga` | 128x64 | 32 KB | `build_frames.py` | step button frame + reminder glow (regions below) | v0.2, Dark |
 | `minimap.tga` | 32x32 | 4 KB | `build_minimap.py` | minimap button (whole round button, full colour) | v0.2, all themes |
+| `glyphs2.tga` | 256x32 | 32 KB | `build_window_art.py` | NOW window + main window buttons: grip, attach, detach, search, resize (cells below) | NOW + main window, Dark (Blizzard theme fallback) |
+| `emblems.tga` | 256x64 | 64 KB | `build_window_art.py` | guide emblems (shields) on the main window's Guides cards (regions below) | main window, all themes |
 
-**Total raw texture memory: 500 KB** (budget at v0.1-v0.2: 600 KB; 100 KB left).
+**Total raw texture memory: 596 KB** (budget: 600 KB; 4 KB left. `glyphs2.tga` is one row on purpose; adding a second row would go over).
 
 Note for the `.toc`: the build plan says `IconTexture: ...\media\logo`, but the file is `logo_64` (no `logo.tga` exists). Point `IconTexture` at `Interface\AddOns\AllinOneGuide\media\logo_64`.
 
@@ -25,6 +27,32 @@ Design "Waypoint" (direction A, in use): round dark badge, teal ring, two-tone t
 ## minimap.tga
 
 The whole minimap button: round dark badge, thicker teal ring, logo mark simplified for ~31 px (A: bigger arrow, two route dots). Full colour, **not tinted**; texture coordinates (0, 1, 0, 1); transparent outside the circle (no extra border needed; highlight: the same texture with blend mode `ADD` at ~0.35 alpha). **Swapping the logo:** `build_minimap.py` has `LOGO = "A"`; set it to `"B"` (or run `python -B art-src/build_minimap.py B`) for the Guide-book mark in the same round badge. Same file name, size and coords, so no code change.
+
+## glyphs2.tga cells
+
+One row of 8 cells, 32x32 each; cell `i`: l = `i/8`, r = `(i+1)/8`, **t = 0, b = 1**. Same style as `glyphs.tga`: white with a baked 1 px dark rim, inside the middle 28x28 (2 px clear padding), coloured with `SetVertexColor` (suggested: #A3ADBA, hover white, active / selected accent #2FC4A8).
+
+| Cell | Key | Glyph | l | r | t | b | Shown |
+|---|---|---|---|---|---|---|---|
+| 0 | `glyph.btn.grip` | drag handle: 2 x 3 dots (NOW strip, left) | 0.000 | 0.125 | 0.000 | 1.000 | 14-16 px |
+| 1 | `glyph.btn.attach` | whole chain, two linked links (shown while the NOW window is free: click = attach) | 0.125 | 0.250 | 0.000 | 1.000 | 14 px |
+| 2 | `glyph.btn.detach` | broken chain, two links apart + break marks (shown while attached: click = detach) | 0.250 | 0.375 | 0.000 | 1.000 | 14 px |
+| 3 | `glyph.btn.search` | magnifier (main window search box) | 0.375 | 0.500 | 0.000 | 1.000 | 12 px, #A3ADBA |
+| 4 | `glyph.btn.resize` | resize corner: 6 dots in a triangle, bottom-right (optional) | 0.500 | 0.625 | 0.000 | 1.000 | 14 px |
+| 5-7 | (spare) | empty | | | | | |
+
+The lock in the NOW strip reuses `glyph.btn.lock` / `glyph.btn.unlock` (`glyphs.tga` slots 26 / 27).
+
+## emblems.tga regions
+
+Four 64x64 shields, full colour, **not tinted**; our own shield shape (arched-in top, bevelled metal rim, field lit left / shaded right), not the game's faction crests. Transparent outside the shield with a soft 2 px shadow. Shown ~40x40 on the Guides cards; for a dimmed card use alpha (~0.55) or `SetDesaturated`.
+
+| Key | Emblem | l | r | t | b |
+|---|---|---|---|---|---|
+| `emblem.alliance` | blue field, gold rim, four-point star | 0.000 | 0.250 | 0.000 | 1.000 |
+| `emblem.horde` | red field, gold rim, chevron + diamond | 0.250 | 0.500 | 0.000 | 1.000 |
+| `emblem.neutral` | both factions: teal field, silver rim, route arrow | 0.500 | 0.750 | 0.000 | 1.000 |
+| `emblem.soon` | coming soon: grey field and rim, plus | 0.750 | 1.000 | 0.000 | 1.000 |
 
 ## frames.tga regions
 

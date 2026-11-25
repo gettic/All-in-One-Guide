@@ -227,10 +227,17 @@ function K.TitleBar(frame, opts)
     if opts.drag then
         tb:RegisterForDrag("LeftButton")
         tb:SetScript("OnDragStart", function()
-            if not opts.canDrag or opts.canDrag() then frame:StartMoving() end
+            if not opts.canDrag or opts.canDrag() then
+                -- moveFrame: the frame that really moves (the NOW window moves the guide window with it)
+                local m = opts.moveFrame and opts.moveFrame() or frame
+                tb.moving = m
+                m:StartMoving()
+            end
         end)
         tb:SetScript("OnDragStop", function()
-            frame:StopMovingOrSizing()
+            local m = tb.moving or (opts.moveFrame and opts.moveFrame()) or frame
+            tb.moving = nil
+            m:StopMovingOrSizing()
             if opts.dragStop then ns.Errors.Call(opts.feature or "ui", opts.dragStop) end
         end)
     end
@@ -320,6 +327,175 @@ function K.Choice(parent, text, fn, radio, feature)
         if self.icon then K.Tint(self.icon, (self.on and self.radio) and "radioOn" or "button") end
     end
     return b
+end
+
+-- ------------------------------------------------------------------ main window controls
+-- All plain frames (tos: no Blizzard templates, no UIDropDownMenu, nothing hooked).
+
+-- A slider for a number setting d (schema entry): track, accent fill, thumb, the value on the right.
+-- Drag (cursor, OnUpdate only while the button is down), click on the track, mouse wheel = one step.
+-- onChange(value) gets the raw value (the caller rounds); s:Set(v) shows a value.
+function K.Slider(parent, d, onChange, feature)
+    local s = CreateFrame("Button", nil, parent)
+    local w = Th.Size("slider")
+    s:SetSize(w + 52, Th.LineHeight("step") + 4)
+    s.d, s.w = d, w
+    s.track = K.Fill(s, "ARTWORK", "sliderTrack")
+    s.track:SetSize(w, Th.Size("barSmall"))
+    s.track:SetPoint("LEFT", s, "LEFT", 0, 0)
+    s.fill = K.Fill(s, "ARTWORK", "sliderFill", 1)
+    s.fill:SetHeight(Th.Size("barSmall"))
+    s.fill:SetPoint("LEFT", s.track, "LEFT", 0, 0)
+    local tw = Th.Size("sliderThumb")
+    s.thumb = K.Fill(s, "OVERLAY", "sliderThumb")
+    s.thumb:SetSize(tw, tw + 4)
+    s.value = K.Text(s, "goal", "text", "RIGHT")
+    s.value:SetPoint("RIGHT", s, "RIGHT", 0, 0)
+    s.value:SetWidth(46)
+    function s.Set(self, v)
+        v = tonumber(v) or d.min
+        self.v = v
+        local span = d.max - d.min
+        local frac = span > 0 and math.max(0, math.min(1, (v - d.min) / span)) or 0
+        self.fill:SetWidth(math.max(1, self.w * frac))
+        self.thumb:ClearAllPoints()
+        self.thumb:SetPoint("CENTER", self.track, "LEFT", self.w * frac, 0)
+        self.value:SetText(ns.Settings.NumberText(d, v))
+    end
+    -- the value under the cursor (nil when it can't be read)
+    function s.FromCursor(self)
+        local x = Co.Cursor(self)
+        local left = self.track:GetLeft()
+        if not (x and left) then return nil end
+        local frac = math.max(0, math.min(1, (x - left) / self.w))
+        return d.min + frac * (d.max - d.min)
+    end
+    local function Push(v) if v then ns.Errors.Call(feature or "ui", onChange, v) end end
+    s:SetScript("OnMouseDown", function(self, button)
+        if button ~= "LeftButton" then return end
+        Push(self:FromCursor())
+        self:SetScript("OnUpdate", function(me) Push(me:FromCursor()) end)
+    end)
+    s:SetScript("OnMouseUp", function(self) self:SetScript("OnUpdate", nil) end)
+    s:SetScript("OnHide", function(self) self:SetScript("OnUpdate", nil) end)
+    s:EnableMouseWheel(true)
+    s:SetScript("OnMouseWheel", function(self, delta)
+        Push((self.v or d.min) + (delta > 0 and 1 or -1) * (d.step or 1))
+    end)
+    s:Set(d.default)
+    return s
+end
+
+-- A drop-down for a choice setting d: a text button with a caret; the list is the one ns.Menu (ticked row =
+-- the value). onChange(value); b:Set(v) shows a value.
+function K.Dropdown(parent, d, onChange, feature)
+    local function Label(v)
+        local key = d.choiceLabels and d.choiceLabels[v]
+        return key and ns.L[key] or tostring(v)
+    end
+    local b
+    b = K.Button(parent, "", function(self)
+        if ns.Menu.IsOpen() and ns.Menu.anchor == self then ns.Menu.Close() return end
+        local items = {}
+        for _, v in ipairs(d.choices) do
+            items[#items + 1] = { text = Label(v), checked = v == self.v,
+                fn = function() ns.Errors.Call(feature or "ui", onChange, v) end }
+        end
+        ns.Menu.Open(self, items)
+    end, { feature = feature })
+    b.caret = K.Glyph(b, "btn.caret", Th.Size("box"), "button")
+    b.caret:SetPoint("RIGHT", b, "RIGHT", -6, 0)
+    Th.Glyph(b.caret, "btn.caret", "cw")
+    function b.Set(self, v)
+        self.v = v
+        self:SetLabel(Label(v))
+        self:SetWidth(math.max(self:GetWidth(), Th.Size("slider")))
+    end
+    b:Set(d.default)
+    return b
+end
+
+-- A search box: our own EditBox (never takes the keyboard by itself: no SetAutoFocus, tos), magnifier,
+-- a dim placeholder while empty. onChange(text) on every change; Esc / Enter let go of the keyboard.
+function K.SearchBox(parent, placeholder, onChange, feature)
+    local f = CreateFrame("Frame", nil, parent)
+    f:SetSize(Th.Size("search"), Th.LineHeight("step") + 8)
+    f.bg = K.Fill(f, "BACKGROUND", "searchBg")
+    f.bg:SetAllPoints()
+    local hair = K.Hair(Th.Size("border"))
+    for _, side in ipairs({ "TOP", "BOTTOM" }) do
+        local t = K.Fill(f, "BORDER", "border")
+        t:SetPoint(side .. "LEFT", f, side .. "LEFT", 0, 0)
+        t:SetPoint(side .. "RIGHT", f, side .. "RIGHT", 0, 0)
+        t:SetHeight(hair)
+    end
+    f.icon = K.Glyph(f, "btn.search", Th.Size("button") - 2, "text.dim")
+    f.icon:SetPoint("LEFT", f, "LEFT", 5, 0)
+    local e = CreateFrame("EditBox", nil, f)
+    f.edit = e
+    e:SetAutoFocus(false)
+    Th.Font(e, "goal")
+    e:SetTextColor(Th.Color("text"))
+    e:SetPoint("TOPLEFT", f.icon, "TOPRIGHT", 4, 4)
+    e:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -4, 0)
+    e:SetMaxLetters(40)
+    f.hint = K.Text(f, "goal", "text.dim")
+    f.hint:SetPoint("LEFT", f.icon, "RIGHT", 5, 0)
+    f.hint:SetText(placeholder or "")
+    local function Hint() f.hint:SetShown((e:GetText() or "") == "" and not f.focused) end
+    e:SetScript("OnEditFocusGained", function() f.focused = true Hint() end)
+    e:SetScript("OnEditFocusLost", function() f.focused = false Hint() end)
+    e:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    e:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+    e:SetScript("OnTextChanged", function(self)
+        Hint()
+        ns.Errors.Call(feature or "ui", onChange, self:GetText() or "")
+    end)
+    f:SetScript("OnHide", function() e:ClearFocus() end)
+    f:EnableMouse(true)
+    f:SetScript("OnMouseDown", function() e:SetFocus() end)
+    function f.Get() return e:GetText() or "" end
+    function f.SetText(_, t) e:SetText(t or "") Hint() end
+    Hint()
+    K.searchBoxes[#K.searchBoxes + 1] = e
+    return f
+end
+-- combat starts (PLAYER_REGEN_DISABLED, via GameState's CombatStarted): every search box lets go of the keyboard
+K.searchBoxes = {}
+ns.Bus.On("CombatStarted", K, function()
+    for _, e in ipairs(K.searchBoxes) do e:ClearFocus() end
+end, "ui", 10)
+
+-- A filter chip: a small box with a text; picked = accent text and edge. c:SetOn(on), c:SetLabel(text).
+function K.Chip(parent, text, fn, feature)
+    local c = CreateFrame("Button", nil, parent)
+    c:SetHeight(Th.LineHeight("step") + 6)
+    c.fill = K.Fill(c, "BACKGROUND", "buttonFill")
+    c.fill:SetAllPoints()
+    c.hover = K.Fill(c, "BACKGROUND", "buttonHoverBg", 1)
+    c.hover:SetAllPoints()
+    c.hover:Hide()
+    c.edge = K.Fill(c, "BORDER", "chipOn")
+    c.edge:SetHeight(K.Hair(1))
+    c.edge:SetPoint("BOTTOMLEFT", c, "BOTTOMLEFT", 0, 0)
+    c.edge:SetPoint("BOTTOMRIGHT", c, "BOTTOMRIGHT", 0, 0)
+    c.edge:Hide()
+    c.text = K.Text(c, "goal", "text", "CENTER")
+    c.text:SetPoint("CENTER")
+    function c.SetLabel(self, t)
+        self.text:SetText(t or "")
+        self:SetWidth(math.ceil((self.text:GetStringWidth() or 30) + 16))
+    end
+    function c.SetOn(self, on)
+        self.on = on and true or false
+        self.edge:SetShown(self.on)
+        K.Color(self.text, self.on and "chipOn" or "text")
+    end
+    c:SetScript("OnEnter", function(self) self.hover:Show() end)
+    c:SetScript("OnLeave", function(self) self.hover:Hide() end)
+    c:SetScript("OnClick", function(self) ns.Errors.Call(feature or "ui", fn, self) end)
+    c:SetLabel(text)
+    return c
 end
 
 -- A badge: tinted disc + glyph on top (manifest "Badges").

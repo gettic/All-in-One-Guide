@@ -31,7 +31,9 @@ Fm.EXTRA = { obj = "list", any = "number", override = "string", whileUntil = "st
     inn = "string", spell = "number", minLevel = "number", dungeon = "string",
     -- smart arrow: the step's own way (connector ids and inline points, or false = straight), and the
     -- connector room the goal is in (written by the build from packs-src\connectors\)
-    via = "via", room = "string" }
+    via = "via", room = "string",
+    -- travel side goals: this background goal was written as an `onWay` entry of the step with this id
+    onWay = "string" }
 Fm.DEFAULT_RADIUS = 10
 
 local tonumber, tostring, concat, sort = tonumber, tostring, table.concat, table.sort

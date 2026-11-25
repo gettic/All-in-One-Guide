@@ -948,6 +948,13 @@ return {
                 { id = "br-obj-362", type = "objective", quest = 362, map = 1420, x = 47.3, y = 40.2, r = 10,
                   qname = "The Haunted Mills",
                   text = "Go north-west, kill Devlin by the road south of the mills and loot his remains for {quest}", da = "Gå mod nordvest, dræb Devlin ved vejen syd for møllerne og saml hans rester til {quest}",
+                  -- travel side goal: the graverobbers stand along this road (QuestieDB, x 53-58, y 39-46); mongrels
+                  -- and ichor stay at Garren's Haunt (hand-over to br-obj-358)
+                  onWay = {
+                    { id = "graverobbers", quest = 358, obj = { 1 }, qname = "Graverobbers",
+                      text = "Kill the graverobbers you pass on the road north-west for {quest}",
+                      src = "questie", seen = "2026-11", confirmed = false },
+                  },
                   src = "wiki", seen = "2026-11", confirmed = false },
                 { id = "br-obj-426", type = "objective", quest = 426, map = 1420, x = 46.0, y = 33.0, r = 40,
                   qname = "The Mills Overrun",

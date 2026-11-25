@@ -3,8 +3,8 @@
 -- v0.2 M4: the minimap button, the Addon Compartment entry and (only when another addon already loaded
 -- one) a data-broker launcher. We ship no library.
 --   button: our own art (media\minimap.tga, full colour), on the minimap's ring; drag moves it around the
---     ring (angle saved, setting minimapAngle); left-click shows / hides the guide, right-click opens a
---     small menu; dimmed while the guide window is hidden; hidden with the setting `minimap`
+--     ring (angle saved, setting minimapAngle); left-click shows / hides the guide, right-click opens the
+--     main window (a small menu without it); dimmed while the guide window is hidden; hidden with the setting `minimap`
 --     (/aog minimap brings it back)
 --   Addon Compartment: the .toc names three global functions (Blizzard_Minimap\Mainline\
 --     AddonCompartment.lua:106-131 calls them as (addonName, buttonName) / (addonName, button))
@@ -63,9 +63,6 @@ end
 function MM.MenuItems()
     local S = ns.Settings
     local items = {}
-    if ns.SettingsUI.Available() then
-        items[#items + 1] = { text = L().MENU_SETTINGS, fn = function() ns.SettingsUI.Open() end }
-    end
     items[#items + 1] = { text = L().MENU_ARROW, checked = S.Get("arrow"), fn = function() S.Set("arrow", not S.Get("arrow")) end }
     items[#items + 1] = { text = L().MENU_LOCK, checked = S.Get("locked"), fn = function() S.Set("locked", not S.Get("locked")) end }
     items[#items + 1] = { text = L().MENU_MINIMAP_HIDE, fn = function()
@@ -75,10 +72,17 @@ function MM.MenuItems()
     return items
 end
 
--- Left: show / hide the guide. Right: the menu (on the button) or the settings (compartment / broker).
+-- Left: show / hide the guide. Right: opens / closes the main window (2026-11-25; "Hide this button" is
+-- Settings > General there). Without the main window: the small menu (on the button) or the title menu.
 function MM.Click(button, anchor)
     if button == "RightButton" then
-        if anchor then ns.Menu.Open(anchor, MM.MenuItems()) else ns.SettingsUI.Open() end
+        if ns.Hub and ns.Hub.Available() then
+            ns.Hub.Toggle()
+        elseif anchor then
+            ns.Menu.Open(anchor, MM.MenuItems())
+        else
+            ns.SettingsUI.Open()
+        end
     else
         ns.UI.Toggle()
     end

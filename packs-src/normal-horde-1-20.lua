@@ -1044,6 +1044,11 @@ return {
                   src = "wiki", seen = "2026-11", confirmed = false },
                 { id = "dur-go-hanazua", type = "goto", map = 1411, x = 40.0, y = 62.0, r = 15,
                   text = "Go north-west to Hana'zua, the wounded orc", da = "Gå mod nordvest til Hana'zua, den sårede ork",
+                  onWay = {
+                    { id = "tails", quest = 789, qname = "Sting of the Scorpid",
+                      text = "Kill scorpid workers on the way and loot their tails for {quest}",
+                      src = "questie", seen = "2026-11", confirmed = false },
+                  },
                   src = "wiki", seen = "2026-11", confirmed = false },
                 { id = "dur-acc-790", type = "accept", quest = 790, npc = 3287, map = 1411, x = 40.6, y = 62.6,
                   qname = "Sarkoth",
@@ -1372,12 +1377,15 @@ return {
             } },
 
             { title = "Tiragarde Keep", da = "Tiragarde Keep", steps = {
-                { id = "dur-obj-96821", type = "objective", quest = 96821, map = 1411, x = 51.7, y = 62.0, r = 30,
-                  qname = "Legging It",
-                  text = "Kill 6 ridgeshade creepers and 6 lurkers west of the road north for {quest}",
-                  src = "wiki", seen = "2026-11", confirmed = false },
+                -- travel side goal: the creepers and lurkers line the road west side (QuestieDB spawns x 49-55, y 47-67);
+                -- what is left is finished on the walk home at dur-obj-96821 (hand-over), no detour west
                 { id = "dur-go-tiragarde", type = "goto", map = 1411, x = 58.0, y = 57.0, r = 25,
                   text = "Go north to Tiragarde Keep on the coast", da = "Gå nordpå til Tiragarde Keep ved kysten",
+                  onWay = {
+                    { id = "legs", quest = 96821, whileUntil = "dur-obj-96821", qname = "Legging It",
+                      text = "Kill ridgeshade creepers and lurkers west of the road as you walk for {quest}",
+                      src = "questie", seen = "2026-11", confirmed = false },
+                  },
                   src = "wiki", seen = "2026-11", confirmed = false },
                 { id = "dur-obj-784", flags = { "deadly" }, type = "objective", quest = 784, map = 1411, x = 58.0, y = 57.0, r = 30,
                   qname = "Vanquish the Betrayers",
@@ -1395,6 +1403,10 @@ return {
                   qname = "The Admiral's Orders",
                   text = "Use the lieutenant's key on the chest on the top floor and accept {quest}", da = "Brug løjtnantens nøgle på kisten på øverste etage og tag imod {quest}",
                   src = "wiki", seen = "2026-11", confirmed = false },
+                { id = "dur-obj-96821", type = "objective", quest = 96821, map = 1411, x = 52.0, y = 49.0, r = 20,
+                  qname = "Legging It",
+                  text = "Kill the last creepers and lurkers by the road south of Razor Hill for {quest}",
+                  src = "questie", seen = "2026-11", confirmed = false },
                 { id = "dur-ti-784", type = "turnin", flags = { "deadly" }, quest = 784, xp = 625, npc = 3139, map = 1411, x = 52.0, y = 43.5,
                   qname = "Vanquish the Betrayers",
                   text = "Go back to Razor Hill and turn in {quest} to Gar'Thok", da = "Gå tilbage til Razor Hill og aflever {quest} til Gar'Thok",

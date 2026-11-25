@@ -5,11 +5,16 @@
 -- goals. States: "current" (accent bar + glow, bright text), "upcoming" (dim by colour), "done".
 -- Never SetAlpha on text: dimming is always a text colour.
 --   ns.Rows.New(parent) -> row;  ns.Rows.Set(row, data) -> height
---   data = { number, badge, text, state, right, goals = { { text, have, need, done } }, coord, maxLines, boxed }
+--   data = { number, badge, text, state, right, goals = { { text, have, need, done } }, coord, maxLines, boxed,
+--            reserveRight (units kept free on the right: the NOW window's item button) }
+--   a goal may also carry kind ("kill" / "loot" / "use": travel side goal icon), side (its step), more ("+n more")
 local _, ns = ...
 local Th, K = ns.Theme, ns.UIKit
 local R = {}
 ns.Rows = R
+-- side goal kind -> K.BADGE entry (glyph + colour key; our own theme glyphs)
+local SIDE_BADGE = { kill = "objective", loot = "collect", use = "useitem" }
+R.SIDE_BADGE = SIDE_BADGE
 
 local function Pad() return Th.Size("pad") end
 
@@ -34,9 +39,13 @@ function R.New(parent)
     row.num:SetPoint("TOPLEFT", row, "TOPLEFT", Pad() - 4, -3)
     row.badge = K.Badge(row, Th.Size("badge"))
     row.badge.disc:SetPoint("TOPLEFT", row, "TOPLEFT", Pad() + 14, -1)
+    -- v0.2 fix (text over the NOW box): top anchors only on both sides plus a set height, so the text never
+    -- centres itself in a tall row (a "RIGHT" point also pins the vertical middle) and never draws past its line(s)
     row.text = K.Text(row, "step", "text")
-    row.text:SetPoint("TOPLEFT", row.badge.disc, "TOPRIGHT", 6, 0)
-    row.text:SetPoint("RIGHT", row, "RIGHT", -(Pad() + 44), 0)
+    row.text:SetPoint("TOPLEFT", row, "TOPLEFT", Pad() + 14 + Th.Size("badge") + 6, -1)
+    row.text:SetPoint("TOPRIGHT", row, "TOPRIGHT", -(Pad() + 44), -1)
+    row.text:SetJustifyV("TOP")
+    row.text:SetHeight(Th.LineHeight("step") - 1)
     row.right = K.Text(row, "goal", "text.dim", "RIGHT")
     row.right:SetPoint("TOPRIGHT", row, "TOPRIGHT", -Pad(), -2)
     row.tick = K.Glyph(row, "done", Th.Size("badge"), "goalDone")
@@ -66,18 +75,33 @@ local function Line(row, i)
     ln.pin:SetAllPoints(ln.fill)
     Th.Glyph(ln.pin, "badge.goto")
     ln.pin:SetVertexColor(Th.Color("icon.goto"))
+    -- placed per line by R.Set (top anchors + the goal line's height, never a middle point)
     ln.text = K.Text(row, "goal", "goal")
-    ln.text:SetPoint("LEFT", ln.fill, "RIGHT", 5, 0)
-    ln.text:SetPoint("RIGHT", row, "RIGHT", -(Pad() + 44), 0)
+    ln.text:SetJustifyV("MIDDLE")
     ln.right = K.Text(row, "goal", "text.dim", "RIGHT")
-    ln.right:SetPoint("RIGHT", row, "RIGHT", -Pad(), 0)
-    ln.right:SetPoint("TOP", ln.text, "TOP", 0, 0)
+    ln.right:SetJustifyV("MIDDLE")
     row.lines[i] = ln
     return ln
 end
 
 local function ShowLine(ln, shown)
     for _, k in ipairs({ "fill", "box", "tick", "pin", "text", "right" }) do ln[k]:SetShown(shown) end
+end
+
+-- Room kept free on the right of a text for its right-hand text (count, distance, "in 2 levels"):
+-- at least the usual 44, more when that text is wider (big fonts), so the two never overlap.
+-- row.reserve (d.reserveRight, NOW window): room kept free on the far right for the item button.
+local function RightInset(rightFs, gap, reserve)
+    local w = rightFs and rightFs:GetText() ~= nil and rightFs:GetText() ~= "" and (rightFs:GetStringWidth() or 0) or 0
+    return Pad() + math.max(44, math.ceil(w) + gap) + (reserve or 0)
+end
+
+-- A goal / coordinate line's text: top anchors at the line's top (ln.top), clear of its right-hand text.
+local function PlaceLineText(row, ln)
+    local x = Pad() + 14 + Th.Size("badge") + 6 + Th.Size("box") + 5
+    ln.text:ClearAllPoints()
+    ln.text:SetPoint("TOPLEFT", row, "TOPLEFT", x, -ln.top)
+    ln.text:SetPoint("TOPRIGHT", row, "TOPRIGHT", -RightInset(ln.right, 4, row.reserve), -ln.top)
 end
 
 -- Lays out one row; returns its height.
@@ -99,12 +123,28 @@ function R.Set(row, d)
     if row.text.SetMaxLines then row.text:SetMaxLines(current and (d.maxLines or 2) or 1) end
     row.tick:SetShown(state == "done")
     row.right:SetText(state ~= "done" and d.right or "")
-    -- main line height (one line, or two when the current step's text wraps)
+    local reserve = tonumber(d.reserveRight) or 0
+    row.reserve = reserve
+    row.right:ClearAllPoints()
+    row.right:SetPoint("TOPRIGHT", row, "TOPRIGHT", -(Pad() + reserve), -2)
+    row.tick:ClearAllPoints()
+    row.tick:SetPoint("TOPRIGHT", row, "TOPRIGHT", -(Pad() + reserve), 0)
+    -- the main text ends left of the right-hand text (or the done tick)
+    local inset = state == "done" and Pad() + math.max(44, Th.Size("badge") + 6) + reserve or RightInset(row.right, 6, reserve)
+    row.text:ClearAllPoints()
+    row.text:SetPoint("TOPLEFT", row, "TOPLEFT", Pad() + 14 + Th.Size("badge") + 6, -1)
+    row.text:SetPoint("TOPRIGHT", row, "TOPRIGHT", -inset, -1)
+    -- main line height (one line, or two when the current step's text wraps). Measured with room for two
+    -- lines (a set height can cut the measure), then the text gets exactly its line(s). The caller anchors
+    -- the row first, so the width is known (v0.2 fix: a new row measured before it had a width came out one
+    -- line high on login and its second line drew over the goal lines until the next refresh).
     local h = LH
     if current and (d.maxLines or 2) > 1 then
+        row.text:SetHeight(LH * 2 - 1)
         local sh = row.text:GetStringHeight() or 0
         if sh > Th.FontSize("step") * 1.6 then h = LH * 2 end
     end
+    row.text:SetHeight(h - 1)
     -- goal lines, then the coordinate line
     local n = 0
     local lines = {}
@@ -116,16 +156,32 @@ function R.Set(row, d)
         n = n + 1
         local ln = Line(row, n)
         ShowLine(ln, true)
+        local gx, box = Pad() + 14 + Th.Size("badge") + 6, Th.Size("box")
         ln.fill:ClearAllPoints()
-        ln.fill:SetPoint("TOPLEFT", row, "TOPLEFT", Pad() + 14 + Th.Size("badge") + 6, -(h + (LG - Th.Size("box")) / 2))
+        ln.fill:SetPoint("TOPLEFT", row, "TOPLEFT", gx, -(h + (LG - box) / 2))
+        ln.top = h
+        ln.right:ClearAllPoints()
+        ln.right:SetPoint("TOPRIGHT", row, "TOPRIGHT", -(Pad() + reserve), -h)
+        ln.right:SetHeight(LG)
+        ln.text:SetHeight(LG)
         if l.kind == "goal" then
             local g = l.g
-            ln.pin:Hide()
+            -- travel side goal still open: the kind icon (kill / loot / use) in the box's place; done = the tick.
+            -- "+n more" line: no box at all. Both stay one line (cut, never wrapped).
+            local icon = not g.done and not g.more and g.kind and SIDE_BADGE[g.kind]
+            if icon then
+                local b = K.BADGE[icon]
+                Th.Glyph(ln.pin, b[1])
+                ln.pin:SetVertexColor(Th.Color(b[2]))
+            end
+            ln.pin:SetShown(icon and true or false)
             ln.fill:SetShown(g.done)
             ln.tick:SetShown(g.done)
+            ln.box:SetShown(not icon and not g.more)
             ln.box:SetVertexColor(Th.Color(g.done and "goalDoneEdge" or "goalBoxEmpty"))
             ln.text:SetText(g.text or "")
-            K.Color(ln.text, g.done and "goalDone" or "goal")
+            if ln.text.SetWordWrap then ln.text:SetWordWrap(not (g.side or g.more)) end
+            K.Color(ln.text, (g.done and "goalDone") or (g.more and "text.dim") or "goal")
             if g.need and g.need > 1 then
                 ln.right:SetText(("%d/%d"):format(g.have or 0, g.need))
             else
@@ -136,11 +192,16 @@ function R.Set(row, d)
             ln.fill:Hide()
             ln.box:Hide()
             ln.tick:Hide()
+            -- (the pin may have carried a side goal's icon in an earlier draw)
+            Th.Glyph(ln.pin, "badge.goto")
+            ln.pin:SetVertexColor(Th.Color("icon.goto"))
+            if ln.text.SetWordWrap then ln.text:SetWordWrap(true) end
             ln.text:SetText(l.c.text or "")
             K.Color(ln.text, "coord")
             ln.right:SetText(l.c.dist or "")
             K.Color(ln.right, "text.dim")
         end
+        PlaceLineText(row, ln)
         h = h + LG
     end
     for i = n + 1, #row.lines do ShowLine(row.lines[i], false) end
@@ -151,7 +212,10 @@ end
 
 -- Updates only the distance on the current row's coordinate line (called by the arrow's ticker).
 function R.SetDistance(row, text)
-    if row and row.coordLine then row.coordLine.right:SetText(text or "") end
+    if row and row.coordLine then
+        row.coordLine.right:SetText(text or "")
+        PlaceLineText(row, row.coordLine)
+    end
 end
 
 -- The "finished a step" flash (an animation on a texture; nothing with reduced motion).

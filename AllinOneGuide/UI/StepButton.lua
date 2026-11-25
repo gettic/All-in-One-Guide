@@ -14,7 +14,9 @@ local _, ns = ...
 local Th, K, Co = ns.Theme, ns.UIKit, ns.Compat
 local CQ = ns.CombatQueue
 -- CROP: item icons show only their inner 84 % (Blizzard's baked edge sits under our frame; look review #9)
-local SB = { NAME = "AllinOneGuideStepButton", SIZE = 36, HEARTHSTONE = 6948, item = nil, want = nil, CROP = 0.08 }
+-- LEVEL_GAP: inside the NOW window, the button's frame level is this far above the window's
+local SB = { NAME = "AllinOneGuideStepButton", SIZE = 36, HEARTHSTONE = 6948, item = nil, want = nil, CROP = 0.08,
+    LEVEL_GAP = 20 }
 ns.StepButton = SB
 
 -- The item the current step wants on the button, or nil.
@@ -150,22 +152,39 @@ end
 -- Places the button left of the window's top edge, at the window's own scale (look review #1). The window's
 -- GetLeft / GetTop are in its own scaled units: k turns them into UIParent units, and the button's offsets
 -- are in its own units (UIParent units / its scale). Secure: only from Apply (combat queue).
+-- With the NOW window (UI\NowWindow.lua) the button sits inside its top-right instead, at its scale, one
+-- fixed level gap above it (tos: never SetToplevel / Raise on that window; the level is set only here, out
+-- of combat).
+local function InNow()
+    local NW = ns.NowWin
+    return NW and NW.On() and NW.frame ~= nil
+end
+SB.InNow = InNow
+
 local function Place(b)
     local p = Co.fn.UIParent
-    local s = ns.Overlay.WindowScale()
+    local now = InNow()
+    local s = ns.Overlay.WindowScale(now and ns.NowWin.ScaleKey() or nil)
     if type(s) ~= "number" or s <= 0 then s = 1 end
     b:SetScale(s)
     b:ClearAllPoints()
-    local w = ns.UI and ns.UI.frame
-    local x, y = w and w:GetLeft(), w and w:GetTop()
+    local w = now and ns.NowWin.frame or (ns.UI and ns.UI.frame)
+    local x, y = w and (now and w:GetRight() or w:GetLeft()), w and w:GetTop()
     local ps = p and p.GetEffectiveScale and p:GetEffectiveScale()
     if x and y and ps and ps > 0 then
         local k = w:GetEffectiveScale() / ps
-        b:SetPoint("TOPRIGHT", p, "BOTTOMLEFT", x * k / s - Th.Size("stepButtonGap"), y * k / s)
+        if now then
+            local inset, down = ns.NowWin.ButtonSpot()
+            local kw = k / s   -- the window's units -> the button's units
+            b:SetPoint("TOPRIGHT", p, "BOTTOMLEFT", (x - inset) * kw, (y - down) * kw)
+            b:SetFrameLevel((w:GetFrameLevel() or 0) + SB.LEVEL_GAP)
+        else
+            b:SetPoint("TOPRIGHT", p, "BOTTOMLEFT", x * k / s - Th.Size("stepButtonGap"), y * k / s)
+        end
     else
         b:SetPoint("CENTER", p, "CENTER", -200 / s, 0)
     end
-    SB.placed = { x = x, y = y, scale = s }
+    SB.placed = { x = x, y = y, scale = s, now = now }
 end
 SB.Place = Place
 
@@ -238,10 +257,22 @@ end }
 
 -- nil when the button sits where it should (or can't be judged now), else a short reason.
 function SB.Misplaced()
-    local b, w = SB.frame, ns.UI and ns.UI.frame
+    local now = InNow()
+    local b, w = SB.frame, now and ns.NowWin.frame or (ns.UI and ns.UI.frame)
     if not (b and w and b:IsShown() and w:IsShown()) or Co.InCombat() or CQ.Pending("stepbutton") then return nil end
     local p = Co.fn.UIParent
     local ps = p and p:GetEffectiveScale()
+    if now then
+        local br, bt, wr, wt = b:GetRight(), b:GetTop(), w:GetRight(), w:GetTop()
+        if not (ps and br and bt and wr and wt) then return nil end
+        local kb, kw = b:GetEffectiveScale() / ps, w:GetEffectiveScale() / ps
+        if math.abs(kb - kw) > 0.01 then return ("scale %.2f, the NOW window %.2f"):format(kb, kw) end
+        if (b:GetFrameLevel() or 0) <= (w:GetFrameLevel() or 0) then return "under the NOW window" end
+        local inset, down = ns.NowWin.ButtonSpot()
+        if math.abs(bt * kb - (wt - down) * kw) > 1 then return "not at the NOW window's top" end
+        if math.abs(br * kb - (wr - inset) * kw) > 1 then return "not at the NOW window's right" end
+        return nil
+    end
     local bl, br, bt = b:GetLeft(), b:GetRight(), b:GetTop()
     local wl, wt = w:GetLeft(), w:GetTop()
     if not (ps and bl and br and bt and wl and wt) then return nil end

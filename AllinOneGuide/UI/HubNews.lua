@@ -56,5 +56,5 @@ function HN.Check()
     return true
 end
 
-ns.Hub.AddPage("news", { title = "HUB_NEWS", icon = "hub.news", order = 60, build = Build })
+ns.Hub.AddPage("news", { title = "HUB_NEWS", icon = "hub.news", order = 70, build = Build })
 ns.Bus.On("Login", HN, function() ns.Errors.Call("hub", HN.Check) end, "hub", 95)

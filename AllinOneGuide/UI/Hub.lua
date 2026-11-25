@@ -1,28 +1,64 @@
 -- SPDX-License-Identifier: GPL-3.0-or-later
 -- Copyright (C) 2026 gettic
--- v0.2 M5: the Hub (FR-26): one frame with a left nav and pages. Pages register themselves:
---   ns.Hub.AddPage(id, { title = locale key, icon = slot key, order = n, build = fn(parent) -> height,
---                        refresh = fn(), action = fn() (a nav row that does something instead of a page) })
--- Opens on the side of the screen away from the guide window, clamped; Esc closes it (UISpecialFrames).
--- Size: 600 x 420, smaller on small screens (min 420 x 300); the page area scrolls (mouse wheel) when a
--- page is taller. Nav overflow: when the rows don't fit, the last row becomes "More" with the rest.
---   ns.Hub.Open(id), .Close(), .Toggle(id), .IsShown(), .Show(id), .current, .frame, .navButtons
+-- The main window (2026-11-25, plans\main-window\plan.md; grew out of the v0.2 M5 Hub): one frame titled
+-- "All-in-One Guide" with a left nav and pages: Guides, Settings (a group: General, Guide window, Arrow,
+-- Map pins, Steps, Advanced), Quest items, Report a mistake, About, What's new. Pages register themselves:
+--   ns.Hub.AddPage(id, { title = locale key, icon = slot key, order = n, build = fn(parent, width) -> height,
+--                        refresh = fn(), action = fn() (a nav row that does something instead of a page),
+--                        group = id of a group page (a sub-row, indented), isGroup = true (folds its sub-rows) })
+-- Opens on the page used last (account module `main`, the user's answer), Guides the first time; on the side
+-- of the screen away from the guide window, clamped; Esc closes it (UISpecialFrames). Size 600 x 440, smaller
+-- on small screens (min 420 x 300); the page area scrolls (mouse wheel). Nav overflow: when the rows don't
+-- fit, the last row becomes "More" with the rest. The version sits at the nav's bottom.
+--   ns.Hub.Open(id), .Close(), .Toggle(id), .IsShown(), .Show(id), .current, .frame, .navButtons, .Rows()
 local _, ns = ...
 local Th, K, Co = ns.Theme, ns.UIKit, ns.Compat
 -- (the title bar's height is the theme's size.title, shared with the guide window: look review #5)
-local Hub = { pages = {}, list = {}, navButtons = {}, W = 600, H = 420, MIN_W = 420, MIN_H = 300, NAV_W = 150,
-    ROW_H = 24 }
+local Hub = { pages = {}, list = {}, navButtons = {}, groupOpen = { settings = true }, W = 600, H = 440,
+    MIN_W = 420, MIN_H = 300, NAV_W = 150, ROW_H = 24, FIRST = "guides" }
 ns.Hub = Hub
+ns.Main = Hub
 
 local function L() return ns.L end
+
+local function Sort(list)
+    table.sort(list, function(a, b) if a.order ~= b.order then return a.order < b.order end return a.id < b.id end)
+    return list
+end
+
+-- The nav's rows in order: top pages, a group's sub-pages right under it while it's unfolded.
+function Hub.Rows()
+    local top, kids = {}, {}
+    for _, p in pairs(Hub.pages) do
+        if p.group then
+            kids[p.group] = kids[p.group] or {}
+            table.insert(kids[p.group], p)
+        else
+            top[#top + 1] = p
+        end
+    end
+    local out = {}
+    for _, p in ipairs(Sort(top)) do
+        out[#out + 1] = p
+        if p.isGroup and Hub.groupOpen[p.id] and kids[p.id] then
+            for _, c in ipairs(Sort(kids[p.id])) do out[#out + 1] = c end
+        end
+    end
+    return out
+end
+
+-- A group's first sub-page (what a click on the group row opens).
+function Hub.FirstOf(groupId)
+    local kids = {}
+    for _, p in pairs(Hub.pages) do if p.group == groupId then kids[#kids + 1] = p end end
+    return Sort(kids)[1]
+end
 
 function Hub.AddPage(id, def)
     def.id = id
     def.order = def.order or 50
     Hub.pages[id] = def
-    Hub.list = {}
-    for _, p in pairs(Hub.pages) do Hub.list[#Hub.list + 1] = p end
-    table.sort(Hub.list, function(a, b) if a.order ~= b.order then return a.order < b.order end return a.id < b.id end)
+    Hub.list = Hub.Rows()
     if Hub.frame then Hub.Nav() end
 end
 
@@ -50,8 +86,9 @@ local function NavButton(i)
     b.icon = K.Glyph(b, "hub.about", Th.Size("navButton"), "button")
     b.icon:SetPoint("LEFT", b, "LEFT", 8, 0)
     b.text = K.Text(b, "step", "text")
-    b.text:SetPoint("LEFT", b.icon, "RIGHT", 6, 0)
-    b.text:SetPoint("RIGHT", b, "RIGHT", -4, 0)
+    b.caret = K.Glyph(b, "btn.caret", Th.Size("box"), "button")
+    b.caret:SetPoint("RIGHT", b, "RIGHT", -6, 0)
+    b.caret:Hide()
     b:SetScript("OnEnter", function(self)
         self.hover:SetShown(not self.sel)
         if not self.sel then
@@ -89,21 +126,51 @@ function Hub.NavClick(b)
     local p = b.page
     if not p then return end
     if p.action then p.action() return end
+    if p.isGroup then
+        -- fold / unfold; unfolding opens its first page unless one of its pages is open already
+        local cur = Hub.pages[Hub.current]
+        local inside = cur and cur.group == p.id
+        Hub.groupOpen[p.id] = not Hub.groupOpen[p.id]
+        Hub.list = Hub.Rows()
+        if Hub.groupOpen[p.id] and not inside then
+            local first = Hub.FirstOf(p.id)
+            if first then return Hub.Show(first.id) end
+        end
+        Hub.Nav()
+        return
+    end
     Hub.Show(p.id)
 end
 
 -- The nav rows; when they don't fit, the last one is "More" (a menu with the rest).
 function Hub.Nav()
     local f = Hub.frame
-    local fit = math.max(1, math.floor(f.nav:GetHeight() / Hub.ROW_H))
+    Hub.list = Hub.Rows()
+    local avail = (f.nav:GetHeight() or 0) - Th.LineHeight("small") - 6
+    local fit = math.max(1, math.floor(avail / Hub.ROW_H))
     local n = #Hub.list
     local shown = n <= fit and n or fit - 1
+    local cur = Hub.pages[Hub.current]
+    local indent = Th.Size("navIndent")
     for i = 1, shown do
         local b, p = NavButton(i), Hub.list[i]
         b.page, b.more = p, nil
         b.text:SetText(L()[p.title] or p.id)
-        Th.Glyph(b.icon, p.icon or "hub.about")
-        b.sel = Hub.current == p.id
+        b.text:ClearAllPoints()
+        if p.group then
+            -- a sub-page: indented, no icon
+            b.icon:Hide()
+            b.text:SetPoint("LEFT", b, "LEFT", 8 + indent, 0)
+        else
+            b.icon:Show()
+            Th.Glyph(b.icon, p.icon or "hub.about")
+            b.text:SetPoint("LEFT", b.icon, "RIGHT", 6, 0)
+        end
+        b.text:SetPoint("RIGHT", b, "RIGHT", -20, 0)
+        b.caret:SetShown(p.isGroup and true or false)
+        if p.isGroup then Th.Glyph(b.caret, "btn.caret", Hub.groupOpen[p.id] and "cw" or nil) end
+        -- a group row is marked only while it's folded and one of its pages is open
+        b.sel = Hub.current == p.id or (p.isGroup and not Hub.groupOpen[p.id] and cur ~= nil and cur.group == p.id)
         Hub.NavLook(b)
         b:Show()
     end
@@ -114,7 +181,12 @@ function Hub.Nav()
         b.page, b.more = nil, {}
         for i = shown + 1, n do b.more[#b.more + 1] = Hub.list[i] end
         b.text:SetText(L().HUB_MORE)
+        b.icon:Show()
         Th.Glyph(b.icon, "btn.caret")
+        b.text:ClearAllPoints()
+        b.text:SetPoint("LEFT", b.icon, "RIGHT", 6, 0)
+        b.text:SetPoint("RIGHT", b, "RIGHT", -20, 0)
+        b.caret:Hide()
         b.sel = false
         for _, p in ipairs(b.more) do if p.id == Hub.current then b.sel = true end end
         Hub.NavLook(b)
@@ -132,12 +204,18 @@ local function Size()
     return w, h
 end
 
+local HEAD_GAP = 8
+local function HeadH() return Th.LineHeight("header") + HEAD_GAP end
+
 function Hub.Build()
     if Hub.frame then return Hub.frame end
     -- named only for Blizzard's Esc list (UISpecialFrames)
     local f = CreateFrame("Frame", "AllinOneGuideHub", Co.UIParent())
     Hub.frame = f
-    f:SetFrameStrata("HIGH")
+    -- DIALOG (beta.3 fix): above Blizzard's Options panel (HIGH, toplevel), so its "Open All-in-One Guide"
+    -- button visibly opens this window; no Raise / SetToplevel, nothing of Blizzard's touched. Our menu and
+    -- dialogs are FULLSCREEN_DIALOG, above it.
+    f:SetFrameStrata("DIALOG")
     f:SetClampedToScreen(true)
     f:SetMovable(true)
     f:EnableMouse(true)
@@ -145,6 +223,7 @@ function Hub.Build()
     -- the shared title bar (look review #5; drag to move)
     f.titleBar = K.TitleBar(f, { drag = true, feature = "hub",
         close = function() Hub.Close() end, closeTip = function() return L().TIP_CLOSE_HUB end })
+    f.titleBar.title:SetText(ns.TITLE)
     -- nav
     f.nav = CreateFrame("Frame", nil, f)
     f.nav:SetPoint("TOPLEFT", f, "TOPLEFT", 1, -(Th.Size("title") + 4))
@@ -154,9 +233,17 @@ function Hub.Build()
     f.navLine:SetWidth(K.Hair(1))
     f.navLine:SetPoint("TOPLEFT", f.nav, "TOPRIGHT", 0, 0)
     f.navLine:SetPoint("BOTTOMLEFT", f.nav, "BOTTOMRIGHT", 0, 0)
+    -- the version at the nav's bottom
+    f.version = K.Text(f.nav, "small", "text.dim")
+    f.version:SetPoint("BOTTOMLEFT", f.nav, "BOTTOMLEFT", 10, 4)
+    f.version:SetText("v" .. tostring(ns.version or "?"))
+    -- the open page's heading ("Guides", "Settings > General")
+    f.heading = K.Text(f, "header", "zone")
+    f.heading:SetPoint("TOPLEFT", f.nav, "TOPRIGHT", 10, -2)
+    f.heading:SetPoint("RIGHT", f, "RIGHT", -10, 0)
     -- page area: a scroll frame with one child per page
     local sf = CreateFrame("ScrollFrame", nil, f)
-    sf:SetPoint("TOPLEFT", f.nav, "TOPRIGHT", 10, 0)
+    sf:SetPoint("TOPLEFT", f.nav, "TOPRIGHT", 10, -HeadH())
     sf:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -10, 8)
     sf:EnableMouseWheel(true)
     sf:SetScript("OnMouseWheel", function(self, delta) ns.Errors.Call("hub", Hub.Scroll, delta) end)
@@ -172,6 +259,7 @@ function Hub.Build()
     f.track:Hide()
     f.thumb:Hide()
     K.CloseOnEsc("AllinOneGuideHub")
+    f:SetScript("OnHide", function() Hub.OnHide() end)
     f:Hide()
     return f
 end
@@ -230,12 +318,43 @@ function Hub.Place()
     f:SetPoint("CENTER", p, "CENTER", x, 20)
 end
 
+-- The page used last (account module `main`), when it still exists.
+function Hub.LastPage()
+    local mods = ns.DB.account and ns.DB.account.modules
+    local m = type(mods) == "table" and mods.main
+    local id = type(m) == "table" and m.page
+    if type(id) == "string" and Hub.pages[id] and not Hub.pages[id].action then return id end
+    return nil
+end
+
+local function Remember(id)
+    if Hub.keep or ns.safeMode or ns.DB.readOnly.account or not ns.DB.account then return end
+    local m = ns.DB.Module("main", "account", 1)
+    m.page = id
+end
+
+-- The heading over the page: its name, a sub-page as "Settings > General".
+function Hub.Heading(p)
+    local name = L()[p.title] or p.id
+    if p.group then
+        local g = Hub.pages[p.group]
+        return ns.U.Fill(L().MAIN_CRUMB, { page = name }), g
+    end
+    return name
+end
+
 -- Shows one page (built on first use).
 function Hub.Show(id)
     local f = Hub.Build()
-    local p = Hub.pages[id] or Hub.list[1]
+    local p = Hub.pages[id] or Hub.pages[Hub.FIRST] or Hub.list[1]
     if not p then return false end
     if p.action then p.action() return true end
+    if p.isGroup then
+        Hub.groupOpen[p.id] = true
+        p = Hub.FirstOf(p.id)
+        if not p then return false end
+    end
+    if p.group then Hub.groupOpen[p.group] = true end
     for _, other in pairs(Hub.pages) do if other.child and other ~= p then other.child:Hide() end end
     local width = math.max(200, f:GetWidth() - Hub.NAV_W - 22)
     if not p.child then
@@ -251,11 +370,22 @@ function Hub.Show(id)
     f.scroll:SetVerticalScroll(0)
     p.child:Show()
     Hub.current = p.id
-    f.titleBar.title:SetText(ns.TITLE .. " - " .. (L()[p.title] or p.id))
+    Remember(p.id)
+    f.titleBar.title:SetText(ns.TITLE)
+    f.heading:SetText(Hub.Heading(p))
     if p.refresh then ns.Errors.Call("hub", p.refresh, p.child) end
     Hub.Nav()
     Hub.Thumb()
     return true
+end
+
+-- A page's height changed (a list filtered): the scroll range and thumb follow.
+function Hub.SetHeight(id, height)
+    local p = Hub.pages[id]
+    if not (p and p.child) then return end
+    p.height = math.max(10, tonumber(height) or 10)
+    p.child:SetHeight(p.height)
+    if Hub.current == id then Hub.Thumb() end
 end
 
 -- A new look (font size, contrast): page heights were measured with the old fonts, so every built page
@@ -275,43 +405,53 @@ function Hub.Rebuild()
 end
 ns.Bus.On("LookChanged", Hub, function() Hub.Rebuild() end, "hub", 80)
 
-function Hub.Open(id)
+-- id = a page; nil = the page used last (Guides the first time). keep = true: pages shown until it closes
+-- aren't remembered (the self-test opens it for a moment).
+function Hub.Open(id, keep)
     if ns.safeMode then return false end
     local f = Hub.Build()
+    if not f:IsShown() then Hub.keep = keep and { page = Hub.current } or nil end
     Hub.Place()
     f:Show()
-    Hub.Show(id or Hub.current or (Hub.list[1] and Hub.list[1].id))
+    Hub.Show(id or Hub.current or Hub.LastPage() or Hub.FIRST)
     return true
 end
 
 function Hub.Close() if Hub.frame then Hub.frame:Hide() end end
+-- closed (Close, Esc, the X): opened for a moment (keep) = the page from before comes back
+function Hub.OnHide()
+    if Hub.keep then Hub.current = Hub.keep.page end
+    Hub.keep = nil
+end
 function Hub.IsShown() return Hub.frame ~= nil and Hub.frame:IsShown() end
 function Hub.Toggle(id)
     if Hub.IsShown() and (not id or Hub.current == id) then Hub.Close() else Hub.Open(id) end
 end
+-- The main window can be used (else the title menu / minimap menu show their full lists instead).
+function Hub.Available() return ns.Feature.IsOn("hub") and not ns.safeMode end
 
--- the settings page is Blizzard's panel: a nav row that opens it
-Hub.AddPage("settings", { title = "MENU_SETTINGS", icon = "hub.settings", order = 90, action = function()
-    Hub.Close()
-    ns.SettingsUI.Open()
-end })
+-- the Settings group (its pages: UI\HubSettings.lua)
+Hub.AddPage("settings", { title = "HUB_SETTINGS", icon = "hub.settings", order = 20, isGroup = true })
 
--- Self-test: every page is registered, and the Hub fits this screen.
+-- Self-test: every page is registered, and the window fits this screen.
 ns.SelfChecks[#ns.SelfChecks + 1] = { label = "hub", fn = function(h)
     h.Count()
-    for _, id in ipairs({ "report", "about", "news", "settings" }) do
+    for _, id in ipairs({ "guides", "report", "about", "news", "questitems", "settings" }) do
         if not Hub.pages[id] then h.Problem("hub: page " .. id .. " missing") end
+    end
+    for _, page in ipairs(ns.Settings.PAGES) do
+        if not Hub.pages["set." .. page] then h.Problem("hub: settings page " .. page .. " missing") end
     end
     local w, hh = Size()
     local p = Co.UIParent()
     if w > p:GetWidth() or hh > p:GetHeight() then h.Problem(("hub: %dx%d does not fit"):format(w, hh)) end
     -- the scroll thumb shows exactly when the open page is taller than the page area
     local f, cur = Hub.frame, Hub.pages[Hub.current]
-    -- one title bar height for the guide window, the Hub and the dialogs (look review #5)
+    -- one title bar height for the guide window, the main window and the dialogs (look review #5)
     local want = Th.Size("title")
     local bars = { f and f.titleBar, ns.UI and ns.UI.title, ns.Popups.frame and ns.Popups.frame.titleBar,
-        ns.Popups.copy and ns.Popups.copy.titleBar }
-    for i = 1, 4 do
+        ns.Popups.copy and ns.Popups.copy.titleBar, ns.NowWin and ns.NowWin.strip }
+    for i = 1, 5 do
         local tb = bars[i]
         if tb and math.abs((tb:GetHeight() or 0) - want) > 0.5 then h.Problem("hub: a title bar isn't " .. want .. " high") end
     end
@@ -325,7 +465,7 @@ ns.SelfChecks[#ns.SelfChecks + 1] = { label = "hub", fn = function(h)
         local taller = (cur.height or 0) > (f.scroll:GetHeight() or 0) + 1
         if (Hub.Thumb() and true or false) ~= taller then h.Problem("hub: scroll thumb doesn't match the page height") end
     end
-    h.Info(("hub: %d pages, %dx%d"):format(#Hub.list, w, hh))
+    h.Info(("main window: %d pages, %dx%d"):format(#Hub.Rows(), w, hh))
 end }
 
-ns.Slash.Add("hub",function(arg) Hub.Toggle(arg ~= "" and arg or nil) end, "HELP_HUB")
+ns.Slash.Add("hub", function(arg) Hub.Toggle(arg ~= "" and arg or nil) end, "HELP_HUB")

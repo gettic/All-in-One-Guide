@@ -35,26 +35,40 @@ end
 function UI.NextChrome() return Th.Size("sectionGap") + Th.LineHeight("sectionHead") end
 -- The step area: its lines of steps plus the NOW box's frame (and the NEXT header in full mode), so the
 -- box never takes room from the steps.
+-- With the NOW window (UI\NowWindow.lua) the current step isn't in here: full mode = the NEXT header + the
+-- step lines, small mode = one line for the "Next:" line or the notice.
+local function NowWin() return ns.NowWin and ns.NowWin.On() end
 function UI.AreaHeight(small)
+    if NowWin() then
+        if small then return LH() end
+        return Th.Size("stepLines") * LH() + UI.NextChrome()
+    end
     local h = Th.Size(small and "smallLines" or "stepLines") * LH() + UI.NowChrome()
     if not small then h = h + UI.NextChrome() end
     return h
 end
+-- Extra height for a current step taller than the step area (v0.2 fix; 0 almost always, set by Refresh).
+function UI.Grow() return UI.grow or 0 end
+-- The step area as shown: its fixed lines plus the grow.
+function UI.ShownAreaHeight(small) return UI.AreaHeight(small) + UI.Grow() end
 function UI.Height(small)
-    if small then return TitleH() + UI.AreaHeight(true) + Pad() end
-    return TitleH() + LH() * 3 + UI.AreaHeight(false) + FOOT_H + Pad()
+    if small then return TitleH() + UI.ShownAreaHeight(true) + Pad() end
+    return TitleH() + LH() * 3 + UI.ShownAreaHeight(false) + FOOT_H + Pad()
 end
 
 -- ------------------------------------------------------------------ position (saved only when moved)
 local function CanSave() return not ns.safeMode and not ns.DB.readOnly.char end
 
+-- UI.sessionPos: the spot this session when it can't be written (read-only save, safe mode)
 local function SavedPos()
+    if UI.sessionPos then return UI.sessionPos end
     local m = ns.DB.char and type(ns.DB.char.modules) == "table" and ns.DB.char.modules.window
     if type(m) ~= "table" or type(m.point) ~= "string" or type(m.x) ~= "number" or type(m.y) ~= "number" then return nil end
     return m
 end
 
-function UI.ApplyPos()
+-- The guide window on its own spot (saved or default), anchored to the screen.
+function UI.ApplyGuidePos()
     local f, parent = UI.frame, Co.UIParent()
     f:ClearAllPoints()
     local m = SavedPos()
@@ -65,20 +79,69 @@ function UI.ApplyPos()
     end
 end
 
+-- The guide window's spot; with an attached NOW window, the pair's (the guide window hangs under it).
+function UI.ApplyPos()
+    UI.ApplyGuidePos()
+    if NowWin() and UI.grip then ns.Errors.Call("nowwin", ns.NowWin.Layout) end
+end
+
+local function StorePos(point, rel, x, y)
+    UI.sessionPos = nil
+    if CanSave() then
+        local m = ns.DB.Module("window", "char", 1)
+        m.point, m.rel, m.x, m.y = point, rel or point, math.floor(x + 0.5), math.floor(y + 0.5)
+    else
+        UI.sessionPos = { point = point, rel = rel or point, x = math.floor(x + 0.5), y = math.floor(y + 0.5) }
+    end
+end
+
+-- The guide window's spot on screen as it stands now (also while it hangs under the NOW window), saved
+-- by its top-left: it stays there when the NOW window is turned off or taken off.
+function UI.SaveGuideSpot()
+    local l, t = UI.frame:GetLeft(), UI.frame:GetTop()
+    if l and t then StorePos("TOPLEFT", "BOTTOMLEFT", l, t) end
+end
+
+-- The guide window leaves the NOW window (turned off or taken off): it goes on its own spot, and only when
+-- that isn't where it stands now (the pair was moved) is the spot it stands on saved.
+function UI.KeepGuideSpot()
+    local f = UI.frame
+    local l, t = f:GetLeft(), f:GetTop()
+    UI.ApplyGuidePos()
+    local l2, t2 = f:GetLeft(), f:GetTop()
+    if l and t and l2 and t2 and (math.abs(l - l2) > 1 or math.abs(t - t2) > 1) then
+        StorePos("TOPLEFT", "BOTTOMLEFT", l, t)
+        UI.ApplyGuidePos()
+    end
+end
+
 -- Saves the spot (when the save may be written) and always tells the others the window moved (the step
 -- button follows it, also with a read-only save or in safe mode).
 function UI.SavePos()
+    if NowWin() and ns.NowWin.Attached() then return ns.NowWin.SavePos() end
     local point, _, rel, x, y = UI.frame:GetPoint(1)
-    if CanSave() and type(point) == "string" and type(x) == "number" and type(y) == "number" then
-        local m = ns.DB.Module("window", "char", 1)
-        m.point, m.rel, m.x, m.y = point, rel or point, math.floor(x + 0.5), math.floor(y + 0.5)
+    if type(point) == "string" and type(x) == "number" and type(y) == "number" then
+        if CanSave() then
+            local m = ns.DB.Module("window", "char", 1)
+            m.point, m.rel, m.x, m.y = point, rel or point, math.floor(x + 0.5), math.floor(y + 0.5)
+        else
+            UI.sessionPos = { point = point, rel = rel or point, x = math.floor(x + 0.5), y = math.floor(y + 0.5) }
+        end
     end
     ns.Bus.Fire("WindowMoved")
 end
 
 function UI.ResetPos()
+    -- it moves the window the secure item button docks to: after combat (beta.3 fix), like scale
+    if Co.InCombat() and ns.CombatQueue then
+        ns.CombatQueue.Run("resetpos", UI.ResetPos)
+        ns.Settings.TellWaits()
+        return false
+    end
+    UI.sessionPos = nil
     local m = SavedPos()
     if m and CanSave() then m.point, m.rel, m.x, m.y = nil, nil, nil, nil end
+    if ns.NowWin then ns.NowWin.ResetPos() end
     if UI.frame then
         UI.ApplyPos()
         ns.Bus.Fire("WindowMoved")
@@ -91,7 +154,15 @@ end
 local function TitleBar(f)
     local tb = K.TitleBar(f, {
         drag = true,
-        canDrag = function() return not ns.Settings.Get("locked") end,
+        canDrag = function()
+            if ns.Settings.Get("locked") then return false end
+            return not NowWin() or ns.NowWin.CombatOk()
+        end,
+        -- attached to the NOW window: the pair moves (the NOW window is its root)
+        moveFrame = function()
+            if NowWin() and ns.NowWin.Attached() and ns.NowWin.frame then return ns.NowWin.frame end
+            return f
+        end,
         dragStop = function() UI.SavePos() end,
         close = function() UI.Hide() end,
         closeTip = function() return L().TIP_CLOSE end,
@@ -251,6 +322,11 @@ function UI.SetWidthLive(w)
     local d = ns.Settings.byKey.width
     w = math.floor(ns.U.Clamp(w, d.min, d.max) + 0.5)
     UI.frame:SetWidth(w)
+    if NowWin() and ns.NowWin.frame then
+        ns.NowWin.frame:SetWidth(w)
+        -- the item button sits in its right corner: it follows the drag (the grip never works in combat)
+        if ns.StepButton and ns.StepButton.frame and ns.StepButton.frame:IsShown() then ns.StepButton.Update(true) end
+    end
     return w
 end
 
@@ -267,8 +343,11 @@ function UI.GripStart(self)
     local left, top = f:GetLeft(), f:GetTop()
     local x = Co.Cursor(f)
     if not (left and top and x) then return false end
-    f:ClearAllPoints()
-    f:SetPoint("TOPLEFT", Co.UIParent(), "BOTTOMLEFT", left, top)
+    -- (hanging under an attached NOW window, the left edge already stays put)
+    if not (NowWin() and ns.NowWin.Attached()) then
+        f:ClearAllPoints()
+        f:SetPoint("TOPLEFT", Co.UIParent(), "BOTTOMLEFT", left, top)
+    end
     self.startX, self.startW, self.width = x, f:GetWidth(), f:GetWidth()
     self:SetScript("OnUpdate", GripUpdate)
     return true
@@ -353,7 +432,10 @@ function UI.Build()
     UI.stateText:SetPoint("RIGHT", UI.area, "RIGHT", -Pad() * 2, 0)
     UI.footer = Footer(f)
     UI.grip = Grip(f)
-    UI.ApplyPos()
+    -- the guide window on its own spot first; Layout sets its scale and size and only then places the NOW
+    -- window (beta.3 fix: ApplyPos before the scale worked the pair's spot out from the unscaled window, so
+    -- with a scale other than 1 the guide window moved on every login)
+    UI.ApplyGuidePos()
     UI.Layout()
     UI.ApplyOpacity()
     f:Hide()
@@ -387,7 +469,7 @@ function UI.Layout()
         -- box, sits right under the section header; the notice line and the "n done" chip go under the
         -- steps (they used to sit above the NOW box and push it down the window)
         UI.area:SetPoint("TOP", f, "TOP", 0, -(TitleH() + LH()))
-        local below = TitleH() + LH() + UI.AreaHeight(false)
+        local below = TitleH() + LH() + UI.ShownAreaHeight(false)
         UI.noticeLine:SetPoint("TOPLEFT", f, "TOPLEFT", Pad(), -below)
         UI.noticeLine:SetPoint("TOPRIGHT", f, "TOPRIGHT", -Pad(), -below)
         UI.chip:ClearAllPoints()
@@ -395,9 +477,14 @@ function UI.Layout()
         UI.chip:SetHeight(LH() - 2)
         UI.chip:SetWidth(UI.ChipWidth())
     end
-    UI.area:SetHeight(UI.AreaHeight(small))
+    UI.area:SetHeight(UI.ShownAreaHeight(small))
     Th.Glyph(UI.title.small.icon, small and "btn.expand" or "btn.small")
     Th.Glyph(UI.title.lock.icon, ns.Settings.Get("locked") and "btn.lock" or "btn.unlock")
+    -- the NOW window (scale, width, spot, clamp) or, when it's off, the guide window on its own again
+    UI.nowMode = NowWin() and true or false
+    if ns.NowWin then
+        if UI.nowMode then ns.Errors.Call("nowwin", ns.NowWin.Layout) else ns.NowWin.Off() end
+    end
     -- the step button re-places itself (height, width or scale may have moved the window's top-left)
     ns.Bus.Fire("WindowLayout")
 end
@@ -415,6 +502,52 @@ function UI.ApplyOpacity()
 end
 
 -- ------------------------------------------------------------------ data for the rows
+-- Travel side goals ("on the way"): at most this many lines under a step, then one "+n more" line.
+UI.SIDE_MAX = 3
+-- objective kind (C_QuestLog.GetQuestObjectives `type`) -> the side line's icon
+UI.SIDE_KIND = { monster = "kill", item = "loot", object = "use" }
+
+-- The side lines of one background goal, appended to `out`: one per objective (its `obj` list or all) with
+-- the game's objective text and live count, read only from the GameState quest snapshot (never the API
+-- here, never on the position ticker); a bag count for an item goal; our step text when the snapshot has
+-- no usable text. Nothing while the quest isn't in the log (it comes back when it is).
+function UI.SideLines(top, b, out)
+    local GS = ns.GameState
+    local useKind = b.type == "useitem" and "use" or nil
+    if b.item and not b.quest then
+        local need = b.count or 1
+        local have = GS.ItemCount(b.item)
+        out[#out + 1] = { text = top:Text(b), have = math.min(have, need), need = need, done = have >= need,
+            kind = useKind or "loot", side = b }
+        return out
+    end
+    if not b.quest then
+        out[#out + 1] = { text = top:Text(b), done = false, kind = useKind, side = b }
+        return out
+    end
+    if not GS.InLog(b.quest) then return out end
+    local qs = GS.Quest(b.quest)
+    local idx = {}
+    if qs and ns.Packs.Len(b.obj) > 0 then
+        for _, i in ns.Packs.Each(b.obj) do if qs.need[i] then idx[#idx + 1] = i end end
+    elseif qs then
+        for i = 1, #qs.need do idx[#idx + 1] = i end
+    end
+    local n0 = #out
+    for _, i in ipairs(idx) do
+        local need, have = qs.need[i], qs.have[i] or 0
+        local text = qs.text and qs.text[i]
+        if type(text) ~= "string" or text == "" then text = top:Text(b) end
+        if need and need > 0 then
+            out[#out + 1] = { text = text, have = math.min(have, need), need = need, done = have >= need,
+                kind = useKind or UI.SIDE_KIND[qs.kind and qs.kind[i] or ""], side = b }
+        end
+    end
+    -- no objective data yet (just logged in, or unknown / secret values): one line with our own text
+    if #out == n0 then out[#out + 1] = { text = top:Text(b), done = false, kind = useKind, side = b } end
+    return out
+end
+
 local function Goals(top, step)
     local out = {}
     local GS = ns.GameState
@@ -448,11 +581,29 @@ local function Goals(top, step)
                 have = GS2.xp, need = GS2.xpMax, done = false }
         end
     end
+    -- background goals: "on the way" side lines with live counts (at most UI.SIDE_MAX, then "+n more"),
+    -- optional steps as "Optional:" lines
+    local side = {}
     for _, b in ipairs(top:Background()) do
         if b ~= step then
-            local text = top:Text(b)
-            if b.flags.optional then text = ns.U.Fill(L().OPTIONAL_LINE, { text = text }) end
-            out[#out + 1] = { text = text, done = false }
+            if b.flags.optional then
+                out[#out + 1] = { text = ns.U.Fill(L().OPTIONAL_LINE, { text = top:Text(b) }), done = false }
+            else
+                UI.SideLines(top, b, side)
+            end
+        end
+    end
+    if #side > 0 then
+        -- open parts first (done parts tick and stay, after them); route order otherwise
+        local open, done = {}, {}
+        for _, l in ipairs(side) do
+            if l.done then done[#done + 1] = l else open[#open + 1] = l end
+        end
+        for _, l in ipairs(done) do open[#open + 1] = l end
+        local max = UI.SIDE_MAX
+        for k = 1, math.min(max, #open) do out[#out + 1] = open[k] end
+        if #open > max then
+            out[#out + 1] = { text = ns.U.Fill(L().ONWAY_MORE, { n = #open - max }), more = true, done = false }
         end
     end
     -- v0.2: dynamic First Aid lines ("Optional: make 12 Linen Bandage ..."), like optional steps
@@ -731,7 +882,18 @@ function UI.Refresh()
     local ok, m = ns.Errors.Call("ui", UI.Model)
     if not ok or type(m) ~= "table" then m = { state = "error" } end
     UI.model = m
+    -- the NOW window came or went (setting, or switched off after errors): lay the window out again first
+    local nowWin = NowWin() and true or false
+    if nowWin ~= UI.nowMode or (nowWin and UI.Grow() > 0) then
+        UI.grow = 0
+        UI.Layout()
+    end
     if m.state ~= "guide" then
+        if UI.Grow() > 0 then
+            UI.grow = 0
+            UI.Layout()
+        end
+        if ns.NowWin then ns.NowWin.SetShown(false) end
         DrawState(m.state)
         DrawNotice()
         if ns.Waypoint then ns.Waypoint.Clear("step") elseif ns.Arrow then ns.Arrow.SetTarget(nil) end
@@ -750,35 +912,63 @@ function UI.Refresh()
     -- rows: the current step (row 1) in the NOW box, then the NEXT header and the following steps; a row
     -- that doesn't fit is hidden (the area never grows)
     local areaH = UI.AreaHeight(small)
-    local reserve = small and Th.LineHeight("goal") or 0
+    -- small mode keeps the bottom line free for the "Next:" line or the notice (the notice line is LH high)
+    local reserve = small and LH() or 0
     local margin, headH = Th.Size("nowMargin"), Th.LineHeight("sectionHead")
     local y, shown, nextShown = margin + headH, 0, 0
     local maxRows = small and 1 or #m.rows
     UI.nextHead:Hide()
+    local nowDrawn = false
+    if nowWin then
+        -- the current step is in the NOW window: the area starts with the NEXT header (full mode)
+        y = Th.Size("sectionGap")
+        if not small then
+            UI.nextHead:ClearAllPoints()
+            UI.nextHead:SetPoint("TOPLEFT", UI.area, "TOPLEFT", Pad(), -y)
+            UI.nextHead:SetText(L().NEXT_HEAD)
+            y = y + headH
+        end
+    end
     for i, d in ipairs(m.rows) do
         local r = Row(i)
         -- (v0.2 fix: no combat filter any more; the user wants every step shown in combat. The rows are
         -- plain frames, nothing secure, so showing them in combat is taint-safe.)
         if i > maxRows then
             r:Hide()
+        elseif i == 1 and nowWin then
+            nowDrawn = ns.Errors.Call("nowwin", ns.NowWin.Draw, r, d, m) and true or false
+            shown = shown + 1
         else
+            -- row 1 back from the NOW window (it was turned off)
+            if i == 1 and r:GetParent() ~= UI.area then r:SetParent(UI.area) end
             d.boxed = i == 1
+            d.reserveRight = nil
             if small and i == 1 then d = UI.FitSmall(d, areaH - reserve - UI.NowChrome()) end
+            -- v0.2 fix (the user: "text are overlapping the now step"): anchor the row before laying it
+            -- out, so its text is measured at its real width (a new row had none on the first refresh)
+            r:ClearAllPoints()
+            local inset = i == 1 and margin or 0
+            r:SetPoint("TOPLEFT", UI.area, "TOPLEFT", inset, -y)
+            r:SetPoint("TOPRIGHT", UI.area, "TOPRIGHT", -inset, -y)
+            r:Show()
             local h = ns.Rows.Set(r, d)
             if i > 1 and y + h > areaH - reserve then
                 r:Hide()
             else
-                r:ClearAllPoints()
-                local inset = i == 1 and margin or 0
-                r:SetPoint("TOPLEFT", UI.area, "TOPLEFT", inset, -y)
-                r:SetPoint("TOPRIGHT", UI.area, "TOPRIGHT", -inset, -y)
-                r:Show()
                 y = y + h
                 shown = shown + 1
                 if i == 1 then
                     -- close the NOW box under the current step; the NEXT header follows (full mode)
                     y = y + Th.Size("nowPadBottom")
                     PlaceNowBox(y)
+                    -- a current step taller than the area grows the area (and the window): everything
+                    -- under the box moves down instead of drawing over it
+                    local grow = math.max(0, math.ceil(y + reserve - areaH))
+                    if grow ~= (UI.grow or 0) then
+                        UI.grow = grow
+                        UI.Layout()
+                    end
+                    areaH = areaH + grow
                     if not small then
                         y = y + Th.Size("sectionGap")
                         UI.nextHead:ClearAllPoints()
@@ -792,7 +982,8 @@ function UI.Refresh()
             end
         end
     end
-    NowShown(shown > 0)
+    NowShown(shown > 0 and not nowWin)
+    if ns.NowWin then ns.NowWin.SetShown(nowWin and nowDrawn) end
     UI.nextHead:SetShown(not small and nextShown > 0)
     for i = #m.rows + 1, #UI.rows do UI.rows[i]:Hide() end
     UI.shownRows = shown
@@ -859,7 +1050,18 @@ function UI.StepTip(row)
     local step = row.step
     local g = ns.Engine.Focused()
     local title = g and g:Top():Text(step) or step.id
-    K.Tooltip(row, title, UI.StepLines(step, row.rightText))
+    local lines = UI.StepLines(step, row.rightText)
+    -- the current step: its "on the way" goals by name (the window shows at most UI.SIDE_MAX lines)
+    if row.current and g then
+        local top, head = g:Top(), false
+        for _, b in ipairs(top:Background()) do
+            if b ~= step and not b.flags.optional then
+                if not head then lines[#lines + 1] = L().ONWAY_TIP head = true end
+                lines[#lines + 1] = "- " .. top:Text(b)
+            end
+        end
+    end
+    K.Tooltip(row, title, lines)
 end
 
 -- ------------------------------------------------------------------ menus
@@ -907,11 +1109,54 @@ function UI.ChipItems()
     return items
 end
 
+-- The guides for this character (built from the installed packs; at most 3 rows).
+local function GuideRows(items)
+    local E = ns.Engine
+    local _, ids = E.GuideList()
+    local g = E.Focused()
+    local focusPack = g and g.key:match("^([^/]+)")
+    for i = 1, math.min(3, #ids) do
+        local id = ids[i]
+        items[#items + 1] = { text = ns.U.Fill(L().MENU_GUIDE, { guide = E.GuideTitle(id) }), checked = id == focusPack,
+            fn = function() E.OpenGuide(id) end }
+    end
+end
+
+-- The tail both menus share: the arrow's click-through switch (a click-through arrow can't be right-clicked,
+-- so it's here while it's on) and "Link with Gear Set" (only when Gear Set is loaded, v0.1.1).
+local function TailRows(items)
+    if ns.Settings.Get("arrowClickThrough") then
+        items[#items + 1] = { text = L().MENU_ARROW_CLICK, checked = true,
+            fn = function() ns.Settings.Set("arrowClickThrough", false) end }
+    end
+    local gs = ns.GearSet and ns.GearSet.MenuItem()
+    if gs then items[#items + 1] = gs end
+end
+
+-- The title menu (2026-11-25, main window plan): with the main window, a short list (the window has every
+-- setting); without it (safe mode, feature "hub" off) the full list of switches below, so nothing is lost.
 function UI.MenuItems()
     local S = ns.Settings
+    if ns.Hub and ns.Hub.Available() then
+        local items = {
+            { text = L().MENU_MAIN, fn = function() ns.Hub.Open() end },
+            { text = L().MENU_GUIDES, fn = function() ns.Hub.Open("guides") end },
+            { text = L().MENU_SETTINGS_MAIN, fn = function() ns.SettingsUI.Open() end },
+            { text = L().MENU_REPORT, fn = function() ns.HubReport.Open() end },
+            { text = L().MENU_SMALL, checked = S.Get("small"), fn = function() S.Set("small", not S.Get("small")) end },
+            { text = L().MENU_LOCK, checked = S.Get("locked"), fn = function() S.Set("locked", not S.Get("locked")) end },
+            { text = L().MENU_NOWWINDOW, checked = S.Get("nowWindow"),
+                fn = function() S.Set("nowWindow", not S.Get("nowWindow")) end },
+            { text = L().MENU_QUIET, checked = S.Get("quiet"), fn = function() S.Set("quiet", not S.Get("quiet")) end },
+        }
+        GuideRows(items)
+        TailRows(items)
+        return items
+    end
     local items = {
         { text = L().MENU_SMALL, checked = S.Get("small"), fn = function() S.Set("small", not S.Get("small")) end },
         { text = L().MENU_LOCK, checked = S.Get("locked"), fn = function() S.Set("locked", not S.Get("locked")) end },
+        { text = L().MENU_NOWWINDOW, checked = S.Get("nowWindow"), fn = function() S.Set("nowWindow", not S.Get("nowWindow")) end },
         { text = L().MENU_QUIET, checked = S.Get("quiet"), fn = function() S.Set("quiet", not S.Get("quiet")) end },
         { text = L().MENU_ARROW, checked = S.Get("arrow"), fn = function() S.Set("arrow", not S.Get("arrow")) end },
         { text = L().MENU_MOTION, checked = S.Get("reducedMotion"),
@@ -920,14 +1165,6 @@ function UI.MenuItems()
         { text = L().MENU_MINIPINS, checked = S.Get("minimapPins"),
             fn = function() S.Set("minimapPins", not S.Get("minimapPins")) end },
     }
-    -- v0.2 M4: every setting in Blizzard's AddOns options (without them, this menu and /aog are the way)
-    if ns.SettingsUI and ns.SettingsUI.Available() then
-        table.insert(items, 1, { text = L().MENU_SETTINGS, fn = function() ns.SettingsUI.Open() end })
-    end
-    -- a click-through arrow can't be right-clicked, so its switch is here too (only while it's on)
-    if S.Get("arrowClickThrough") then
-        items[#items + 1] = { text = L().MENU_ARROW_CLICK, checked = true, fn = function() S.Set("arrowClickThrough", false) end }
-    end
     -- opacity: one row that steps 100 -> 80 -> 60 -> 40 % (v0.2 M4: was four rows; the settings panel
     -- has the slider)
     local steps, op = { 1, 0.8, 0.6, 0.4 }, S.Get("opacity")
@@ -945,28 +1182,14 @@ function UI.MenuItems()
     items[#items + 1] = { text = L().MENU_RESETPOS, fn = UI.ResetPos }
     -- v0.2 M5: Report a mistake (the Hub's Report page; About and What's new are next to it there)
     if not ns.safeMode then items[#items + 1] = { text = L().MENU_REPORT, fn = function() ns.HubReport.Open() end } end
-    -- the guides for this character (built from the installed packs; at most 3 rows)
-    local E = ns.Engine
-    local _, ids = E.GuideList()
-    local g = E.Focused()
-    local focusPack = g and g.key:match("^([^/]+)")
-    for i = 1, math.min(3, #ids) do
-        local id = ids[i]
-        items[#items + 1] = { text = ns.U.Fill(L().MENU_GUIDE, { guide = E.GuideTitle(id) }), checked = id == focusPack,
-            fn = function() E.OpenGuide(id) end }
-    end
-    -- "Link with Gear Set": only when Gear Set is loaded (v0.1.1)
-    local gs = ns.GearSet and ns.GearSet.MenuItem()
-    if gs then items[#items + 1] = gs end
-    -- language: in the settings panel (General > Language, the user's wish 2026-11-25) and /aog lang.
-    -- Only without a settings panel (feature "settings" off) are the two rows here, so it stays clickable.
-    if not (ns.SettingsUI and ns.SettingsUI.Available()) then
-        local lang = S.Get("lang")
-        items[#items + 1] = { text = "English", checked = lang ~= "da",
-            fn = function() ns.Locale.Switch("en") end }
-        items[#items + 1] = { text = "Dansk", checked = lang == "da",
-            fn = function() ns.Locale.Switch("da") end }
-    end
+    GuideRows(items)
+    TailRows(items)
+    -- language: on the Settings > General page and /aog lang; here only without the main window
+    local lang = S.Get("lang")
+    items[#items + 1] = { text = "English", checked = lang ~= "da",
+        fn = function() ns.Locale.Switch("en") end }
+    items[#items + 1] = { text = "Dansk", checked = lang == "da",
+        fn = function() ns.Locale.Switch("da") end }
     return items
 end
 
@@ -984,6 +1207,7 @@ end
 function UI.Hide(keep)
     if not UI.frame then return end
     UI.frame:Hide()
+    if ns.NowWin then ns.NowWin.SetShown(false) end   -- (a free NOW window goes with it: the user's answer)
     ns.Jobs.SetUIShown(false)
     ns.Menu.Close()
     if not ns.safeMode and not keep then ns.Settings.Set("shown", false) end
@@ -1000,7 +1224,13 @@ function UI.IsShown() return UI.frame ~= nil and UI.frame:IsShown() end
 -- ------------------------------------------------------------------ wiring
 local function OnSettings(_, key)
     if not UI.frame then return end
-    if key == "small" or key == "locked" or key == "width" then
+    if key == "nowWindow" or key == "nowAttached" then
+        -- keep what's on screen where it is, then lay out again
+        if ns.NowWin then ns.Errors.Call("nowwin", ns.NowWin.Switch, key) end
+        UI.Layout()
+        UI.Refresh()
+        ns.Bus.Fire("WindowMoved")
+    elseif key == "small" or key == "locked" or key == "width" or key == "nowLocked" or key == "nowScale" then
         UI.Layout()
         UI.Refresh()
     elseif key == "opacity" then
@@ -1035,7 +1265,7 @@ end, "ui", 70)
 ns.Bus.On("ScaleChanged", UI, function()
     if not UI.frame then return end
     UI.Layout()
-    ns.Overlay.KeepOnScreen(UI.frame)
+    ns.Overlay.KeepOnScreen(UI.frame)   -- (attached: UI.Layout -> NowWin.Layout keeps the pair on screen)
 end, "ui", 70)
 
 -- v0.2 M4: why the window stays away by itself: "char" (Use the guide on this character is off), "bg" /
@@ -1072,6 +1302,7 @@ end, "ui", 71)
 
 -- The NOW box's state: nil when right (or not judged now), else a short reason. Self-test + offline tests.
 function UI.NowProblem()
+    if NowWin() then return ns.NowWin.Problem() end
     local m, r, nb = UI.model, UI.rows[1], UI.nowBox
     if not (UI.frame and UI.frame:IsShown() and m and m.state == "guide" and nb) then return nil end
     if not (r and r:IsShown()) then return "the current step isn't shown" end
@@ -1090,6 +1321,20 @@ function UI.NowProblem()
     if not (Above(UI.rows[2]) and Above(UI.noticeLine) and Above(UI.chip)) then
         return "the NOW box isn't on top"
     end
+    -- v0.2 fix: nothing under the box reaches into it (the first NEXT row, the NEXT header, notice, chip)
+    local function Under(o)
+        local t = o and o:IsShown() and o:GetTop()
+        return not (type(bb) == "number" and type(t) == "number") or t <= bb + 0.5
+    end
+    if not (Under(UI.rows[2]) and Under(UI.nextHead) and Under(UI.noticeLine) and Under(UI.chip)) then
+        return "something overlaps the NOW box"
+    end
+    -- the current step's text fits its line(s): it ends above the first goal line
+    local ln = r.lines and r.lines[1]
+    local tb, lt = r.text:GetBottom(), ln and ln.text:IsShown() and ln.text:GetTop()
+    if type(tb) == "number" and type(lt) == "number" and tb < lt - 0.5 then
+        return "the current step's text runs into its goal lines"
+    end
     return nil
 end
 ns.SelfChecks[#ns.SelfChecks + 1] = { label = "nowbox", fn = function(h)
@@ -1098,5 +1343,37 @@ ns.SelfChecks[#ns.SelfChecks + 1] = { label = "nowbox", fn = function(h)
     if bad then h.Problem("nowbox: " .. bad) end
 end }
 
-ns.Slash.SetDefault(function() UI.Toggle() end)
+-- Travel side goals: every theme knows the three side icons and their colours; the current step's side lines
+-- (when its quests are in the log) each carry a count or our text, and an open one shows its icon.
+ns.SelfChecks[#ns.SelfChecks + 1] = { label = "side goals", fn = function(h)
+    h.Count()
+    for name in pairs(Th.themes) do
+        for _, kind in pairs(ns.Rows.SIDE_BADGE) do
+            local b = K.BADGE[kind]
+            if Th.Raw("color." .. b[2], name) == nil then h.Problem("side goals: theme " .. name .. " lacks color." .. b[2]) end
+            if not ns.Media.Get(Th.Raw("slot." .. b[1], name) or b[1]) then h.Problem("side goals: no art for " .. b[1]) end
+        end
+    end
+    local m = UI.model
+    local row = UI.rows and UI.rows[1]
+    if not (m and m.state == "guide" and m.rows and m.rows[1] and row and row:IsShown()) then return end
+    local n = 0
+    for i, g in ipairs(m.rows[1].goals or {}) do
+        if g.side then
+            n = n + 1
+            if type(g.text) ~= "string" or g.text == "" then h.Problem("side goals: line " .. i .. " has no text") end
+            local ln = row.lines and row.lines[i]
+            if ln and g.kind and not g.done and not ln.pin:IsShown() then h.Problem("side goals: line " .. i .. " has no icon") end
+        end
+        if g.more and n ~= UI.SIDE_MAX then h.Problem("side goals: \"more\" line after " .. n .. " lines") end
+    end
+    h.Info("side goals: " .. n .. " shown")
+end }
+
+-- a bare /aog opens the main window on the page used last (the user's answer, 2026-11-25); without it
+-- (safe mode, feature "hub" off) it shows or hides the guide window as before. /aog show always does that.
+ns.Slash.SetDefault(function()
+    if ns.Hub and ns.Hub.Available() then ns.Hub.Open() else UI.Toggle() end
+end)
+ns.Slash.Add("show", function() UI.Toggle() end, "HELP_SHOW", { main = true })
 ns.Slash.Add("resetpos", function() UI.ResetPos() end, "HELP_RESETPOS")

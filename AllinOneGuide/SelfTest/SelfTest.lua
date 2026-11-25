@@ -268,6 +268,7 @@ function ST.MainParts()
     local tb, ft, nl = UI.title or {}, UI.footer or {}, UI.noticeLine or {}
     local small = ns.Settings.Get("small")
     local guide = UI.model and UI.model.state == "guide"
+    local nowWin = ns.NowWin and ns.NowWin.On() or false
     return {
         { name = "window", obj = UI.frame },
         { name = "title", obj = UI.title },
@@ -280,8 +281,9 @@ function ST.MainParts()
         { name = "area", obj = UI.area },
         { name = "row1", obj = UI.rows and UI.rows[1], opt = not guide, shownOnly = not guide },
         -- the NOW box around the current step, its header, and the NEXT header (shown when steps follow)
-        { name = "now", obj = UI.nowBox and UI.nowBox.bg, opt = not guide, shownOnly = not guide, behind = true },
-        { name = "now.head", obj = UI.nowBox and UI.nowBox.head, opt = not guide, shownOnly = not guide },
+        -- (with the NOW window the box stays hidden: its parts are in ST.NowParts)
+        { name = "now", obj = UI.nowBox and UI.nowBox.bg, opt = not guide or nowWin, shownOnly = not guide or nowWin, behind = true },
+        { name = "now.head", obj = UI.nowBox and UI.nowBox.head, opt = not guide or nowWin, shownOnly = not guide or nowWin },
         { name = "next.head", obj = UI.nextHead, opt = true, shownOnly = true },
         { name = "state", obj = UI.stateText, shownOnly = true },
         { name = "state.icon", obj = UI.stateIcon, shownOnly = true, artSelf = true },
@@ -297,6 +299,50 @@ function ST.MainParts()
         { name = "footer.next", obj = ft.next, shownOnly = small, art = { "icon" } },
         -- v0.2 M3: the width grip (hidden while locked)
         { name = "grip", obj = UI.grip, opt = true, shownOnly = true },
+    }
+end
+
+-- The NOW window (the current step in its own window, while a guide is open): checked on its own.
+function ST.NowParts()
+    local NW = ns.NowWin or {}
+    local on = NW.On and NW.On() or false
+    local guide = ns.UI and ns.UI.model and ns.UI.model.state == "guide"
+    local need = on and guide and ns.UI.IsShown()
+    local o = not need
+    return {
+        { name = "now.window", obj = NW.frame, opt = o, shownOnly = o },
+        { name = "now.strip", obj = NW.strip, opt = o, shownOnly = o },
+        { name = "now.grip", obj = NW.grip, opt = o, shownOnly = o, artSelf = true },
+        { name = "now.label", obj = NW.head, opt = o, shownOnly = o },
+        { name = "now.attach", obj = NW.attach, opt = o, shownOnly = o, art = { "icon" } },
+        { name = "now.lock", obj = NW.lock, opt = o, shownOnly = o, art = { "icon" } },
+    }
+end
+
+-- The main window (full run: opened on Guides for a moment, without remembering the page): frame, title bar,
+-- nav, heading, version, the Guides page's search box, chips and first card with its shield.
+function ST.HubParts()
+    local Hub, HG = ns.Hub or {}, ns.HubGuides or {}
+    local f = Hub.frame or {}
+    local tb = f.titleBar or {}
+    local s = HG.search or {}
+    local chips = HG.chips or {}
+    local card = HG.cards and HG.cards[1]
+    local hasCard = (HG.shown or 0) > 0
+    return {
+        { name = "main.window", obj = Hub.frame },
+        { name = "main.title", obj = f.titleBar },
+        { name = "main.close", obj = tb.close, art = { "icon" } },
+        { name = "main.nav", obj = f.nav },
+        { name = "main.nav1", obj = Hub.navButtons and Hub.navButtons[1], art = { "icon" } },
+        { name = "main.heading", obj = f.heading },
+        { name = "main.version", obj = f.version },
+        { name = "guides.search", obj = HG.search },
+        { name = "guides.search.icon", obj = s.icon, artSelf = true },
+        { name = "guides.chip.all", obj = chips.all },
+        { name = "guides.chip.soon", obj = chips.soon },
+        { name = "guides.card1", obj = card, opt = not hasCard, shownOnly = not hasCard },
+        { name = "guides.card1.emblem", obj = card and card.emblem, opt = not hasCard, shownOnly = not hasCard, artSelf = true },
     }
 end
 
@@ -552,10 +598,29 @@ local function Later(frames, fn)
     Co.After(0, Tick)
 end
 
+local function StepHub()
+    CheckGroup(ST.HubParts())
+    Info("main window parts checked")
+    Finish()
+end
+
 local function StepFull2()
     CheckGroup({ { name = "menu", obj = ns.Menu.frame }, { name = "menu.item1", obj = ns.Menu.buttons[1] } })
     if run.state.notice then
         CheckGroup({ { name = "notice", obj = ns.UI.noticeLine }, { name = "notice.icon", obj = ns.UI.noticeLine.icon, artSelf = true } })
+    end
+    -- the main window on Guides (only when it wasn't open: an open one is the player's, left as it is)
+    local Hub = ns.Hub
+    if Hub and Hub.Available() then
+        ns.Menu.Close()
+        run.state.menu = nil
+        if Hub.IsShown() then
+            if Hub.current == "guides" then return Later(2, StepHub) end
+            return Finish()
+        end
+        Hub.Open("guides", true)
+        run.state.hub = true
+        return Later(2, StepHub)
     end
     Finish()
 end
@@ -563,6 +628,7 @@ end
 local function StepMain()
     if run.ui then
         CheckGroup(ST.MainParts())
+        CheckGroup(ST.NowParts())
         CheckGroup(ST.ArrowParts())
         Guard("letters", CheckLetters)
     end
@@ -593,6 +659,7 @@ local function Restore()
     local s = run.state
     if s.menu then Try("menu", ns.Menu.Close) end
     if s.notice then Try("notice", ns.Notice.Remove, "selftest") end
+    if s.hub then Try("main window", ns.Hub.Close) end
     if s.openedWindow then Try("window", ns.UI.Hide, true) end
 end
 

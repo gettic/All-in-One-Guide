@@ -98,6 +98,18 @@ ns.Theme.Register("Dark", {
     ["color.nowBar"] = "=accent",             -- its accent edge on the left
     ["color.nowHead"] = "=accent",            -- the small "NOW" header
     ["color.nextHead"] = "=text.dim",         -- the small "NEXT" header
+    -- the main window: guide cards, faction tags, filter chips, slider, search box
+    ["color.cardBg"] = { "#161D26", 0.95 },   -- a guide card
+    ["color.cardEdge"] = "=accent",           -- the active guide's card edge
+    ["color.cardBorder"] = { "#2A3340", 1 },  -- the other cards' edge (= color.border)
+    ["color.tagAlliance"] = { "#4F8FE0", 1 }, -- faction tag text / edge
+    ["color.tagHorde"] = { "#D9534F", 1 },
+    ["color.tagBoth"] = "=text.dim",
+    ["color.chipOn"] = "=accent",             -- a picked filter chip's text and edge
+    ["color.sliderTrack"] = "=barTrack",
+    ["color.sliderFill"] = "=accent",
+    ["color.sliderThumb"] = { "#E6EBF0", 1 },
+    ["color.searchBg"] = { "#0E141A", 1 },
 
     -- fonts (Blizzard's narrow font file on Western clients)
     fontFile = "Fonts\\ARIALN.TTF",
@@ -135,6 +147,16 @@ ns.Theme.Register("Dark", {
     ["size.nowBar"] = 2,          -- NOW box: the accent edge's width
     ["size.nowPadBottom"] = 4,    -- NOW box: space under the current step
     ["size.sectionGap"] = 4,      -- space between the NOW box and the NEXT header
+    ["size.nowGap"] = 4,          -- NOW window: gap to the guide window under it (attached)
+    ["size.nowLines"] = 3,        -- NOW window: its step area is at least this many step lines high
+    ["size.nowButtonInset"] = 12, -- NOW window: the item button's right edge from the window's (frame sticks out 8)
+    ["size.nowButtonTop"] = 10,   -- NOW window: the item button's top under the title strip
+    ["size.card"] = 66,           -- main window: a guide card's height
+    ["size.cardEmblem"] = 44,     -- ... its shield
+    ["size.navIndent"] = 14,      -- main window: a sub-page's nav row indent
+    ["size.slider"] = 140,        -- our own slider's width
+    ["size.sliderThumb"] = 10,
+    ["size.search"] = 170,        -- the search box's width
 
     -- alphas (0..1) and built-in game files (v0.2 look review)
     ["alpha.hover"] = 0.35,       -- the minimap button's highlight
@@ -164,6 +186,16 @@ ns.Theme.Register("Dark", {
     ["slot.btn.prev"] = "glyph.btn.prev",
     ["slot.btn.next"] = "glyph.btn.next",
     ["slot.btn.caret"] = "glyph.btn.caret",
+    -- NOW window (glyphs2.tga)
+    ["slot.btn.grip"] = "glyph.btn.grip",
+    ["slot.btn.attach"] = "glyph.btn.attach",
+    ["slot.btn.detach"] = "glyph.btn.detach",
+    -- main window (glyphs2.tga, emblems.tga)
+    ["slot.btn.search"] = "glyph.btn.search",
+    ["slot.emblem.alliance"] = "emblem.alliance",
+    ["slot.emblem.horde"] = "emblem.horde",
+    ["slot.emblem.neutral"] = "emblem.neutral",
+    ["slot.emblem.soon"] = "emblem.soon",
     ["slot.notice.danger"] = "glyph.notice.danger",
     ["slot.notice.tip"] = "glyph.notice.tip",
     ["slot.state.none"] = "glyph.state.none",
