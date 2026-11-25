@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+## Interface: 16001
+## Title: All-in-One Guide
+## Notes: Leveling guide with one guide window and a waypoint arrow.
+## Author: gettic
+## Version: 0.1.0-beta.1
+## SavedVariables: AllinOneGuideDB
+## SavedVariablesPerCharacter: AllinOneGuideCharDB
+## IconTexture: Interface\AddOns\AllinOneGuide\media\logo_64
+## X-License: GPL-3.0-or-later
+
+Core\Init.lua
+Core\Util.lua
+Core\Errors.lua
+Core\Events.lua
+Core\Callbacks.lua
+Core\Registry.lua
+Core\Scheduler.lua
+Core\Slash.lua
+Locale\Locale.lua
+Locale\enUS.lua
+Locale\daDK.lua
+Compat\ApiList.lua
+Compat\Compat.lua
+DB\DB.lua
+DB\Settings.lua
+DB\Serializer.lua
+Data\GameState.lua
+Data\Geo.lua
+Data\Names.lua
+Packs\Format.lua
+Packs\Conditions.lua
+Packs\StepTypes.lua
+Packs\Packs.lua
+Engine\Guide.lua
+Engine\Engine.lua
+Routes\Durotar.lua
+Routes\Elwynn.lua
+Theme\Theme.lua
+Theme\Dark.lua
+Theme\Media.lua
+UI\Kit.lua
+UI\Menu.lua
+UI\Popups.lua
+UI\Notice.lua
+UI\Rows.lua
+UI\Window.lua
+UI\Arrow.lua
+SelfTest\SelfTest.lua
+Core\Boot.lua

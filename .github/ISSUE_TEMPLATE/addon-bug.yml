@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 gettic
+name: Addon bug
+description: Something in All-in-One Guide doesn't work as it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **This page is public.** Everyone can read what you write here. Please don't paste your character name, realm, guild, account or e-mail.
+        The lines below come from the addon and hold no names: only version numbers, counts and short codes.
+  - type: textarea
+    id: selftest
+    attributes:
+      label: Self-test line
+      description: Type `/aog selftest` in game and paste the text from the box that opens (Ctrl+A, Ctrl+C).
+      render: text
+    validations:
+      required: false
+  - type: textarea
+    id: status
+    attributes:
+      label: Status line
+      description: Type `/aog status` and copy the line that starts with `AOGstatus`. If you saw an error, `/aog error` shows its details.
+      render: text
+    validations:
+      required: false
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead? Which guide and step (for example "Elwynn Forest 1-6, step 12/58")?
+    validations:
+      required: true
+  - type: dropdown
+    id: language
+    attributes:
+      label: Addon language
+      options:
+        - English
+        - Dansk
+    validations:
+      required: false

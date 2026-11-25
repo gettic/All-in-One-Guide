@@ -1,0 +1,21 @@
+All-in-One Guide - where the source is
+======================================
+
+This addon is free software under the GNU General Public License, version 3
+or (at your option) any later version. See LICENSE and CREDITS.txt.
+
+Everything in this folder is readable Lua and is the source itself. The guide
+routes in Routes\*.lua are built from readable pack sources by a script; those
+sources, the pack format description and the build tools are in the GitHub
+repository, at the tag that matches this addon's version (## Version in the
+.toc file):
+
+  https://github.com/gettic/All-in-One-Guide
+
+  packs-src\          the readable guide pack sources
+  packs-src\FORMAT.md the pack format
+  tools\              the pack checker and the build script (Routes\*.lua)
+  art-src\            the scripts that draw the pictures in media\
+
+To rebuild the routes: powershell -NoProfile -File tools\build.ps1
+To rebuild the pictures: python -B art-src\<script>.py
