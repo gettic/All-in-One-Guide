@@ -206,6 +206,51 @@ local function OnWayUntil(steps, errs)
     end
 end
 
+-- ------------------------------------------------------------------ hunt paths (`path = "auto"`)
+-- packs-src\paths\<pack id>.lua (written by tools\import\huntpath.lua, a data file like a pack):
+--   return { pack = "<pack id>", formatVersion = 1, license = "...",
+--            steps = { ["<step id>"] = { src = "gen" | "hand", points = { { x, y }, ... }, open = true?, r = n? } } }
+-- Found next to this file (tools\..\packs-src\paths), so it works from any working folder. Lib.PATHS_DIR may be
+-- set to another folder (tests); Lib.paths[pack id] caches a loaded file (false = none).
+do
+    local src = debug and debug.getinfo and debug.getinfo(1, "S").source or ""
+    local dir = src:match("^@(.*)[/\\][^/\\]+$")
+    Lib.PATHS_DIR = dir and (dir .. "/../packs-src/paths") or "packs-src/paths"
+end
+Lib.paths = {}
+
+function Lib.LoadPaths(packId)
+    if type(packId) ~= "string" then return nil end
+    if Lib.paths[packId] == nil then
+        local t = Lib.LoadData(Join(Lib.PATHS_DIR, packId .. ".lua"))
+        Lib.paths[packId] = (type(t) == "table" and type(t.steps) == "table") and t or false
+    end
+    return Lib.paths[packId] or nil
+end
+
+-- Fills `path = "auto"` steps from the pack's paths file: points (copied), pathSrc, pathOpen, pathR (a value the
+-- step sets itself wins). An id with no entry stays "auto" and is an error.
+local function FillPaths(pack, steps, errs)
+    for _, s in ipairs(steps) do
+        if s.path == "auto" then
+            local file = Lib.LoadPaths(pack.id)
+            local e = file and file.steps[s.id]
+            if type(e) ~= "table" or type(e.points) ~= "table" then
+                errs[#errs + 1] = "path 'auto' of '" .. tostring(s.id) .. "' has no entry in packs-src/paths/"
+                    .. tostring(pack.id) .. ".lua"
+            else
+                local pts = {}
+                for i, p in ipairs(e.points) do pts[i] = type(p) == "table" and { p[1], p[2] } or p end
+                s.path = pts
+                if s.pathSrc == nil then s.pathSrc = e.src end
+                if s.pathOpen == nil and e.open then s.pathOpen = true end
+                if s.pathR == nil then s.pathR = e.r end
+            end
+        end
+    end
+end
+Lib.FillPaths = FillPaths
+
 -- Returns routes = { { id, title, da, sections = { { title, da, first } }, steps = { ... } } }, errors
 function Lib.Expand(pack)
     local routes, errs = {}, {}
@@ -216,6 +261,7 @@ function Lib.Expand(pack)
             Expand(pack, sec.steps or {}, 0, nil, nil, nil, nil, route.steps, errs)
         end
         OnWayUntil(route.steps, errs)
+        FillPaths(pack, route.steps, errs)
         routes[#routes + 1] = route
     end
     return routes, errs

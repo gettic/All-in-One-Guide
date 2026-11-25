@@ -1267,6 +1267,8 @@ function UI.MenuItems()
             { text = L().MENU_LOCK, checked = S.Get("locked"), fn = function() S.Set("locked", not S.Get("locked")) end },
             { text = L().MENU_NOWWINDOW, checked = S.Get("nowWindow"),
                 fn = function() S.Set("nowWindow", not S.Get("nowWindow")) end },
+            { text = L().MENU_MODEL, checked = S.Get("modelViewer"),
+                fn = function() S.Set("modelViewer", not S.Get("modelViewer")) end },
             { text = L().MENU_QUIET, checked = S.Get("quiet"), fn = function() S.Set("quiet", not S.Get("quiet")) end },
         }
         GuideRows(items)
@@ -1279,6 +1281,8 @@ function UI.MenuItems()
         { text = L().MENU_NOWWINDOW, checked = S.Get("nowWindow"), fn = function() S.Set("nowWindow", not S.Get("nowWindow")) end },
         { text = L().MENU_QUIET, checked = S.Get("quiet"), fn = function() S.Set("quiet", not S.Get("quiet")) end },
         { text = L().MENU_ARROW, checked = S.Get("arrow"), fn = function() S.Set("arrow", not S.Get("arrow")) end },
+        { text = L().MENU_MODEL, checked = S.Get("modelViewer"),
+            fn = function() S.Set("modelViewer", not S.Get("modelViewer")) end },
         { text = L().MENU_MOTION, checked = S.Get("reducedMotion"),
             fn = function() S.Set("reducedMotion", not S.Get("reducedMotion")) end },
         { text = L().MENU_MAPPINS, checked = S.Get("mapPins"), fn = function() S.Set("mapPins", not S.Get("mapPins")) end },

@@ -2,7 +2,8 @@
 -- Copyright (C) 2026 gettic
 -- Path line (2026-11-25, plans\path-line\plan.md): the arrow's way as a dotted trail on the world map and the
 -- minimap: player -> the smart arrow's door / cave / gate points still ahead -> the goal (the whole route; a
--- straight line when there is no route). Display only: no mouse on any dot, nothing clicks or moves for you.
+-- straight line when there is no route; while Engine\HuntPath.lua leads round a step's loop, the loop from its
+-- current point round to it again). Display only: no mouse on any dot, nothing clicks or moves for you.
 -- World map: our own data provider (AddDataProvider only, like UI\Pins.lua) with one holder frame on the canvas
 -- and pooled dot textures, counter-scaled so dots and gaps keep their screen size at any map zoom. Minimap: one
 -- holder frame on the Minimap (the Minimap itself is never moved, re-parented or rescaled), dots placed by yards
@@ -48,6 +49,12 @@ local function Ahead(t)
     local SR = ns.SmartRoute
     local st = SR and SR.state
     for k = #ahead, 1, -1 do ahead[k] = nil end
+    -- hunt path (v0.3): while the arrow leads round a step's loop, the trail is that loop from the current point
+    local loop = ns.Hunt and ns.Hunt.Ahead(t)
+    if loop then
+        for k = 1, #loop do ahead[k] = loop[k] end
+        return ahead
+    end
     if SR and SR.On() and SR.straightFor ~= t and st and st.target == t and type(st.route) == "table" and st.i then
         for k = st.i, #st.route do ahead[#ahead + 1] = st.route[k] end
     end
@@ -59,6 +66,8 @@ end
 local NONE = {}   -- the key for "no target" (one fixed table: a new {} each time looked like a change every frame)
 local function RouteKey(t)
     if t == nil then return NONE, 0 end
+    local H = ns.Hunt
+    if H and H.Active(t) then return H.state.pts, H.state.i end
     local SR = ns.SmartRoute
     local st = SR and SR.state
     local on = SR and SR.On() and SR.straightFor ~= t and st and st.target == t
@@ -71,6 +80,10 @@ local function Poll(t, pm, px, py)
     local A, SR = ns.Arrow, ns.SmartRoute
     if not SR or (A and A.frame and A.frame:IsShown()) then return end
     PL.polls = PL.polls + 1
+    if ns.Hunt then
+        local ok, _, v = ns.Errors.Call("huntpath", ns.Hunt.Aim, t, pm, px, py, A and A.source)
+        if ok and v then return end
+    end
     ns.Errors.Call("smartarrow", SR.Aim, t, pm, px, py)
 end
 
@@ -191,6 +204,13 @@ end
 function PL.DrawWorld(map)
     PL.worldDraws = PL.worldDraws + 1
     local set = PL.world
+    -- tos (hunt path note): no world map redraws in combat; the dots stay as they are and are drawn again once
+    -- the fight ends (bus CombatEnded)
+    if Co.InCombat() then
+        PL.worldWait = true
+        return set.used
+    end
+    PL.worldWait = nil
     if not map or not WorldOn() then Clear(set) return 0 end
     local mapID = map.GetMapID and map:GetMapID()
     local canvas = map.GetCanvas and map:GetCanvas()
@@ -536,9 +556,15 @@ local function Later() ns.Errors.Call("pathline", PL.Refresh) end
 ns.Bus.On("Login", PL, function()
     PL.AttachWorld()
     for _, ev in ipairs({ "StepChanged", "WaypointChanged", "WindowToggled", "ZoneChanged", "LookChanged",
-        "SmartRouteChanged", "WorldMapShown", "WorldMapHidden" }) do
+        "SmartRouteChanged", "HuntChanged", "WorldMapShown", "WorldMapHidden" }) do
         ns.Bus.On(ev, PL, Later, "pathline", 95)
     end
+    ns.Bus.On("CombatEnded", PL, function()
+        if PL.worldWait then
+            PL.wpm = nil
+            ns.Errors.Call("pathline", RedrawWorld)
+        end
+    end, "pathline", 95)
     ns.Bus.On("SettingsChanged", PL, function(_, key)
         if key == "pathMap" or key == "pathMinimap" or key == "smartArrow" or key == "arrow" then Later() end
     end, "pathline", 95)

@@ -207,6 +207,8 @@ ns.Locale.Add("enUS", {
     -- smart arrow (leads through doors, gates and paths): the line under the distance names the way to take
     MENU_ARROW_SMART = "Smart arrow",
     MENU_ARROW_STRAIGHT = "Point straight at the goal",
+    MENU_ARROW_HUNT = "Hunt path",
+    MENU_ARROW_CENTRE = "Point at the area centre",
     VIA_GOAL_LINE = "Goal: {d}",                -- under the arrow while it leads to a door first; {d} = "214 yd" or "0:30 walk"
     VIA_MORE = "{n} more on the way",           -- under the goal line; {n} = points left before the goal
     VIA_ROUTE = "Way: {route}",                 -- arrow hover; {route} = "Through the abbey door > Goal"
@@ -232,6 +234,8 @@ ns.Locale.Add("enUS", {
     VIA_KIND_GATE = "Through the gate",
     VIA_KIND_TRAM = "Take the tram",
     VIA_KIND_PATH = "Follow the path",
+    HUNT_HINT = "Walk the loop round the area ({i}/{n})",
+    HUNT_COMBAT = "In combat: the loop waits",
     VIA_KIND_STAIRS = "Take the stairs",
     -- v0.2 quest items in the bags (Engine\BagQuests.lua, UI\HubBag.lua)
     HUB_QUESTITEMS = "Quest items",
@@ -382,6 +386,8 @@ ns.Locale.Add("enUS", {
     SETTIP_ARRIVALSOUND = "A short sound when you reach the spot",
     SET_SMARTARROW = "Smart arrow",
     SETTIP_SMARTARROW = "Leads you through doors, gates and paths instead of a straight line to the spot",
+    SET_HUNTPATH = "Hunt path",
+    SETTIP_HUNTPATH = "On kill and collect steps, leads you round the area where they spawn",
     SET_MAPPINS = "Pins on the world map",
     SETTIP_MAPPINS = "Numbered pins for the next steps on the world map",
     SET_MINIMAPPINS = "Pins on the minimap",
@@ -563,4 +569,35 @@ ns.Locale.Add("enUS", {
     TIPSTEP_DONE = "{text} (done)",
     TIPSTEP_SHORT = "Part of your current step",
     TIPSTEP_SHORT_ONWAY = "Do this on the way",
+
+    -- 3D viewer (UI\ModelView.lua): the step's NPC or mob as a turning 3D model next to the guide window.
+    -- {pos} = one of the CHOICE_MODEL_* names
+    FEAT_MODEL = "3D view",
+    SET_MODELVIEWER = "Show the 3D view",
+    SETTIP_MODELVIEWER = "Shows the NPC or mob of your current step as a 3D model next to the guide",
+    SET_MODELPOS = "3D view position",
+    SETTIP_MODELPOS = "Where the 3D view sits: left, right or below the guide, or free (Shift+drag it)",
+    SET_MODELSCALE = "3D view size",
+    SETTIP_MODELSCALE = "Makes the 3D view bigger or smaller; it also follows the window size",
+    SET_MODELHIDECOMBAT = "Hide the 3D view in combat",
+    SETTIP_MODELHIDECOMBAT = "Off: it stays during fights but doesn't change until the fight ends",
+    CHOICE_MODEL_LEFT = "Left",
+    CHOICE_MODEL_RIGHT = "Right",
+    CHOICE_MODEL_BELOW = "Below",
+    CHOICE_MODEL_FREE = "Free",
+    MENU_MODEL = "Show the 3D view",
+    MENU_MODEL_RESET = "Reset the view",
+    MENU_MODEL_POS = "Position: {pos}",
+    MENU_MODEL_COMBAT = "Hide in combat",
+    MENU_MODEL_HIDE = "Hide the 3D view",
+    HELP_MODEL = "show or hide the 3D view of the step's NPC or mob",
+    MODEL_NONE = "No 3D view",
+    MODEL_TITLE = "3D view",
+    MODEL_TIP_DRAG = "Drag to turn it",
+    MODEL_TIP_WHEEL = "Mouse wheel to zoom",
+    MODEL_TIP_RESET = "Double-click to reset the view",
+    MODEL_TIP_MOVE = "Shift+drag to move it",
+    MODEL_TIP_RIGHT = "Right-click for options",
+    MODEL_SHOWN = "3D view on",
+    MODEL_HIDDEN = "3D view off (type /aog model to show it again)",
 })

@@ -84,9 +84,19 @@ function MM.Offset(angle)
     return math.max(-w, math.min(x * dw, w)), math.max(-h, math.min(y * dh, h))
 end
 
+-- True when a button-bar / collector addon has taken our button (moved it to its own parent or anchored it to
+-- something else): then we never move it back.
+function MM.Collected()
+    local f, m = MM.frame, Map()
+    if not (f and m) then return false end
+    if f:GetParent() ~= m then return true end
+    local _, rel = f:GetPoint(1)
+    return rel ~= nil and rel ~= m
+end
+
 function MM.Place(angle)
     local f, m = MM.frame, Map()
-    if not (f and m) then return end
+    if not (f and m) or MM.Collected() then return end
     local x, y = MM.Offset(angle)
     f:ClearAllPoints()
     f:SetPoint("CENTER", m, "CENTER", x, y)
@@ -158,18 +168,24 @@ function MM.Click(button, anchor)
     end
 end
 
--- The look: dim while the guide window is hidden.
+-- The look: dim while the guide window is hidden. With LibDBIcon (another addon loaded it): its button follows
+-- the setting `minimap` and ours stays hidden, so there is never two.
 function MM.Update()
+    local on = ns.Settings.Get("minimap") and true or false
+    if MM.icon then MM.IconShown(on) end
     local f = MM.frame
     if not f then return end
-    f:SetShown(ns.Settings.Get("minimap"))
+    f:SetShown(on and not MM.icon)
     f.icon:SetVertexColor(Th.Color(ns.UI.IsShown() and "minimap" or "minimapDim"))
 end
 
+-- The global name: button-bar / collector addons that gather the minimap's children only take named buttons.
+MM.NAME = "AllinOneGuideMinimapButton"
+
 function MM.Build()
-    if MM.frame or ns.safeMode or not ns.Feature.IsOn("minimap") then return MM.frame end
+    if MM.frame or MM.icon or ns.safeMode or not ns.Feature.IsOn("minimap") then return MM.frame end
     local m = Map()
-    local f = CreateFrame("Button", nil, m)
+    local f = CreateFrame("Button", MM.NAME, m)
     MM.frame = f
     f:SetSize(MM.SIZE, MM.SIZE)
     f:SetFrameStrata("MEDIUM")
@@ -213,7 +229,9 @@ function MM.Broker()
         type = "launcher",
         label = ns.TITLE,
         icon = file,
-        OnClick = function(_, button) ns.Errors.Call("minimap", MM.Click, button) end,
+        OnClick = function(frame, button)
+            ns.Errors.Call("minimap", MM.Click, button, type(frame) == "table" and frame.GetCenter and frame or nil)
+        end,
         OnTooltipShow = function(tip)
             if not (tip and tip.AddLine) then return end
             local title, lines = MM.Tip()
@@ -224,6 +242,67 @@ function MM.Broker()
     })
     if ok2 and type(obj) == "table" then MM.broker = obj end
     return MM.broker
+end
+
+-- LibDBIcon (2026-11-25, the user: "the minimap addon have a bar under it for other addons, i want this addons
+-- buttom to go into that"). Minimap button bars collect the standard LibDBIcon10_<name> buttons. When another
+-- addon has loaded LibDBIcon-1.0 and LibDataBroker-1.1 (we ship neither; LibStub lookups only, silent), our
+-- broker launcher is registered with it and our own button is hidden; without it our own (named) button stays.
+-- LibDBIcon API used: Register(name, dataObject, db), Show(name), Hide(name), IsRegistered(name),
+-- GetMinimapButton(name); db.hide / db.minimapPos are its saved fields (it doesn't save Hide / Show itself, so
+-- db.hide follows our setting `minimap`). The db lives in our account save: modules.minimap.dbicon.
+local function DBIconLib()
+    local stub = Co.Resolve("LibStub")
+    if stub == nil then return nil end
+    local ok, lib = pcall(stub, "LibDBIcon-1.0", true)
+    if not ok or type(lib) ~= "table" or type(lib.Register) ~= "function" then return nil end
+    return lib
+end
+
+local function IconDB()
+    local m = ns.DB.Module("minimap", "account", 1)
+    if type(m.dbicon) ~= "table" then m.dbicon = {} end
+    local db = m.dbicon
+    if type(db.minimapPos) ~= "number" then db.minimapPos = ns.Settings.Get("minimapAngle") end
+    db.hide = not ns.Settings.Get("minimap")
+    return db
+end
+
+-- Show / hide the LibDBIcon button (and keep db.hide in step so it stays that way after a /reload).
+function MM.IconShown(on)
+    local lib = MM.icon
+    if not lib then return end
+    if MM.iconDB then MM.iconDB.hide = not on end
+    local fn = on and lib.Show or lib.Hide
+    if type(fn) == "function" then pcall(fn, lib, ns.TITLE) end
+end
+
+-- Registers with LibDBIcon when it's there; true when linked. Safe to call again (login, later addon loads).
+function MM.Link()
+    if MM.icon then return true end
+    if ns.safeMode or not ns.Feature.IsOn("minimap") then return false end
+    local lib = DBIconLib()
+    if not lib then return false end
+    local obj = MM.Broker()
+    if not obj then return false end
+    local done = type(lib.IsRegistered) == "function" and lib:IsRegistered(ns.TITLE)
+    if not done then
+        local db = IconDB()
+        local ok = pcall(lib.Register, lib, ns.TITLE, obj, db)
+        if not ok then return false end
+        MM.iconDB = db
+    end
+    MM.icon = lib
+    MM.Update()
+    return true
+end
+
+-- The LibDBIcon button (nil when not linked).
+function MM.IconButton()
+    local lib = MM.icon
+    if not (lib and type(lib.GetMinimapButton) == "function") then return nil end
+    local ok, b = pcall(lib.GetMinimapButton, lib, ns.TITLE)
+    return ok and b or nil
 end
 
 -- Addon Compartment (names in AllinOneGuide_Forever.toc). Globals by necessity: Blizzard calls them by name.
@@ -246,7 +325,11 @@ ns.SelfChecks[#ns.SelfChecks + 1] = { label = "minimap", fn = function(h)
         if name and type(Co.Resolve(name)) ~= "function" then h.Problem("minimap: " .. field .. " has no function") end
     end
     local f, m = MM.frame, Map()
-    if ns.Settings.Get("minimap") and ns.Feature.IsOn("minimap") and not ns.safeMode then
+    if MM.icon then
+        local b = MM.IconButton()
+        if ns.Settings.Get("minimap") and not b then h.Problem("minimap: LibDBIcon has no button for us") end
+        if f and f:IsShown() then h.Problem("minimap: our own button shown next to LibDBIcon's") end
+    elseif ns.Settings.Get("minimap") and ns.Feature.IsOn("minimap") and not ns.safeMode and not MM.Collected() then
         if not f then return h.Problem("minimap: button not built") end
         local bx, by = f:GetCenter()
         local mx, my = m:GetCenter()
@@ -256,14 +339,25 @@ ns.SelfChecks[#ns.SelfChecks + 1] = { label = "minimap", fn = function(h)
             if d > 2 then h.Problem(("minimap: button off the edge (%d, shape %s)"):format(d, MM.Shape())) end
         end
     end
-    h.Info(("minimap: button %s, shape %s, broker %s"):format(f and (f:IsShown() and "shown" or "hidden") or "none",
-        MM.Shape(), MM.broker and "yes" or "no"))
+    h.Info(("minimap: button %s, shape %s, broker %s, LibDBIcon %s%s"):format(
+        f and (f:IsShown() and "shown" or "hidden") or "none", MM.Shape(), MM.broker and "yes" or "no",
+        MM.icon and "yes" or "no", MM.Collected() and ", collected by a button bar" or ""))
 end }
 
 ns.Bus.On("Login", MM, function()
-    ns.Errors.Call("minimap", MM.Build)
+    MM.loggedIn = true
     ns.Errors.Call("minimap", MM.Broker)
+    ns.Errors.Call("minimap", MM.Link)      -- before Build: when linked, our own button isn't made
+    ns.Errors.Call("minimap", MM.Build)
 end, "ui", 85)
+-- LibDBIcon / LibDataBroker brought in by an addon that loads later (load on demand): link then.
+ns.Events.On("ADDON_LOADED", MM, function()
+    if MM.loggedIn and not MM.icon then
+        -- each step on its own, like at Login (tos low note, beta.5): one failing part never stops the other
+        ns.Errors.Call("minimap", MM.Broker)
+        ns.Errors.Call("minimap", MM.Link)
+    end
+end, "minimap")
 ns.Bus.On("SettingsChanged", MM, function(_, key)
     if key == "minimap" then
         if ns.Settings.Get("minimap") then ns.Errors.Call("minimap", MM.Build) end

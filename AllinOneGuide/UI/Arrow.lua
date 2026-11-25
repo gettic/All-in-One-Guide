@@ -73,12 +73,24 @@ function A.MenuItems()
     -- smart arrow: on / off, and "point straight" for this one target while it leads through a door first
     items[#items + 1] = { text = L.MENU_ARROW_SMART, checked = S.Get("smartArrow"),
         fn = function() S.Set("smartArrow", not S.Get("smartArrow")) end }
-    if A.via and A.target and ns.SmartRoute then
+    if A.via and not A.via.hunt and A.target and ns.SmartRoute then
         local t = A.target
         items[#items + 1] = { text = L.MENU_ARROW_STRAIGHT, fn = function()
             ns.SmartRoute.Straight(t)
             A.Update()
         end }
+    end
+    -- hunt path (v0.3): on / off, and "point at the area's centre" for this step while it leads round the loop
+    if ns.Hunt then
+        items[#items + 1] = { text = L.MENU_ARROW_HUNT, checked = S.Get("huntPath"),
+            fn = function() S.Set("huntPath", not S.Get("huntPath")) end }
+        if A.via and A.via.hunt and A.target then
+            local t = A.target
+            items[#items + 1] = { text = L.MENU_ARROW_CENTRE, fn = function()
+                ns.Hunt.Centre(t)
+                A.Update()
+            end }
+        end
     end
     items[#items + 1] = { text = L.MENU_LOCK, checked = S.Get("locked"), fn = function() S.Set("locked", not S.Get("locked")) end }
     items[#items + 1] = { text = ns.U.Fill(L.MENU_ARROW_SCALE, { n = math.floor(S.Get("arrowScale") * 100 + 0.5) }),
@@ -132,7 +144,7 @@ function A.Tip(self)
         if m and text then title = ns.U.Fill(ns.L.ARROW_STEP, { n = m.index or 1, text = text }) end
     end
     -- smart arrow: the way it leads ("Through the abbey door > Goal")
-    local way = A.via and ns.SmartRoute and ns.SmartRoute.RouteText()
+    local way = A.via and not A.via.hunt and ns.SmartRoute and ns.SmartRoute.RouteText()
     if way then lines[#lines + 1] = ns.U.Fill(ns.L.VIA_ROUTE, { route = way }) end
     K.Tooltip(self, title or lines[1], title and lines or nil)
 end
@@ -301,7 +313,8 @@ function A.Pulse()
     local d = Th.Motion("arrowPulse")
     local t, SR = A.tex, ns.SmartRoute
     if d <= 0 or not (t and t.CreateAnimationGroup) then return false end
-    if not (SR and SR.On()) or (A.target and SR.straightFor == A.target) then return false end
+    local hunt = A.via and A.via.hunt
+    if not hunt and (not (SR and SR.On()) or (A.target and SR.straightFor == A.target)) then return false end
     if not A.pulseAnim then
         local ag = t:CreateAnimationGroup()
         local down, up = ag:CreateAnimation("Alpha"), ag:CreateAnimation("Alpha")
@@ -329,7 +342,12 @@ local function ReadPosition()
     local pm, px, py = ns.Geo.Player()
     if not pm then return false end
     local aim, via = t, nil
-    if ns.SmartRoute then
+    -- hunt path (v0.3): round the loop of a kill / collect step once you are in its area; else the smart arrow
+    if ns.Hunt then
+        local ok, a, v = ns.Errors.Call("huntpath", ns.Hunt.Aim, t, pm, px, py, A.source)
+        if ok and a and v then aim, via = a, v end
+    end
+    if not via and ns.SmartRoute then
         local ok, a, v = ns.Errors.Call("smartarrow", ns.SmartRoute.Aim, t, pm, px, py)
         if ok and a and v then aim, via = a, v end
     end
@@ -342,7 +360,10 @@ local function ReadPosition()
     -- passed a via point on the way to the same target: the route moved on, or it was planned again because you
     -- walked through into another room (not after going off the route): pulse the arrow
     local old, st = A.via, ns.SmartRoute and ns.SmartRoute.state
-    if old and st and A.viaTarget == t and (not via or via.point ~= old.point) and ns.SmartRoute.On()
+    if via and via.hunt then
+        -- hunt path: a loop point reached
+        if old and old.hunt and A.viaTarget == t and via.index ~= old.index then ns.Errors.Call("ui", A.Pulse) end
+    elseif old and not old.hunt and st and A.viaTarget == t and (not via or via.point ~= old.point) and ns.SmartRoute.On()
         and ns.SmartRoute.straightFor ~= t then
         local moved = st.route == old.route and via and (via.index or 0) > (old.index or 0)
         local through = st.route ~= old.route and st.why == "room"
@@ -370,7 +391,7 @@ local function Draw()
             local rot = Norm(A.bearing - facing)
             Rotate(rot)
             local cr, cg, cb = A.ColorFor(rot)
-            if via then cr, cg, cb = Th.Color("arrowVia") end
+            if via then cr, cg, cb = Th.Color(via.color or "arrowVia") end
             if A.source == "corpse" then cr, cg, cb = Th.Color("corpse") end
             A.tex:SetVertexColor(cr, cg, cb, alpha)
         end
@@ -392,7 +413,7 @@ local function Draw()
         local rot = Norm(A.bearing - facing)
         Rotate(rot)
         local cr, cg, cb = A.ColorFor(rot)
-        if via then cr, cg, cb = Th.Color("arrowVia") end
+        if via then cr, cg, cb = Th.Color(via.color or "arrowVia") end
         if corpse then cr, cg, cb = Th.Color("corpse") end
         A.tex:SetVertexColor(cr, cg, cb, alpha)
         A.dist:SetText(A.DistanceText(A.yards))
@@ -473,6 +494,8 @@ function A.SetTarget(step, source)
     if step ~= A.target then A.hiddenFor, A.wasHere = nil, nil end   -- "hide until the next step" ends with the target
     A.target, A.source = step, step and (source or "step") or nil
     A.bearing, A.yards, A.aim, A.via, A.viaTarget = nil, nil, nil, nil, nil
+    -- hunt path: a hunt for the old target ends now (a step without a spot gets no polls at all)
+    if ns.Hunt then ns.Errors.Call("huntpath", ns.Hunt.Check) end
     if step and not A.frame then Build() end
     A.Update()
 end
@@ -480,7 +503,7 @@ end
 ns.Bus.On("SettingsChanged", A, function(_, key)
     if key == "arrow" then A.Update()
     elseif key == "arrowScale" or key == "arrowAlpha" or key == "arrowClickThrough" then A.ApplyLook() A.Update()
-    elseif key == "arrowUnit" or key == "smartArrow" then A.Update() end
+    elseif key == "arrowUnit" or key == "smartArrow" or key == "huntPath" then A.Update() end
 end, "ui", 75)
 ns.Bus.On("FeatureChanged", A, function() A.Update() end, "ui", 75)
 -- v0.2 M4: high contrast / colour-blind / font size (Theme\Overlay.lua)

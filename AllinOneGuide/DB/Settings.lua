@@ -52,6 +52,15 @@ S.schema = {
     { key = "scale", scope = "char", kind = "number", default = 1, min = 0.6, max = 1.6, step = 0.05, export = true, page = "window",
         combat = true },   -- moves the window the secure step button docks to
     { key = "followUIScale", scope = "account", kind = "bool", default = true, export = true, page = "window", combat = true },
+    -- the 3D viewer (UI\ModelView.lua, v0.3): the step's NPC / mob next to the guide window. Position and size
+    -- sit next to the window size (the user's wish). Not secure: no combat wait.
+    { key = "modelViewer", scope = "char", kind = "bool", default = true, export = true, page = "window" },
+    { key = "modelPos", scope = "char", kind = "choice", default = "left", choices = { "left", "right", "below", "free" },
+        export = true, page = "window", choiceLabels = { left = "CHOICE_MODEL_LEFT", right = "CHOICE_MODEL_RIGHT",
+        below = "CHOICE_MODEL_BELOW", free = "CHOICE_MODEL_FREE" } },
+    { key = "modelScale", scope = "char", kind = "number", default = 1, min = 0.6, max = 1.6, step = 0.05, export = true,
+        page = "window" },
+    { key = "modelHideCombat", scope = "account", kind = "bool", default = true, export = true, page = "window" },
     { key = "fontSize", scope = "account", kind = "number", default = 0, min = -4, max = 4, step = 1, export = true, page = "window" },  -- min -4 (was -2; font size fix 2026-11-25): 8 pt step text
     { key = "highContrast", scope = "account", kind = "bool", default = false, export = true, page = "window" },
     { key = "colorBlind", scope = "account", kind = "bool", default = false, export = true, page = "window" },
@@ -72,6 +81,7 @@ S.schema = {
     { key = "arrivalSound", scope = "account", kind = "bool", default = false, export = true, page = "arrow" },
     -- smart arrow: lead through doors, gates and paths (Engine\SmartRoute.lua); off = the straight arrow
     { key = "smartArrow", scope = "account", kind = "bool", default = true, export = true, page = "arrow" },
+    { key = "huntPath", scope = "account", kind = "bool", default = true, export = true, page = "arrow" },
 
     { key = "mapPins", scope = "account", kind = "bool", default = true, export = true, page = "map" },
     { key = "minimapPins", scope = "account", kind = "bool", default = true, export = true, page = "map" },
@@ -222,7 +232,8 @@ end
 
 -- A number setting's value as shown next to its slider.
 function S.NumberText(d, v)
-    if d.key == "opacity" or d.key == "arrowAlpha" or d.key == "scale" or d.key == "arrowScale" or d.key == "nowScale" then
+    if d.key == "opacity" or d.key == "arrowAlpha" or d.key == "scale" or d.key == "arrowScale" or d.key == "nowScale"
+        or d.key == "modelScale" then
         return ("%d%%"):format(math.floor(v * 100 + 0.5))
     end
     if d.key == "fontSize" and v > 0 then return "+" .. v end

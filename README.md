@@ -42,6 +42,8 @@ This is a beta. It has two demo routes:
 | NPC talk helper | In an NPC's quest list, quests your route takes get a small tag and the rest can be faded. See [NPC talk helper](#npc-talk-helper). |
 | Tooltip step line | Mobs, NPCs and objects that are part of your current step get one line on their tooltip. See [Tooltip step line](#tooltip-step-line). |
 | Main window | One window for guides, settings, quest items, reports and About. See [The main window](#the-main-window). |
+| 3D view | The NPC or mob of your current step turns as a 3D model next to the guide window. See [3D view](#3d-view). |
+| Hunt path | On kill and collect steps the arrow leads you round the area where the mobs usually spawn. See [Hunt path](#hunt-path). |
 | Ghost | Walking as a ghost doesn't tick travel steps. |
 | Full quest log | Shows which quests the route doesn't need. |
 | Travel steps | Fly, hearthstone, get a flight path, set your hearthstone, learn, train, use an item, notes, and grind as a last resort. |
@@ -115,6 +117,21 @@ The smart arrow is on by default. Switch it in the arrow's right-click menu or o
 - The minimap dots follow its zoom, rotation and shape (square minimaps too) and stop at its edge.
 - Two switches in Settings > Map pins: "Path line on the world map" and "Path line on the minimap". Both are on by default.
 
+### 3D view
+
+- The NPC or mob of your current step shows as a 3D model next to the guide window (on the left by default). Steps without a model show a small "No 3D view" card.
+- Drag it to turn the model, use the mouse wheel to zoom, double-click to reset, right-click for options.
+- Settings > Guide window: "Show the 3D view", "3D view position" (left, right, below or free; Shift+drag it when free), "3D view size" and "Hide the 3D view in combat" (on by default).
+- Switch it on or off with the title menu or `/aog model`.
+
+### Hunt path
+
+- On kill and collect steps the arrow leads you in a loop round the area where the mobs usually spawn, so you walk past them. The arrow is orange and says "Walk the loop round the area (2/6)". The path line follows the loop.
+- It holds its point in combat.
+- Setting: Settings > Arrow > "Hunt path" (on by default). In the arrow's right-click menu: "Hunt path" on or off, and "Point at the area centre".
+- Loops so far: the Northshire kobolds (the camp and Echo Ridge), and the Valley of Trials boars and vile familiars.
+- The loops come from CMaNGOS classic-db spawn positions, so WoW Forever's spawns may differ a little.
+
 ### Quest items
 
 - When you loot an item that starts a quest, the hint line says "This starts a quest: right-click it". When the guide knows the quest, it also says where to hand it in and the XP. This shows once per item and character.
@@ -153,7 +170,7 @@ If v0.1 gave a character the guide for another start area (for example a gnome o
 
 ### Minimap button
 
-A button on the minimap. Drag it around the minimap. It follows square and other minimap shapes from minimap addons. Left-click shows or hides the guide, right-click opens the main window. `/aog minimap` shows or hides the button. The addon also has an entry in the minimap's addon list. If another addon already provides a data-broker display, the guide shows up there too.
+A button on the minimap. Drag it around the minimap. It follows square and other minimap shapes from minimap addons. Left-click shows or hides the guide, right-click opens the main window. `/aog minimap` shows or hides the button. With a minimap button-bar addon (one that collects the buttons of other addons), the guide's button goes into that bar. Without one, the button stays on the minimap with its own name, so bars that collect named minimap buttons can take it. If another addon already provides a data-broker display, the guide shows up there too.
 
 ### Look of the windows
 
@@ -194,6 +211,7 @@ If you also run Questie, TomTom, Guidelime or Mapster, one quiet hint says so, o
 | `/aog report` | Open Report a mistake |
 | `/aog config` | Open the settings |
 | `/aog minimap` | Show or hide the minimap button |
+| `/aog model` | Show or hide the 3D view |
 | `/aog where` | Print your map id, zone and position, the selected quest's id and your target's NPC or object id |
 | `/aog restore` | Put back the saved-data backup (asks first; then type `/reload`) |
 | `/aog resetpos` | Put the window and the arrow back in their start places |

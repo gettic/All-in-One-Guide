@@ -364,6 +364,22 @@ function ST.NpcParts()
     }
 end
 
+-- The 3D viewer (v0.3, UI\ModelView.lua): its box must show whenever nothing hides it; the model or the
+-- "No 3D view" card inside it (one of them at a time). Docking and load result: the "model" self-check.
+function ST.ModelParts()
+    local MV = ns.ModelView or {}
+    local f = MV.frame
+    local need = f ~= nil and MV.Why and MV.Why() == nil or false
+    local card = f and f.card
+    return {
+        { name = "model", obj = f, opt = not need, shownOnly = not need },
+        { name = "model.view", obj = f and f.model, opt = true, shownOnly = true },
+        { name = "model.card", obj = card, opt = true, shownOnly = true },
+        { name = "model.card.badge", obj = card and card.badge and card.badge.disc, opt = true, shownOnly = true, artSelf = true },
+        { name = "model.card.text", obj = card and card.text, opt = true, shownOnly = true },
+    }
+end
+
 -- The arrow is its own frame (only up while a step has a spot): checked on its own.
 function ST.ArrowParts()
     local A = ns.Arrow or {}
@@ -649,6 +665,7 @@ local function StepMain()
         CheckGroup(ST.NowParts())
         CheckGroup(ST.ArrowParts())
         CheckGroup(ST.NpcParts())
+        CheckGroup(ST.ModelParts())
         Guard("letters", CheckLetters)
     end
     if run.mode == "full" and run.ui then

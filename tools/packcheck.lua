@@ -12,6 +12,8 @@
 --   tools\import\questie-spawns.lua after the packs change); map sizes: tools\data\mapsizes.lua (estimates).
 --   Smart arrow step rules (tools\connectors.lua CC.StepCheck, with packs-src\connectors\): a `via` names real
 --   connectors; a spot inside a connector room needs a room with an exit; a via detour > 1.5 x without why warns.
+--   Hunt path rules (tools\pathcheck.lua): the `path` loops of kill / collect steps (count, range, distances,
+--   rooms, known-exploit places); a loop over 600 yd warns.
 --   no pack files given: every pack in packs-src\. Exit code 1 when there is an error.
 -- As a library: local PC = assert(loadfile("tools/packcheck.lua"))("--lib", "<tools folder>")
 local args = { ... }
@@ -28,6 +30,13 @@ end
 
 -- The smart arrow's connector tool (tools\connectors.lua) and an index of packs-src\connectors\ (nil when the
 -- folder is missing or broken: the step rules are then skipped; the connector build reports the problems).
+-- The hunt path checker (tools\pathcheck.lua).
+local PHmod
+function PC.PH()
+    if not PHmod then PHmod = assert(loadfile(Here("pathcheck.lua")))("--lib", toolsDir) end
+    return PHmod
+end
+
 local CCmod
 function PC.CC()
     if not CCmod then CCmod = assert(loadfile(Here("connectors.lua")))("--lib", toolsDir) end
@@ -156,6 +165,10 @@ function PC.Check(pack, opts)
                 end
             end
             if s.r ~= nil and (type(s.r) ~= "number" or s.r < 0) then Err(where, "bad radius") end
+            -- 3D viewer (v0.3): `model` is a creature display id only (NPC ids go in npc / targetNpc)
+            if s.model ~= nil and (type(s.model) ~= "number" or s.model < 1 or s.model ~= math.floor(s.model)) then
+                Err(where, "model must be a display id (a whole number above 0)")
+            end
             for _, f in ipairs(s.flags or {}) do
                 if not Fm.FLAGS[f] then Err(where, "unknown flag '" .. tostring(f) .. "'") end
             end
@@ -319,6 +332,11 @@ function PC.Check(pack, opts)
         for _, e in ipairs(cerr) do errs[#errs + 1] = (opts.name or "?") .. ": " .. e end
         report.connectors = cwarn
     end
+    -- hunt paths (tools\pathcheck.lua): the `path` loops of kill / collect steps (errors), long loops (report.paths)
+    local perr, pwarn = PC.PH().Check(routes, { connectors = opts.connectors, CC = opts.connectors and PC.CC() or nil,
+        exploits = opts.exploits })
+    for _, e in ipairs(perr) do errs[#errs + 1] = (opts.name or "?") .. ": " .. e end
+    report.paths = pwarn
     report.lint = PC.Lint(pack, routes, opts)
     -- NPC points against the NPC's real spawns (far off = error, a bit off or no data = warning)
     report.npc = {}
@@ -654,6 +672,7 @@ function PC.Main(argv)
             for _, w in ipairs(rep.lint or {}) do print("WARN " .. f .. ": " .. w) end
             for _, w in ipairs(rep.npc or {}) do print("WARN " .. f .. ": " .. w) end
             for _, w in ipairs(rep.connectors or {}) do print("WARN " .. f .. ": " .. w) end
+            for _, w in ipairs(rep.paths or {}) do print("WARN " .. f .. ": " .. w) end
             print(string.format("%s: %d steps, grind %d, zone changes %d, returns %d, backtracks %d, long texts %d, texts not starting with a verb %d, route warnings %d, npc warnings %d, travel %%: %s",
                 f, rep.steps, rep.grind, rep.zoneChanges, rep.returns, rep.backtracks, rep.long, rep.style, #(rep.lint or {}), #(rep.npc or {}), table.concat(travel, " ")))
         end

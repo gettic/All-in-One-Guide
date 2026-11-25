@@ -150,6 +150,9 @@ ns.ApiList = {
     { id = "BagItemID", path = "C_Container.GetContainerItemID", kind = "function", secret = "args", src = "doc ContainerDocumentation (line 175)" },
     { id = "BagQuestInfo", path = "C_Container.GetContainerItemQuestInfo", kind = "function", secret = "args", src = "doc ContainerDocumentation (line 281; ItemQuestInfo line 817)" },
     { id = "Hardcore", path = "C_GameRules.IsHardcoreActive", feature = "hardcore", kind = "function", secret = "returns", src = "doc GameRulesDocumentation" },
+    -- 3D viewer (UI\ModelView.lua): follow the SD / HD character models (report only: missing = not followed)
+    { id = "SDHDToggle", path = "C_GameRules.IsSDHDToggleEnabled", kind = "function", secret = "returns", src = "doc GameRulesDocumentation:277" },
+    { id = "SDEnabled", path = "C_GameRules.AccountHasSDEnabled", kind = "function", secret = "returns", src = "doc GameRulesDocumentation:11" },
 
     -- the window and arrow (M3)
     { id = "UIParent", path = "UIParent", feature = "ui", kind = "table", src = "xml (parent across the UI source)" },

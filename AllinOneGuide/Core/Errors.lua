@@ -25,8 +25,9 @@ local PLAIN = { ui = "WINDOW", notice = "WINDOW", theme = "WINDOW", engine = "ST
     questlog = "QUESTS", gamestate = "QUESTS", questdata = "QUESTS", names = "QUESTS", questlimit = "QUESTS",
     bags = "BAGS", selftest = "SELFTEST", api = "LINK", gearset = "LINK",
     pins = "MAP", mappins = "MAP", minimappins = "MAP", pathline = "MAP", waypoint = "ARROW", smartarrow = "ARROW", hooks = "WINDOW", conflicts = "LINK",
+    huntpath = "ARROW",
     settings = "WINDOW", minimap = "WINDOW", hub = "WINDOW", report = "WINDOW", recorder = "OTHER",
-    nowwin = "WINDOW", npchelper = "NPC", tooltipstep = "TOOLTIP" }
+    nowwin = "WINDOW", npchelper = "NPC", tooltipstep = "TOOLTIP", model = "MODEL" }
 E.PLAIN = PLAIN
 function E.PlainName(feature)
     local L = ns.L

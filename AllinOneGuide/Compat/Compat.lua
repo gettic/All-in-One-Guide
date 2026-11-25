@@ -176,6 +176,19 @@ function Co.Indoors()
     return v
 end
 
+-- 3D viewer (UI\ModelView.lua): does the account show the classic (SD) character models? true / false, nil
+-- when unknown (API missing, secret, or the game has no SD / HD switch). Read on every viewer update; a change
+-- reloads the model.
+function Co.SDModels()
+    local toggle, sd = F.SDHDToggle, F.SDEnabled
+    if not (toggle and sd) then return nil end
+    local on = toggle()
+    if Secret(on) or on ~= true then return nil end
+    local v = sd()
+    if Secret(v) or type(v) ~= "boolean" then return nil end
+    return v
+end
+
 -- XP and XP to the next level (nil, nil when unknown).
 function Co.XP()
     local a, b = F.UnitXP, F.UnitXPMax

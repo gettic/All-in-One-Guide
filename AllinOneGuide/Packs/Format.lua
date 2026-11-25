@@ -33,7 +33,10 @@ Fm.EXTRA = { obj = "list", any = "number", override = "string", whileUntil = "st
     -- connector room the goal is in (written by the build from packs-src\connectors\)
     via = "via", room = "string",
     -- travel side goals: this background goal was written as an `onWay` entry of the step with this id
-    onWay = "string" }
+    onWay = "string",
+    -- hunt path (v0.3): a loop of points round the spawn area of a kill / collect step (`-` = false, none), where
+    -- the points came from (hand / gen), a there-and-back line instead of a loop, "reached" yards per point
+    path = "path", pathSrc = "string", pathOpen = "bool", pathR = "number" }
 Fm.DEFAULT_RADIUS = 10
 
 local tonumber, tostring, concat, sort = tonumber, tostring, table.concat, table.sort
@@ -105,6 +108,33 @@ function Fm.EncodeVia(v)
     return concat(items, ",")
 end
 
+-- `path` in a row: "-" = false (no hunt path); else comma-separated "x:y" pairs in percent. Decoded points are
+-- { x, y } in 0-1 like step.x / step.y; a pair that doesn't read is left out (the checker refuses such rows).
+local function DecodePath(v)
+    if v == "-" then return false end
+    local list = {}
+    for x, y in v:gmatch("([%d%.]+):([%d%.]+)") do
+        x, y = tonumber(x), tonumber(y)
+        if x and y then list[#list + 1] = { x = x / 100, y = y / 100 } end
+    end
+    return list
+end
+Fm.DecodePath = DecodePath
+
+-- Source form: false, or a list of { x, y } pairs in percent. Anything else (an unfilled "auto") is an error.
+function Fm.EncodePath(v)
+    if v == false then return "-" end
+    if type(v) ~= "table" then error("path must be false or a list of { x, y } points (got " .. tostring(v) .. ")") end
+    local items = {}
+    for i, p in ipairs(v) do
+        if type(p) ~= "table" or type(p[1]) ~= "number" or type(p[2]) ~= "number" then
+            error("path point " .. i .. " must be { x, y }")
+        end
+        items[i] = Fm.Num(p[1]) .. ":" .. Fm.Num(p[2])
+    end
+    return concat(items, ",")
+end
+
 local parts, kv = {}, {}
 
 local function Opt(s) if s == "" then return nil end return s end
@@ -155,6 +185,8 @@ function Fm.DecodeRow(row)
                     step[k] = (v == "1")
                 elseif kind == "via" then
                     step[k] = DecodeVia(v)
+                elseif kind == "path" then
+                    step[k] = DecodePath(v)
                 elseif kind == "list" then
                     local list = {}
                     for item in v:gmatch("[^,]+") do list[#list + 1] = tonumber(item) or item end
@@ -209,6 +241,8 @@ function Fm.EncodeRow(s)
         local text
         if kind == "via" then
             text = Fm.EncodeVia(v)
+        elseif kind == "path" then
+            text = Fm.EncodePath(v)
         elseif kind == "list" then
             local items = {}
             for i, item in ipairs(v) do items[i] = type(item) == "number" and Fm.Num(item) or tostring(item) end

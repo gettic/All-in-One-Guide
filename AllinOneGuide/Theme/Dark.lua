@@ -79,6 +79,7 @@ ns.Theme.Register("Dark", {
     ["color.arrowText"] = "=white",           -- the distance under the arrow
     -- smart arrow: while it leads to a door / gate / path point first (not the goal itself)
     ["color.arrowVia"] = { "#5CC8F0", 1 },    -- the arrow
+    ["color.arrowHunt"] = { "#F0A65C", 1 },   -- the arrow while it leads round a hunt loop
     ["color.viaText"] = { "#8FD8F5", 1 },     -- "Through the abbey door" under the distance
     -- path line (UI\PathLine.lua): dots along the arrow's way on the world map and the minimap
     ["color.pathNow"] = "=arrowVia",          -- the leg the arrow points along now
@@ -123,6 +124,10 @@ ns.Theme.Register("Dark", {
     ["color.tipStep"] = "=accent",            -- part of the current step
     ["color.tipOnWay"] = "=counter",          -- an on-the-way / optional goal
     ["color.tipDone"] = "=text.dim",          -- that objective is already full
+    -- 3D viewer (UI\ModelView.lua): the box around the NPC / mob model, its "No 3D view" card text
+    ["color.modelBg"] = { "#0B0E13", 0.85 },
+    ["color.modelEdge"] = { "#2A3340", 1 },   -- (= color.border)
+    ["color.modelText"] = "=text.dim",
 
     -- fonts (Blizzard's narrow font file on Western clients)
     fontFile = "Fonts\\ARIALN.TTF",
@@ -174,6 +179,10 @@ ns.Theme.Register("Dark", {
     ["size.pathGap"] = 14,        -- ... the space between dots on the world map
     ["size.pathMiniDot"] = 4,     -- ... a dot on the minimap
     ["size.pathMiniGap"] = 8,     -- ... the space between dots on the minimap
+    ["size.modelW"] = 150,        -- 3D viewer: width / height at size 100 %
+    ["size.modelH"] = 170,
+    ["size.modelGap"] = 6,        -- ... gap to the guide window (window units)
+    ["size.modelInset"] = 2,      -- ... the model inside its box
 
     -- alphas (0..1) and built-in game files (v0.2 look review)
     ["alpha.hover"] = 0.35,       -- the minimap button's highlight
