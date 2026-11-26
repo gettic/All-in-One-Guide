@@ -7,13 +7,13 @@ All files: TGA, 32-bit BGRA, straight alpha, uncompressed (type 2), bottom-left 
 
 | File (in `AllinOneGuide/media/`) | Size | Raw memory | Built by | Used for | Version / theme |
 |---|---|---|---|---|---|
-| `logo_64.tga` | 64x64 | 16 KB | `build_logo.py` | .toc `IconTexture`, About page | v0.1, all themes |
+| `logo_64.tga` | 64x64 | 16 KB | `build_logo.py` | .toc `IconTexture`, About page (48 px); not the 16 px title bar (see "Title-bar logo") | v0.1, all themes |
 | `glyphs.tga` | 256x256 | 256 KB | `build_glyphs.py` | step badges, notice glyphs, buttons, states, pins, Hub / report icons (slots below) | v0.1 + v0.2, Dark (Blizzard theme fallback) |
 | `arrow.tga` | 128x128 | 64 KB | `build_arrow.py` | waypoint arrow, shown 64x64 | v0.1, Dark |
 | `arrived.tga` | 128x128 | 64 KB | `build_arrow.py` | arrived marker (tick ring), shown 64x64 | v0.1, Dark |
 | `frames.tga` | 128x64 | 32 KB | `build_frames.py` | step button frame + reminder glow (regions below) | v0.2, Dark |
 | `minimap.tga` | 32x32 | 4 KB | `build_minimap.py` | minimap button (whole round button, full colour) | v0.2, all themes |
-| `glyphs2.tga` | 256x32 | 32 KB | `build_window_art.py` | NOW window + main window buttons: grip, attach, detach, search, resize (cells below) | NOW + main window, Dark (Blizzard theme fallback) |
+| `glyphs2.tga` | 256x32 | 32 KB | `build_window_art.py` | NOW window + main window buttons: grip, attach, detach, search, resize (cells below); cell 7: the title-bar logo (full colour) | NOW + main window, Dark (Blizzard theme fallback) |
 | `emblems.tga` | 256x64 | 64 KB | `build_window_art.py` | guide emblems (shields) on the main window's Guides cards (regions below) | main window, all themes |
 | `round.tga` | 256x64 | 64 KB | `build_round.py` | rounded window look (4e): window panel / border / shadow 9-slices, small rounded 9-slice, target crosshair, rounded button frame, tile icons (regions below) | one-window look, Dark |
 
@@ -54,9 +54,20 @@ One row of 8 cells, 32x32 each; cell `i`: l = `i/8`, r = `(i+1)/8`, **t = 0, b =
 | 2 | `glyph.btn.detach` | broken chain, two links apart + break marks (shown while attached: click = detach) | 0.250 | 0.375 | 0.000 | 1.000 | 14 px |
 | 3 | `glyph.btn.search` | magnifier (main window search box) | 0.375 | 0.500 | 0.000 | 1.000 | 12 px, #A3ADBA |
 | 4 | `glyph.btn.resize` | resize corner: 6 dots in a triangle, bottom-right (optional) | 0.500 | 0.625 | 0.000 | 1.000 | 14 px |
-| 5-7 | (spare) | empty | | | | | |
+| 5-6 | (spare) | empty | | | | | |
+| 7 | (logo) | the title-bar logo, full colour, see "Title-bar logo" below (not a slot) | | | | | |
 
 The lock in the NOW strip reuses `glyph.btn.lock` / `glyph.btn.unlock` (`glyphs.tga` slots 26 / 27).
+
+## Title-bar logo (glyphs2.tga cell 7)
+
+The same "Waypoint" logo as `logo_64.tga` (same drawing, `build_logo.logo_waypoint()`), rendered at **28x28** with an even 16x16 box filter, placed in the middle of cell 7 with **2 px clear padding**, transparent pixels given their neighbours' colour (alpha 0) so filtering never pulls black into the edge. Full colour, **not tinted**. Region key (use these coords, not the full cell, so it stays the same visible size as before):
+
+| Key | File | l | r | t | b | Shown |
+|---|---|---|---|---|---|---|
+| `tex.logo.title` | glyphs2 | 0.8828125 | 0.9921875 | 0.0625 | 0.9375 | 16x16 UI units (title bar, `size.titleLogo`); also fine up to ~28 |
+
+Why: `logo_64.tga` shown at 16 units is shrunk 2.8:1 to 4:1 on screen; the game samples it with plain bilinear filtering (no smaller copies), so most texels are skipped and the thin ring, route dots and arrow edges come out jagged. 28 texels for 16-30 screen px keeps every shrink under 2:1. In code: a `Md.REGIONS` entry with these coords, `slot.logo.title` in the theme, and the texture drawn without pixel-grid / texel snapping.
 
 ## emblems.tga regions
 

@@ -30,6 +30,8 @@ return {
         { key = "^REPORT_TYPE_", en = 22, why = "report type choices (a column after box and icon)" },
         { key = "^REPORT_", en = 180, why = "Report page lines (they wrap)" },
         { key = "^ABOUT_", en = 200, why = "About page lines (they wrap)" },
+        { key = "^DATA_KIND_", en = 32, why = "Game data page list rows" },
+        { key = "^DATA_", en = 260, why = "Game data page lines (they wrap)" },
         { key = ".", en = 120, why = "chat lines" },
     },
     daFactor = 1.4,

@@ -339,7 +339,8 @@ a loop over 600 yd (least travel) and two points closer than 5 yd.
 ## 10. Spawn spots (v0.3)
 
 Kill / collect steps whose mob (`targetNpc` or `npc`) has spawn spots on the step's map get a "nearest spot" arrow
-instead of a generated loop (setting `huntMode`: `auto` keeps hand-made loops, `spots`, `loops`). Display only:
+(setting `huntMode`: `auto` keeps the step's loop, hand-made or generated, and uses spots only where there is no
+loop; `spots` prefers spots over any loop; `loops` only loops). Display only:
 static data plus the player's own position.
 
 `packs-src\spots\<pack id>.lua` (data only), one list per mob and map, nearest to the route's steps first:

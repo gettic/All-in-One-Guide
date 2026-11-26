@@ -423,7 +423,10 @@ function K.TitleBar(frame, opts)
     tb.logo = tb:CreateTexture(nil, "ARTWORK")
     tb.logo:SetSize(ls, ls)
     tb.logo:SetPoint("LEFT", tb, "LEFT", 4, 0)
-    Th.Glyph(tb.logo, "logo")
+    Th.Glyph(tb.logo, "logo.title")
+    -- plain bilinear, no texel snapping (snapping turns a shrunk texture into nearest-pixel steps)
+    if tb.logo.SetSnapToPixelGrid then tb.logo:SetSnapToPixelGrid(false) end
+    if tb.logo.SetTexelSnappingBias then tb.logo:SetTexelSnappingBias(0) end
     tb.title = K.Text(tb, "title", "title")
     tb.title:SetPoint("LEFT", tb.logo, "RIGHT", 5, 0)
     if opts.close then

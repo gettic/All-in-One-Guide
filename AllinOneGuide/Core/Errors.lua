@@ -28,7 +28,7 @@ local PLAIN = { ui = "WINDOW", notice = "WINDOW", theme = "WINDOW", engine = "ST
     huntpath = "ARROW",
     settings = "WINDOW", minimap = "WINDOW", hub = "WINDOW", report = "WINDOW", recorder = "OTHER",
     nowwin = "WINDOW", npchelper = "NPC", tooltipstep = "TOOLTIP", model = "MODEL", questgiver = "NPC", spots = "ARROW",
-    pace = "WINDOW", targetbutton = "WINDOW" }
+    pace = "WINDOW", targetbutton = "WINDOW", gather = "GATHER" }
 E.PLAIN = PLAIN
 function E.PlainName(feature)
     local L = ns.L

@@ -39,6 +39,8 @@ S.schema = {
         page = "steps", choiceLabels = { off = "TIPSTEP_MODE_OFF", short = "TIPSTEP_MODE_SHORT", full = "TIPSTEP_MODE_FULL" } },
     -- quest giver check (Engine\QuestGiver.lua): a route quest the NPC doesn't offer is skipped for now
     { key = "questGiverCheck", scope = "account", kind = "bool", default = true, export = true, page = "steps" },
+    -- beta.8 step notes (plans\note-line\plan.md): the current step's `why` as a dim line under its goals
+    { key = "noteLine", scope = "char", kind = "bool", default = true, export = true, page = "steps" },
 
     { key = "locked", scope = "char", kind = "bool", default = false, export = true, page = "window" },
     { key = "small", scope = "char", kind = "bool", default = false, export = true, page = "window" },
@@ -56,6 +58,8 @@ S.schema = {
         combat = true },   -- moves the window the secure step button docks to
     -- the target button above the window (UI\TargetButton.lua, English clients only); secure: waits for combat end
     { key = "targetButton", scope = "char", kind = "bool", default = true, export = true, page = "window", combat = true },
+    -- the item button above the window (UI\StepButton.lua: step items, hearthstone, quest-starting items); secure
+    { key = "itemButton", scope = "char", kind = "bool", default = true, export = true, page = "window", combat = true },
     { key = "followUIScale", scope = "account", kind = "bool", default = true, export = true, page = "window", combat = true },
     -- the 3D viewer (UI\ModelView.lua, v0.3): the step's NPC / mob next to the guide window. Position and size
     -- sit next to the window size (the user's wish). Not secure: no combat wait.
@@ -88,7 +92,7 @@ S.schema = {
     -- smart arrow: lead through doors, gates and paths (Engine\SmartRoute.lua); off = the straight arrow
     { key = "smartArrow", scope = "account", kind = "bool", default = true, export = true, page = "arrow" },
     { key = "huntPath", scope = "account", kind = "bool", default = true, export = true, page = "arrow" },
-    -- v0.3 spawn spots (Engine\Spots.lua): "auto" = hand-made loops stay, the nearest spawn spot everywhere else;
+    -- v0.3 spawn spots (Engine\Spots.lua): "auto" = the step's loop where it has one, the nearest spawn spot elsewhere;
     -- "spots" / "loops" = only that kind. huntPath off still turns both off (a saved off stays off).
     { key = "huntMode", scope = "account", kind = "choice", default = "auto", choices = { "auto", "spots", "loops" },
         export = true, page = "arrow", choiceLabels = { auto = "HUNT_MODE_AUTO", spots = "HUNT_MODE_SPOTS", loops = "HUNT_MODE_LOOPS" } },
@@ -105,6 +109,9 @@ S.schema = {
     { key = "chatTab", scope = "account", kind = "number", default = 1, min = 1, max = 10, step = 1, export = true, page = "advanced" },
     { key = "gearSetLink", scope = "account", kind = "bool", default = true, export = true, page = "advanced" },
     { key = "debug", scope = "account", kind = "bool", default = false, export = false, page = "advanced" },
+    -- v0.3 game data recording (Data\Gather.lua): on your PC only; off = "Don't record" (tos T3a). No settings page row:
+    -- the switch is on the Game data page (only there while ns.GATHER is on)
+    { key = "gatherData", scope = "account", kind = "bool", default = true, export = false },
 
     -- not in the panel
     { key = "hintLang", scope = "account", kind = "bool", default = false, export = false },   -- first-run "Dansk?" hint shown

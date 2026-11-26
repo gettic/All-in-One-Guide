@@ -24,6 +24,7 @@ Ov.HC = {
     ["color.text"] = { "#FFFFFF", 1 },
     ["color.title"] = { "#FFFFFF", 1 },
     ["color.text.dim"] = { "#C9D1DB", 1 },
+    ["color.note"] = { "#C9D1DB", 1 },   -- the step note line, readable on the darker panel
     ["color.done"] = { "#B4BDC8", 1 },
     ["color.stepNumber"] = { "#B4BDC8", 1 },
     ["color.counter"] = { "#D3DAE3", 1 },

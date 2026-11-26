@@ -65,6 +65,8 @@ Md.REGIONS = {
     ["emblem.horde"] = { "emblems", 0.25, 0.5, 0, 1 },
     ["emblem.neutral"] = { "emblems", 0.5, 0.75, 0, 1 },
     ["emblem.soon"] = { "emblems", 0.75, 1, 0, 1 },
+    -- glyphs2.tga cell 7, inner 28 x 28 (MANIFEST "Title-bar logo"): the logo for the 16 px title bar
+    ["tex.logo.title"] = { "glyphs2", 0.8828125, 0.9921875, 0.0625, 0.9375 },
     -- round.tga (MANIFEST "round.tga regions"): 9-slice pieces (corners in Md.SLICE) and single pieces
     ["frame.panel"] = { "round", 0, 0.125, 0, 0.5 },
     ["frame.border"] = { "round", 0, 0.125, 0.5, 1 },

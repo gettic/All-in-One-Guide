@@ -62,30 +62,48 @@ local function StepLine(entry)
     return ns.U.Fill(L().REPORT_STEP_EARLIER, { text = text, how = L()["REPORT_HOW_" .. tostring(entry.how):upper()] or entry.how })
 end
 
+-- A step's line that can never stop the page: a step whose text can't be made shows its id (beta.7 bug:
+-- an error here left the four rows empty, their rings drawn over the "no guide is open" line).
+local function SafeStepLine(entry)
+    local ok, text = pcall(StepLine, entry)
+    if ok and type(text) == "string" and text ~= "" then return text end
+    return ns.U.Plain(tostring(entry.id or "?"))
+end
+
+-- The "no step" line: no guide open, or a guide open with no step to pick (finished, waiting).
+local function NoStepText()
+    if ns.Engine.Focused() then return L().REPORT_NO_STEP_GUIDE end
+    return L().REPORT_NO_STEP
+end
+
 function HR.String()
     return ns.Report.Build(HR.opts)
 end
 
 -- HR.page is only set once Build has made every part (see Build), but the parts are still checked one by
 -- one: a page that failed half-way in game must never turn each click into a second error.
+-- The step rows come first: either the rows or the "no step" line, never both (they share a spot).
 function HR.Update()
     local p = HR.page
     if not p then return end
-    for _, b in ipairs(HR.typeButtons) do b:Set(b.value == HR.opts.about) end
     local steps = ns.Report.Steps()
+    if p.noStep then
+        p.noStep:SetShown(#steps == 0)
+        if #steps == 0 then p.noStep:SetText(NoStepText()) end
+    end
     if not HR.opts.stepId and steps[1] then HR.opts.stepId = steps[1].id end
     for i, b in ipairs(HR.stepButtons) do
         local e = steps[i]
         if e then
             b.value = e.id
-            b.text:SetText(StepLine(e))
+            b.text:SetText(SafeStepLine(e))
             b:Set(e.id == HR.opts.stepId)
             b:Show()
         else
             b:Hide()
         end
     end
-    if p.noStep then p.noStep:SetShown(#steps == 0) end
+    for _, b in ipairs(HR.typeButtons) do b:Set(b.value == HR.opts.about) end
     if p.noloc then p.noloc:Set(HR.opts.noloc) end
     if p.evidence then p.evidence:Set(HR.opts.evidence) end
     local s, f = HR.String()
@@ -185,11 +203,15 @@ local function Build(parent, width)
         end, true)
         b:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, -(y + (i - 1) * rowH))
         b:SetWidth(width)
+        b:Hide()                 -- shown by Update, filled in (never an empty ring on the page)
         stepButtons[i] = b
     end
+    -- same spot as the first row: Update shows either the rows or this line
     p.noStep = K.Text(parent, "goal", "text.dim")
     p.noStep:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, -y)
+    p.noStep:SetWidth(width)
     p.noStep:SetText(L().REPORT_NO_STEP)
+    p.noStep:Hide()
     y = y + 4 * rowH + 6
     y = Head(parent, y, L().REPORT_NOTE)
     local e = CreateFrame("EditBox", nil, parent)
@@ -281,6 +303,8 @@ local function Build(parent, width)
     HR.page, HR.typeButtons, HR.stepButtons = p, typeButtons, stepButtons
     -- a rebuilt page (new look) keeps the note typed so far (set last: OnTextChanged updates the page)
     if HR.opts.note and HR.opts.note ~= "" then p.note:SetText(HR.opts.note) end
+    -- filled in right away: the page is right even when the Hub's refresh doesn't run after the build
+    ns.Errors.Call("report", HR.Update)
     return y + 8
 end
 
@@ -318,6 +342,15 @@ ns.SelfChecks[#ns.SelfChecks + 1] = { label = "report page", fn = function(h)
     end
     if #HR.typeButtons ~= #ns.Report.TYPES or #HR.stepButtons ~= 4 then h.Problem("report page: choice rows missing") return end
     if not p.send.primary then h.Problem("report page: Send isn't the main button") end
+    -- the step rows: shown ones are filled in, and never together with the "no step" line (beta.7 bug)
+    local shown = 0
+    for _, b in ipairs(HR.stepButtons) do
+        if b:IsShown() then
+            shown = shown + 1
+            if (b.text:GetText() or "") == "" then h.Problem("report page: an empty step row") end
+        end
+    end
+    if shown > 0 and p.noStep:IsShown() then h.Problem("report page: step rows over the no-step line") end
     local pw = p.width or 0
     for _, b in ipairs({ p.send, p.copy }) do
         local w = b:GetWidth() or 0

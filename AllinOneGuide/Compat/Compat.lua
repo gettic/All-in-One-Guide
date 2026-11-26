@@ -105,6 +105,26 @@ function Co.Locale()
     return f and f() or "enUS"
 end
 
+-- v0.3 page header (rev 5): "2560x1440" (nil when unknown), the UI scale rounded to 0.05, the UTC day "2026-11-26".
+function Co.ScreenSize()
+    local f = F.ScreenSize
+    if not f then return nil end
+    local w, h = f()
+    if Secret(w) or Secret(h) or type(w) ~= "number" or type(h) ~= "number" or w <= 0 or h <= 0 then return nil end
+    return ("%dx%d"):format(math.floor(w + 0.5), math.floor(h + 0.5))
+end
+function Co.UIScale()
+    local ui = rawget(_G, "UIParent")
+    local s = ui and ui.GetEffectiveScale and ui:GetEffectiveScale()
+    if Secret(s) or type(s) ~= "number" or s <= 0 then return nil end
+    return math.floor(s * 20 + 0.5) / 20
+end
+function Co.UTCDay()
+    local f = F.Date
+    local d = f and f("!%Y-%m-%d")
+    return type(d) == "string" and d:match("^%d%d%d%d%-%d%d%-%d%d$") and d or nil
+end
+
 function Co.IsLoggedIn()
     local f = F.IsLoggedIn
     return f ~= nil and f() == true
@@ -355,6 +375,183 @@ function Co.SelectedQuest()
     local id = f()
     if Secret(id) or type(id) ~= "number" or id <= 0 then return nil end
     return id
+end
+
+-- ------------------------------------------------------------------ v0.3 game data recording (Data\Gather.lua)
+-- All read only. A secret or odd value is "unknown" (nil): the record is skipped, never worked around (tos T2).
+local function Plain(v) if Secret(v) then return nil end return v end
+
+-- The open loot window, slot by slot: { item, qty, quality, quest (isQuestItem), coin, sources = { { id, kind } } }
+-- (sources only from Creature / Vehicle / GameObject GUIDs, Co.GuidNpcId); nil when the loot API is missing.
+function Co.LootSlots()
+    local list = Co.LootSources()
+    if not list then return nil end
+    local info = F.LootSlotInfo
+    for slot, e in ipairs(list) do
+        if info then
+            local ok, _, _, qty, _, quality, _, quest, _, _, coin = pcall(info, slot)
+            if ok then
+                e.qty = Co.Num(qty)
+                e.quality = Co.Num(quality)
+                e.quest = Co.IsTrue(quest)
+                e.coin = Co.IsTrue(coin)
+            end
+        end
+    end
+    return list
+end
+
+-- The player's money (copper) right now, only for a difference inside one loot window (never saved).
+function Co.Money()
+    local f = F.Money
+    if not f then return nil end
+    return Co.Num(f())
+end
+
+-- classID, subClassID of an item (nil when unknown).
+function Co.ItemClass(itemID)
+    local f = F.ItemInstant
+    if not f or type(itemID) ~= "number" then return nil end
+    local ok, id, _, _, _, _, class, sub = pcall(f, itemID)
+    if not ok or Co.Num(id) == nil then return nil end
+    return Co.Num(class), Co.Num(sub)
+end
+
+-- An item's vendor sell price (copper), nil while it isn't cached / unknown.
+function Co.SellPrice(itemID)
+    local f = F.ItemInfo
+    if not f or type(itemID) ~= "number" then return nil end
+    local ok, name, _, _, _, _, _, _, _, _, _, price = pcall(f, itemID)
+    if not ok or name == nil then return nil end
+    return Co.Num(price)
+end
+
+-- A unit's level (-1 = skull) and classification code ("n", "e", "r", "re", "b"), nil when unknown.
+local CLASSIF = { normal = "n", trivial = "n", minus = "n", elite = "e", rare = "r", rareelite = "re", worldboss = "b" }
+function Co.UnitLevelOf(unit)
+    local f = F.UnitLevel
+    if not f then return nil end
+    return Co.Num(f(unit))
+end
+function Co.Classification(unit)
+    local f = F.UnitClassif
+    if not f then return nil end
+    local v = Plain(f(unit))
+    return type(v) == "string" and CLASSIF[v] or nil
+end
+function Co.UnitDead(unit)
+    local f = F.UnitIsDead
+    return f ~= nil and Co.IsTrue(f(unit))
+end
+
+-- How many are in the group (1 when alone). A count only: no names, classes or GUIDs.
+function Co.GroupSize()
+    local f = F.GroupMembers
+    if not f then return nil end
+    local n = Co.Num(f())
+    if not n then return nil end
+    return math.max(1, n)
+end
+
+-- { [factionID] = currentStanding } for the factions the list shows (in memory only; never saved).
+function Co.FactionStandings()
+    local num, get = F.RepNum, F.RepByIndex
+    if not (num and get) then return nil end
+    local ok, n = pcall(num)
+    n = ok and Co.Num(n)
+    if not n then return nil end
+    local out = {}
+    for i = 1, math.min(n, 300) do
+        local ok2, d = pcall(get, i)
+        if ok2 and type(d) == "table" and not Secret(d) then
+            local id, cur = Co.Num(d.factionID), Co.Num(d.currentStanding)
+            if id and id > 0 and cur and (d.isHeader ~= true or d.isHeaderWithRep == true) then out[id] = cur end
+        end
+    end
+    return out
+end
+
+-- A recipe spell's profession id and skill level (nil when it isn't a recipe / unknown), and its colour
+-- (relativeDifficulty 0 optimal .. 3 trivial, nil when unknown).
+function Co.RecipeSkill(spellID)
+    local f = F.RecipeProf
+    if not f or type(spellID) ~= "number" then return nil end
+    local ok, info = pcall(f, spellID)
+    if not ok or type(info) ~= "table" or Secret(info) then return nil end
+    local prof, lvl = Co.Num(info.professionID), Co.Num(info.skillLevel)
+    if not prof or prof <= 0 or not lvl or lvl <= 0 then return nil end
+    return prof, lvl
+end
+function Co.RecipeColor(spellID)
+    local f = F.RecipeInfo
+    if not f or type(spellID) ~= "number" then return nil end
+    local ok, info = pcall(f, spellID)
+    if not ok or type(info) ~= "table" or Secret(info) then return nil end
+    return Co.Num(info.relativeDifficulty)
+end
+
+-- The open trainer's services as "icon:level:rank:cost" (the name is never read; this client gives no spell
+-- id). Capped at `cap`.
+function Co.TrainerServices(cap)
+    local num, info, skill, cost = F.TrainerNum, F.TrainerInfo, F.TrainerSkill, F.TrainerCost
+    if not (num and info) then return nil end
+    local ok, n = pcall(num)
+    n = ok and Co.Num(n)
+    if not n then return nil end
+    local out = {}
+    for i = 1, math.min(n, cap or 60) do
+        local ok2, _, kind, icon, lvl = pcall(info, i)
+        if ok2 and Plain(kind) ~= "header" then
+            local rank = skill and select(3, pcall(skill, i)) or nil
+            local c = cost and select(2, pcall(cost, i)) or nil
+            out[#out + 1] = ("%d:%d:%d:%d"):format(Co.Num(icon) or 0, Co.Num(lvl) or 0, Co.Num(rank) or 0, Co.Num(c) or 0)
+        end
+    end
+    return out
+end
+
+-- The open merchant's items: { { id, price, limited } } (names never read), capped at `cap`.
+function Co.MerchantItems(cap)
+    local num, idf, info = F.MerchantNum, F.MerchantItemID, F.MerchantInfo
+    if not (num and idf) then return nil end
+    local ok, n = pcall(num)
+    n = ok and Co.Num(n)
+    if not n then return nil end
+    local out = {}
+    for i = 1, math.min(n, cap or 80) do
+        local ok2, id = pcall(idf, i)
+        id = ok2 and Co.Num(id)
+        if id and id > 0 then
+            local price, avail
+            if info then
+                local ok3, _, _, p, _, a = pcall(info, i)
+                if ok3 then price, avail = Co.Num(p), Co.Num(a) end
+            end
+            out[#out + 1] = { id = id, price = price or 0, limited = avail ~= nil and avail >= 0 }
+        end
+    end
+    return out
+end
+
+-- The quest of the open quest dialog (GetQuestID), or nil.
+function Co.OfferQuestID()
+    local f = F.QuestID
+    if not f then return nil end
+    local q = Co.Num(f())
+    if not q or q <= 0 then return nil end
+    return q
+end
+
+-- A quest's level from the log (nil when it isn't in the log / unknown).
+function Co.QuestLevel(questID)
+    local idx, get = F.QuestLogIndex, F.QuestInfo
+    if not (idx and get) or type(questID) ~= "number" then return nil end
+    local i = Co.Num(idx(questID))
+    if not i then return nil end
+    local info = get(i)
+    if type(info) ~= "table" then return nil end
+    local lv = Co.Num(info.level)
+    return lv and lv > 0 and lv or nil
 end
 
 -- v0.2 M4: the instance kind ("none", "party", "raid", "pvp", "arena", "scenario"); "none" when unknown.
@@ -719,7 +916,7 @@ function Co.TaxiOpenNodes(uiMapID)
     local out = {}
     for _, n in ipairs(list) do
         if type(n) == "table" and type(n.nodeID) == "number" then
-            out[#out + 1] = { id = n.nodeID, name = n.name, state = n.state }
+            out[#out + 1] = { id = n.nodeID, name = n.name, state = n.state, slot = n.slotIndex }
         end
     end
     return out

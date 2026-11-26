@@ -354,17 +354,26 @@ end
 local MAX_OPTIONAL = 3
 Guide.ITEM_BACK = 15   -- an optional item step this many steps back still comes back when the item shows up
 
+-- An optional turn-in / objective step whose quest isn't in the log and isn't done (beta.8 fix: the book turn-ins
+-- showed as "Optional:" lines to players who never got the book). It waits in the background list unseen and shows
+-- once the quest is in the log; optional accept steps never wait like this. Same quest rule as CheckQuest.
+function Guide:WaitsForQuest(s)
+    local q = s and s.flags.optional and (s.type == "turnin" or s.type == "objective") and not s.item and s.quest
+    return q and not GS.InLog(q) and not GS.IsDone(q) or false
+end
+
 function AddOptional(self, i)
     for _, b in ipairs(self.bg) do if b == i then return end end
+    -- the cap counts only the optional goals that show (one waiting for its quest takes no place)
     local n = 0
     for _, b in ipairs(self.bg) do
         local s = self:Step(b)
-        if s and s.flags.optional then n = n + 1 end
+        if s and s.flags.optional and not self:WaitsForQuest(s) then n = n + 1 end
     end
     if n >= MAX_OPTIONAL then
         for k, b in ipairs(self.bg) do
             local s = self:Step(b)
-            if s and s.flags.optional then table.remove(self.bg, k) break end
+            if s and s.flags.optional and not self:WaitsForQuest(s) then table.remove(self.bg, k) break end
         end
     end
     self.bg[#self.bg + 1] = i
@@ -470,7 +479,7 @@ function Guide:Background()
     local out = {}
     for _, b in ipairs(self.bg) do
         local s = self:Step(b)
-        if s and self:IsStop(s, b) and not self:HandedOver(s) then out[#out + 1] = s end
+        if s and self:IsStop(s, b) and not self:HandedOver(s) and not self:WaitsForQuest(s) then out[#out + 1] = s end
     end
     return out
 end
@@ -555,7 +564,10 @@ function Guide:Refresh()
     -- drop finished background goals
     for k = #self.bg, 1, -1 do
         local s = self:Step(self.bg[k])
-        if not s or not self:IsStop(s, self.bg[k]) or self:HandedOver(s) then table.remove(self.bg, k) end
+        if not s or not self:IsStop(s, self.bg[k]) or self:HandedOver(s)
+            or (self:WaitsForQuest(s) and self.bg[k] < self.pos - Guide.ITEM_BACK) then   -- waited too far back
+            table.remove(self.bg, k)
+        end
     end
     -- v0.2: steps passed over for their level: once the level is there they are background goals
     -- (or the current step when the route had run out)

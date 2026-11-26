@@ -122,6 +122,30 @@ ns.ApiList = {
     { id = "InstanceInfo", path = "GetInstanceInfo", kind = "function", src = "xml Blizzard_FrameXML\\InstanceDifficulty.lua (8th return = instance map id)" },
     { id = "QuestSelected", path = "C_QuestLog.GetSelectedQuest", kind = "function", src = "doc QuestLogDocumentation" },
 
+    -- v0.3 game data recording (Data\Gather.lua, plans\data-gathering\plan.md): read only, report only (a missing
+    -- one just records less; nothing else changes). Checked 2026-11-26 in the 1.60.1.70959 UI source.
+    { id = "LootSlotInfo", path = "GetLootSlotInfo", kind = "function", src = "xml Blizzard_UIPanels_Game\\Mainline\\LootFrame.lua:228 (texture, item, quantity, currencyID, quality, locked, isQuestItem, questID, isActive, isCoin)" },
+    { id = "Money", path = "GetMoney", kind = "function", src = "doc PlayerScriptDocumentation (only a difference inside a loot window; never saved)" },
+    { id = "ItemInstant", path = "C_Item.GetItemInfoInstant", kind = "function", secret = "args", src = "doc ItemDocumentation (classID 6th, subClassID 7th)" },
+    { id = "ItemInfo", path = "C_Item.GetItemInfo", kind = "function", secret = "args", src = "doc ItemDocumentation (sellPrice 11th)" },
+    { id = "UnitClassif", path = "UnitClassification", kind = "function", src = "doc UnitDocumentation" },
+    { id = "UnitIsDead", path = "UnitIsDead", kind = "function", src = "doc UnitDocumentation" },
+    { id = "GroupMembers", path = "GetNumGroupMembers", kind = "function", src = "xml Blizzard_FrameXMLUtil\\ChatFrameUtil.lua:470 (a count only)" },
+    { id = "RepNum", path = "C_Reputation.GetNumFactions", kind = "function", src = "doc ReputationInfoDocumentation" },
+    { id = "RepByIndex", path = "C_Reputation.GetFactionDataByIndex", kind = "function", secret = "args", src = "doc ReputationInfoDocumentation (FactionData: factionID, currentStanding, isHeader, isHeaderWithRep)" },
+    { id = "RecipeProf", path = "C_TradeSkillUI.GetProfessionInfoByRecipeID", kind = "function", secret = "args", src = "doc TradeSkillUIDocumentation:473 (ProfessionInfo: professionID, skillLevel)" },
+    { id = "RecipeInfo", path = "C_TradeSkillUI.GetRecipeInfo", kind = "function", secret = "args", src = "doc TradeSkillUIDocumentation:639 (relativeDifficulty 0-3)" },
+    { id = "TrainerNum", path = "GetNumTrainerServices", kind = "function", src = "xml Blizzard_TrainerUI.lua:460" },
+    { id = "TrainerInfo", path = "GetTrainerServiceInfo", kind = "function", src = "xml Blizzard_TrainerUI.lua:469 (name, type, texture, reqLevel)" },
+    { id = "TrainerSkill", path = "GetTrainerServiceSkillReq", kind = "function", src = "xml Blizzard_TrainerUI.lua:637 (skill, rank, hasReq)" },
+    { id = "TrainerCost", path = "GetTrainerServiceCost", kind = "function", src = "xml Blizzard_TrainerUI.lua:692" },
+    { id = "MerchantNum", path = "GetMerchantNumItems", kind = "function", src = "xml MerchantFrame.lua:253" },
+    { id = "MerchantItemID", path = "GetMerchantItemID", kind = "function", src = "xml MerchantFrame.lua:261" },
+    { id = "MerchantInfo", path = "GetMerchantItemInfo", kind = "function", src = "xml MerchantFrame.lua:200 (name, texture, price, stackCount, numAvailable)" },
+    -- v0.3 rev 5 page header: screen size, the UTC day (date as in GameTimeUtil.lua:78)
+    { id = "ScreenSize", path = "GetPhysicalScreenSize", kind = "function", src = "doc ScreenDocumentation" },
+    { id = "Date", path = "date", kind = "function", src = "xml Blizzard_FrameXMLUtil\\GameTimeUtil.lua:78" },
+
     -- NPC talk helper (plans\npc-talk-helper\plan.md): read only; hooked with hooksecurefunc / HookScript, never
     -- clicked. A missing frame = that window gets no marks; a missing quest-id read = the helper is off.
     { id = "GossipFrame", path = "GossipFrame", kind = "table", src = "xml Blizzard_UIPanels_Game\\Mainline\\GossipFrame.xml (GossipFrameMixin:Update)" },

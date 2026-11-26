@@ -349,7 +349,6 @@ ns.Locale.Add("daDK", {
     HUB_ABOUT = "Om",
     HUB_MORE = "Mere",
     TIP_CLOSE_HUB = "Luk",
-    HELP_REPORT = "rapportér et forkert trin (du kopierer én linje og indsætter den på GitHub)",
     MENU_REPORT = "Rapportér en fejl",
     REPORT_WHAT = "Hvad er forkert?",
     REPORT_WHICH = "Hvilket trin?",

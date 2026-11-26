@@ -40,7 +40,7 @@ function H.On()
     return ns.Feature.IsOn("huntpath")
 end
 
--- v0.3 spawn spots: "auto" (hand-made loops stay, the nearest spawn spot elsewhere), "spots" or "loops".
+-- v0.3 spawn spots: "auto" (the step's loop where it has one, the nearest spawn spot elsewhere), "spots" or "loops".
 function H.Mode()
     local S = ns.Settings
     local m = S and S.Get and S.Get("huntMode") or "auto"
@@ -48,12 +48,13 @@ function H.Mode()
     return m
 end
 
--- Which way this step hunts: "spots", "loop" or nil. A generated loop gives way to spots in "auto"; with no spots
--- for the mob, its loop (any kind) is used.
+-- Which way this step hunts: "spots", "loop" or nil. "auto" (Mixed, the default) keeps the step's loop, made by hand
+-- or generated, and uses spawn spots only where the step has no loop (beta.7 bug: generated loops gave way to spots,
+-- so every shipped loop step showed "Nearest spawn spot" instead of "spot i of n"); "spots" always prefers spots.
 function H.Kind(t)
     local mode = H.Mode()
     local loop = type(t.path) == "table"
-    if mode ~= "loops" and not (mode == "auto" and loop and t.pathSrc == "hand") and ns.Spots.Has(t) then
+    if mode ~= "loops" and not (mode == "auto" and loop) and ns.Spots.Has(t) then
         return "spots"
     end
     return loop and "loop" or nil

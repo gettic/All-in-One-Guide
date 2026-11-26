@@ -121,11 +121,9 @@ function TB.Look()
     b.key:SetText(Co.BindingKey("CLICK " .. TB.NAME .. ":LeftButton") or "")
 end
 
--- Its spot in the row above the window: right of the item button, or the first spot without one.
-function TB.Spot()
-    local SB = ns.StepButton
-    return (SB and SB.item) and 2 or 1
-end
+-- Its spot in the row above the window: always the first (beta.8, the user: the item button goes "to the other side
+-- of target"); the item button follows it (StepButton.SpotIndex / FollowTarget).
+function TB.Spot() return 1 end
 
 -- Secure part: macro text, place, shown. Only ever called through the combat queue (condition 5).
 local function Apply(name)
@@ -148,6 +146,8 @@ local function Apply(name)
         b:Hide()
     end
     TB.Look()
+    -- the item button sits right of this one, or takes spot 1 when this one hides (its own combat queue key)
+    if ns.StepButton and ns.StepButton.FollowTarget then ns.StepButton.FollowTarget() end
 end
 
 -- Follows the current step (out of combat at once, else after combat; the last wish wins). Never targets

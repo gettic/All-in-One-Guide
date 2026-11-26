@@ -133,7 +133,10 @@ local function OnStep()
     local last = P.last
     if last and cur and last.top == top and last.step ~= cur and (cur.index or 0) > (last.step.index or 0)
         and ns.UI and ns.UI.ShownDone and ns.UI.ShownDone(top, last.step) and not top:Skipped(last.step) then
-        P.Record(last.step, last.prev, now - last.at)
+        if P.Record(last.step, last.prev, now - last.at) then
+            -- v0.3 game data recording (Data\Gather.lua): the guide + step id and the seconds, nothing else
+            ns.Bus.Fire("StepTimed", top.key, last.step.id, now - last.at)
+        end
     end
     if cur then
         if not (last and last.step == cur) then P.last = { step = cur, top = top, at = now, prev = last and last.step } end

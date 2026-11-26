@@ -11,14 +11,19 @@
 # Plain Python 3, deterministic. Run: python -B art-src/build_window_art.py
 # Writes only AllinOneGuide/media/glyphs2.tga and AllinOneGuide/media/emblems.tga:
 #   glyphs2.tga  256x32   32x32 cells in one row: 0 grip, 1 attach, 2 detach,
-#                         3 search, 4 resize, 5..7 empty. White + 1 px dark rim
+#                         3 search, 4 resize, 5..6 empty. White + 1 px dark rim
 #                         (tinted in game), same style as glyphs.tga.
+#                         7: the title-bar logo, full colour, NOT tinted: the
+#                         "Waypoint" logo of build_logo.py rendered at 28x28
+#                         inside the cell (2 px clear padding), for the 16 px
+#                         title-bar logo (logo_64 shrunk 4:1 looked jagged).
 #   emblems.tga  256x64   4 shields 64x64, full colour: alliance, horde,
 #                         neutral, soon.
 # Coordinates: art-src/MANIFEST.md.
 import math, os
 from aog_art import MEDIA, Mask, capsule, circle, compose, dist2, down, poly, ring, write_tga
 import build_glyphs as BG
+import build_logo as BL
 
 SS, CELL = BG.SS, BG.CELL
 N = CELL * SS
@@ -257,8 +262,51 @@ def sheet(w, h, tiles):
     return out
 
 
+# ------------------------------------------------------------------ title-bar logo (glyphs2 cell 7)
+LOGO_CELL, LOGO_PAD = 7, 2
+LOGO_IN = CELL - 2 * LOGO_PAD     # 28: shown at 16 UI units (16-30 screen px), never shrunk more than 2:1
+
+
+def bleed(px, w):
+    """Give fully transparent pixels the colour of their nearest visible neighbours (alpha stays 0),
+    so bilinear filtering never pulls black into the anti-aliased edge (straight alpha)."""
+    out = list(px)
+    h = len(px) // w
+    for _ in range(3):
+        nxt = list(out)
+        for j in range(h):
+            for i in range(w):
+                p = out[j * w + i]
+                if p[3] or p[:3] != (0, 0, 0):
+                    continue
+                acc = [0, 0, 0, 0]
+                for dj, di in ((-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1)):
+                    jj, ii = j + dj, i + di
+                    if 0 <= jj < h and 0 <= ii < w:
+                        q = out[jj * w + ii]
+                        if q[3] or q[:3] != (0, 0, 0):
+                            wt = q[3] + 1
+                            acc[0] += q[0] * wt; acc[1] += q[1] * wt; acc[2] += q[2] * wt; acc[3] += wt
+                if acc[3]:
+                    nxt[j * w + i] = (acc[0] // acc[3], acc[1] // acc[3], acc[2] // acc[3], 0)
+        out = nxt
+    return out
+
+
+def render_logo_cell():
+    BL.N = LOGO_IN * 16               # 448: an even 16 x 16 box per output pixel
+    inner = BL.logo_waypoint().down(LOGO_IN)   # same drawing as logo_64.tga (unit coordinates)
+    cell = [(0, 0, 0, 0)] * (CELL * CELL)
+    for j in range(LOGO_IN):
+        for i in range(LOGO_IN):
+            cell[(j + LOGO_PAD) * CELL + i + LOGO_PAD] = inner[j * LOGO_IN + i]
+    return bleed(cell, CELL)
+
+
 def build_glyphs2():
-    return sheet(256, 32, [(slot * CELL, 0, CELL, render_cell(fn)) for slot, _, fn, _ in G2])
+    tiles = [(slot * CELL, 0, CELL, render_cell(fn)) for slot, _, fn, _ in G2]
+    tiles.append((LOGO_CELL * CELL, 0, CELL, render_logo_cell()))
+    return sheet(256, 32, tiles)
 
 
 def build_emblems():

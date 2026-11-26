@@ -860,7 +860,8 @@ function UI.Model()
         if not gl.done and not gl.more then focus = i break end
     end
     m.rows = { { step = cur, number = m.index, badge = K.BadgeKind(cur), tile = kind, text = text, state = "current",
-        right = not coord and UI.DistText(cur) or nil, goals = goals, sub = UI.SubLines(top, cur, coord), focus = focus } }
+        right = not coord and UI.DistText(cur) or nil, goals = goals, sub = UI.SubLines(top, cur, coord), focus = focus,
+        note = UI.NoteText(cur) } }
     -- (every next row is one line: as many as the lines setting, one spare; perf: no rows that never show)
     for _, s in ipairs(Upcoming(top, cur, UI.Lines() + 1)) do
         local plain = top:Text(s)
@@ -941,6 +942,15 @@ function UI.NextTag(step, plain)
     end
     return { kind = kind, word = w:upper() }, rest
 end
+-- beta.8 step notes (plans\note-line\plan.md): the current step's `why` (pack data, English until v1.0) for the dim
+-- note line under its goals; nil when the step has none, the setting is off or the window is small.
+function UI.NoteText(step)
+    if type(step) ~= "table" or type(step.why) ~= "string" then return nil end
+    if not ns.Settings.Get("noteLine") or UI.Small() then return nil end
+    local t = step.why:gsub("^%s+", ""):gsub("%s+$", "")
+    return t ~= "" and t or nil
+end
+
 -- The lines under the current step's text: "for <quest>" (when the text doesn't name the quest) and the place
 -- line ("Northshire Valley · 52.0, 36.0", the distance on its right; the arrow's ticker keeps it fresh).
 function UI.SubLines(top, step, coord)
@@ -970,6 +980,7 @@ function UI.FitSmall(d, avail)
     for k, v in pairs(d) do out[k] = v end
     out.maxLines = 1
     out.sub = nil
+    out.note = nil
     out.lean, out.leanX, out.leanH = nil, nil, nil
     local goals = {}
     for i = 1, math.min(#(d.goals or {}), room) do goals[i] = d.goals[i] end
@@ -1239,6 +1250,7 @@ local function FitBlock(d, avail)
     for k, v in pairs(d) do out[k] = v end
     out.maxLines = 1
     out.sub = nil
+    out.note = nil
     local base = math.max(LH(), (d.lean and d.leanH or 0) + Th.Size("blockPad"))
     local room = math.max(0, math.floor((avail - base) / LG()))
     local goals = {}
@@ -1305,6 +1317,14 @@ function UI.Refresh()
         want = math.min(want, UI.Grow())
     else
         want = math.min(want, UI.GrowMax())
+    end
+    -- no room to grow (combat, screen top): the note line goes first, then the usual cuts
+    if h > base + want + 0.5 and d.note then
+        local nd = {}
+        for k, v in pairs(d) do nd[k] = v end
+        nd.note = nil
+        d = nd
+        h = ns.Rows.Set(r, d)
     end
     if h > base + want + 0.5 then
         d = FitBlock(d, base + want)
@@ -1419,6 +1439,10 @@ function UI.StepTip(row)
     local g = ns.Engine.Focused()
     local title = g and g:Top():Text(step) or step.id
     local lines = UI.StepLines(step, row.rightText)
+    -- the note line was cut ("..."): its full text here (beta.8 step notes)
+    if row.current and row.noteCut and type(step.why) == "string" then
+        lines[#lines + 1] = Th.Wrap("note", step.why)
+    end
     -- the current step: its "on the way" goals by name (the window shows at most UI.SIDE_MAX lines)
     if row.current and g then
         local top, head = g:Top(), false
@@ -1600,7 +1624,7 @@ local function OnSettings(_, key)
         if (key == "lines" or key == "small") and not Co.InCombat() and ns.Overlay.KeepOnScreen(UI.frame) then UI.SavePos() end
     elseif key == "opacity" then
         UI.ApplyOpacity()
-    elseif key == "reducedMotion" or key == "quiet" then
+    elseif key == "reducedMotion" or key == "quiet" or key == "noteLine" then
         UI.Refresh()
     end
 end
@@ -1707,6 +1731,20 @@ function UI.BlockProblem()
         end
     end
     if folds > 1 then return "more than one done line" end
+    -- beta.8 step note: inside the block, under the last goal line, only on the current step
+    local nt = r.note and r.note[1]
+    if nt and nt:IsShown() then
+        local nb = (r.note[2]:IsShown() and r.note[2] or nt):GetBottom()
+        if type(nb) == "number" and nb < rb - 0.5 then return "the note line runs out of the step block" end
+        local last
+        for _, l in ipairs(r.lines or {}) do if l.text:IsShown() then last = l end end
+        local lb, ntop = last and last.text:GetBottom(), nt:GetTop()
+        if type(lb) == "number" and type(ntop) == "number" and ntop > lb + 0.5 then return "the note line overlaps the goals" end
+    end
+    for i = 2, #UI.rows do
+        local o = UI.rows[i]
+        if o and o:IsShown() and o.note and o.note[1]:IsShown() then return "a next step shows a note line" end
+    end
     if (UI.foldCount or 0) > 0 and folds == 0 and loose > 0 and not UI.Small() then return "finished goals aren't folded" end
     -- with the 3D view: goal lines start under its square, the text right of it
     local MV = ns.ModelView

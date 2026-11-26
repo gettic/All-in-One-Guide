@@ -20,10 +20,17 @@ Ser.kinds = {
     -- Header: h=1, addon version, client line, records on this page, page "i/n". Records: kind, quest,
     -- NPC id, object id, instance id, start item, map, x / y (0-100), sightings, item ids. Never a name.
     REC1 = { "h", "v", "c", "cnt", "pg", "k", "q", "npc", "obj", "ins", "from", "m", "x", "y", "n", "it" },
+    -- v0.3 game data pages "AOGD1 ..." (Data\Gather.lua; the Addon Manager and tools\recmerge.lua read them).
+    -- Header: page id (random, new per page), h=1, addon version, client build, faction A / H, class token, record
+    -- count. Records: ids, map / x / y / cell, counts, XP / money gains, levels, seconds, lists of ids. Never a name.
+    D1 = { "rid", "h", "v", "b", "fac", "cls", "race", "realm", "loc", "day", "scr", "ui", "cnt", "k", "q", "npc", "obj", "ins", "from", "m", "x", "y", "c", "n",
+        "xp", "mo", "pl", "ql", "it", "loot", "got", "cu", "sh", "gray", "cloth", "herb", "ore", "pk", "s", "t", "fn", "tn",
+        "sec", "lo", "hi", "cl", "fa", "gain", "sp", "sk", "lv", "dif", "tries", "ups", "sv", "rc", "sup", "min", "boss", "qs",
+        "pz", "pn", "dd", "gs", "gx", "rt", "gph", "ck" },
 }
 -- kinds whose values are escaped strictly: every byte outside a small plain set becomes %XX (non-ASCII,
 -- line breaks, separators), so the string survives any paste
-Ser.strict = { R2 = true, REC1 = true }
+Ser.strict = { R2 = true, REC1 = true, D1 = true }
 
 local function Escape(v)
     local s = tostring(v)

@@ -24,9 +24,10 @@ This is a beta. It has two demo routes:
 | Part | What it does |
 |---|---|
 | Steps | Optional steps never block. Some steps can be done in any order. Steps that need a higher level say "in 2 levels" and return when you get there. Quests that don't exist on WoW Forever are skipped by themselves. |
-| "Only if you have it" steps | Some optional steps show only while an item is in your bags (for example "use the book if a kobold drops it"). If you loot it later, the step comes back. In Elwynn, one short optional step (about 3 minutes, skip it any time) kills more kobold vermin until the Nibbled-On Book drops, because it starts a quest chain worth about 1,700 XP. |
+| "Only if you have it" steps | Some optional steps show only while an item is in your bags (for example "use the book if a kobold drops it"). If you loot it later, the step comes back. Optional turn-in and objective lines show only once their quest is in your quest log. In Elwynn, one short optional step (about 3 minutes, skip it any time) kills more kobold vermin until the Nibbled-On Book drops, because it starts a quest chain worth about 1,700 XP. |
 | Skips | Skip a step, or say you're not doing a quest (its follow-ups drop out too). The Undo button or `/aog undo` takes back your last skips. |
-| Step button | Next to the window (the target button sits beside it). It holds the quest item the step needs, or your hearthstone. You click it; the addon never uses anything by itself. In combat it stays as it is and catches up right after. |
+| Item button | Above the window, to the right of the target button (on the left when it is the only one). It holds the quest item the step needs, or your hearthstone. It also shows an item that starts a quest (like the Nibbled-On Book) as soon as it is in your bags, with a yellow "!"; click it to open the quest (you still press Accept). While you farm for such an item, it shows "Farming for: {item}". You click it; the addon never uses anything by itself. In combat it stays as it is and catches up right after. Setting: Guide window > "Item button" (on by default). |
+| Step notes | A short dim line under the current step's goals says why the guide does it. At most two lines; a longer note ends in "..." and the whole text is in the step's tooltip. When the window can't grow (in combat, at the top of the screen), the note waits. Setting: Steps > "Step notes" (on by default). |
 | "Use it now" reminders | The step button glows (and gently pulses) when the target is in range, when you are at the spot, or right after you loot the item. In the menu: off, glow, glow and text, or glow, text and sound (sound is off unless you pick it). |
 | Hints | Hearthstone (ready now or in N minutes; a warning if it is set to another inn than the route expects) and flight paths (new one here, one you lack, which place to pick on the flight map). Known flight paths are remembered per character. |
 | Arrow | One arrow for everything: your corpse after you release, then a spot another addon asks for, then a spot you picked, then the step. It turns green when you face it, yellow to the side and red behind, and shows distance as walk time or yards. |
@@ -73,7 +74,7 @@ How it behaves:
 ### Target button
 
 - English game only. Setting: Settings > Guide window > "Target button" (on by default), and its own key binding.
-- A button next to the step button. When you press it, it targets the mob the step names (`/targetexact`).
+- A button above the window, on the left (the item button is to its right). When you press it, it targets the mob the step names (`/targetexact`).
 - Its tooltip says "Click to target it (when it's in range)".
 - It never targets by itself and only changes outside fights.
 - Mob names come from CMaNGOS data (GPL).
@@ -156,9 +157,9 @@ The smart arrow is on by default. Switch it in the arrow's right-click menu or o
 - A cleared spot turns grey until its mobs respawn. The respawn time is an estimate, shown with "~".
 - Dots for the spots show on the world map and the minimap (Settings > Map pins: "Spawn spots on the world map" and "Spawn spots on the minimap", both on by default).
 - In combat the arrow keeps its spot.
-- Settings > Arrow: "Lead me round mob areas" (on by default) and "Spawn spot order": Mixed (default: loops where the guide has them, spots elsewhere), Nearest spot, or Loop. In the arrow's right-click menu: "Lead me round the mob area" on or off, "Spawn spot order: {mode}" (changes the order), and "Point at the middle instead".
+- Settings > Arrow: "Lead me round mob areas" (on by default) and "Spawn spot order": Mixed (default: the guide's loop, with its "spot 1 of 6" counter, wherever a step has one; spots where it has none), Nearest spot, or Loop. In the arrow's right-click menu: "Lead me round the mob area" on or off, "Spawn spot order: {mode}" (changes the order), and "Point at the middle instead".
 - When every spot is cleared, the arrow says "All cleared: they respawn here in ~N min".
-- Hand-made loops so far: the Northshire kobolds (the camp and Echo Ridge), and the Valley of Trials boars and vile familiars.
+- Loops so far: the Northshire kobolds (the camp and Echo Ridge), and the Valley of Trials boars and vile familiars.
 - Spawn spots and respawn times come from CMaNGOS classic-db (GPL), so WoW Forever's spawns may differ a little.
 
 ### Quest items
@@ -254,17 +255,13 @@ If you also run Questie, TomTom, Guidelime or Mapster, one quiet hint says so, o
 
 1. Open the Report page (`/aog report`, or "Report a mistake" in the title menu).
 2. Pick what is wrong ("Wrong place on the map", "Wrong order", "Quest isn't there", "Step doesn't tick", "Text is wrong", "Dangerous spot" or "Something else") and which step (the current one or one of the last three). Add a note if you like. You can add the NPC you target. `/aog where` helps.
-3. For now, send it through GitHub: press **Copy the report** and paste it in a new issue with the **Mistake report** form: https://github.com/gettic/All-in-One-Guide/issues/new/choose
+3. Press **Send**. The report is saved, and the Addon Manager (v0.21.0 or newer) sends it the next time the game is closed. It becomes a public GitHub issue. You can turn this off in the Addon Manager's settings ("Send guide reports").
 
-**Coming soon:** two ways without a GitHub account. They are not live yet.
+You can also copy the report and paste it in a new issue with the **Mistake report** form: https://github.com/gettic/All-in-One-Guide/issues/new/choose
 
-| Way | How |
-|---|---|
-| Addon Manager (easiest) | Press **Send**. The Addon Manager will send it the next time it runs while the game is closed. |
-| Web page | Paste the copied report on our report web page. |
+Saved reports wait in the outbox (up to 40). If the outbox is full with reports from this session, it says so.
 
-You can already press **Send**. Your report waits in the outbox (up to 40) and goes out once Send is live. If the outbox is full with reports from this session, it says so.
-
+- If the guide is open but has no step to pick, the page says so.
 - Reports are public on GitHub. The report holds no character name, realm or other personal data, so please don't write names in the note.
 - Your map position is in the report unless you tick "Leave out my location".
 - The last 20 reports are kept so you can copy one again.
@@ -273,7 +270,7 @@ For a bug in the addon itself, use the **Addon bug** form: run `/aog selftest`, 
 
 ## Your data
 
-The addon itself sends nothing. Once Send is live, only reports you press **Send** on are sent, by the Addon Manager. The addon saves its settings and your progress in `AllinOneGuideDB` (account) and `AllinOneGuideCharDB` (per character). Before saved data is updated to a new version, a backup is made; `/aog restore` puts it back, and it goes away by itself a few logins later. If a character gets a paid name change, the guide asks once whether to move the old name's progress to it ("Move" or "Start fresh"). If loading fails twice in a row, the addon starts once in safe mode (defaults, saved data untouched). Numbers and dates follow the language.
+The addon itself sends nothing. Only reports you press **Send** on are sent, by the Addon Manager. The addon saves its settings and your progress in `AllinOneGuideDB` (account) and `AllinOneGuideCharDB` (per character). Before saved data is updated to a new version, a backup is made; `/aog restore` puts it back, and it goes away by itself a few logins later. If a character gets a paid name change, the guide asks once whether to move the old name's progress to it ("Move" or "Start fresh"). If loading fails twice in a row, the addon starts once in safe mode (defaults, saved data untouched). Numbers and dates follow the language.
 
 ## For people who change the code
 

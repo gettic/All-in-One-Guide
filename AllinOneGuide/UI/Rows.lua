@@ -232,6 +232,67 @@ local function PlaceSubText(row, s)
     s.text:SetPoint("TOPRIGHT", row, "TOPRIGHT", -RightInset(s.right, 4, row.reserve, 0), -s.top)
 end
 
+-- beta.8 step notes: splits text into at most two lines of width w (words; a too-long second line is cut with
+-- "..."), measured on fs (single line). Returns line1, line2 (or nil), cut.
+function R.NoteLines(fs, text, w)
+    fs:SetText(text)
+    if w <= 0 or (fs:GetStringWidth() or 0) <= w then return text, nil, false end
+    local words = {}
+    for word in text:gmatch("%S+") do words[#words + 1] = word end
+    local line1, k = "", 0
+    for i, word in ipairs(words) do
+        local try = line1 == "" and word or (line1 .. " " .. word)
+        fs:SetText(try)
+        if (fs:GetStringWidth() or 0) > w then break end
+        line1, k = try, i
+    end
+    if k == 0 then return Cut(fs, text, w), nil, true end   -- one word wider than the line
+    local rest = table.concat(words, " ", k + 1)
+    fs:SetText(rest)
+    if (fs:GetStringWidth() or 0) <= w then return line1, rest, false end
+    return line1, Cut(fs, rest, w), true
+end
+
+-- Lays out the note under the goals from height h; returns the new height. row.noteCut: the text was cut.
+function R.Note(row, text, h, reserve)
+    local note = row.note
+    if not text then
+        row.noteCut = nil
+        if note then note[1]:Hide() note[2]:Hide() end
+        return h
+    end
+    if not note then
+        note = { K.Text(row, "goal", "note"), K.Text(row, "goal", "note") }
+        for _, fs in ipairs(note) do
+            fs:SetJustifyV("MIDDLE")
+            if fs.SetWordWrap then fs:SetWordWrap(false) end
+        end
+        row.note = note
+    end
+    local LG = Th.LineHeight("goal")
+    local x = GoalX(row) + Th.Size("foldIndent")
+    local w = (row:GetWidth() or 0) - x - Pad() - (reserve or 0)
+    local l1, l2, cut = R.NoteLines(note[1], text, w)
+    row.noteCut = cut or nil
+    h = h + Th.Size("noteGap")
+    for i, t in ipairs({ l1, l2 or false }) do
+        local fs = note[i]
+        if t then
+            fs:SetText(t)
+            K.Color(fs, "note")
+            fs:ClearAllPoints()
+            fs:SetPoint("TOPLEFT", row, "TOPLEFT", x, -h)
+            fs:SetPoint("TOPRIGHT", row, "TOPRIGHT", -(Pad() + (reserve or 0)), -h)
+            fs:SetHeight(LG)
+            fs:Show()
+            h = h + LG
+        else
+            fs:Hide()
+        end
+    end
+    return h
+end
+
 -- Lays out one row; returns its height.
 function R.Set(row, d)
     local LH, LG = Th.LineHeight("step"), Th.LineHeight("goal")
@@ -403,6 +464,8 @@ function R.Set(row, d)
         h = h + LG
     end
     for i = n + 1, #row.lines do ShowLine(row.lines[i], false) end
+    -- beta.8 step note (the step's `why`): dim, under the goals, full width, at most 2 lines ("..." + tooltip)
+    h = R.Note(row, current and d.note or nil, h, reserve)
     -- 4h: a next step is one line: framed verb tag + target (cut with "..." before the coords), fading
     local tagged = state == "upcoming" and d.tag ~= nil
     row.tagged = tagged

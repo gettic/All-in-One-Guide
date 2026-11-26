@@ -150,6 +150,8 @@ ns.Theme.Register("Dark", {
     ["color.targetBg"] = { "#221C1A", 1 },    -- the target button's backing
     ["color.target"] = { "#FF8C7A", 1 },      -- its crosshair
     ["color.sub"] = "=text.dim",              -- "for <quest>" / place line under the step text
+    ["color.note"] = "=text.dim",             -- beta.8 step note line (the step's `why`) under the goals
+    ["size.noteGap"] = 3,                     -- its gap above
     -- verbs (coloured first word of a step) and tiles (base tint / symbol tint)
     ["color.verb.accept"] = { "#F4C542", 1 },
     ["color.verb.turnin"] = { "#F4C542", 1 },
@@ -296,6 +298,7 @@ ns.Theme.Register("Dark", {
     ["slot.arrow"] = "tex.arrow",
     ["slot.arrived"] = "tex.arrived",
     ["slot.logo"] = "tex.logo",
+    ["slot.logo.title"] = "tex.logo.title",   -- 16 px title-bar logo (logo_64 shrunk 4:1 looked jagged)
     -- v0.2 art
     ["slot.badge.learn"] = "glyph.step.learn",
     ["slot.badge.train"] = "glyph.step.train",
