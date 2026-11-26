@@ -52,11 +52,7 @@ ns.Locale.Add("daDK", {
     -- the guide window
     TITLE = "All-in-One Guide",
     COUNTER = "trin {i}/{n}",
-    CHIP_DONE_ONE = "{n} trin klaret",
-    CHIP_DONE_MANY = "{n} trin klaret",
     NEXT_LINE = "Næste: {text}",
-    NOW_HEAD = "NU",
-    NEXT_HEAD = "NÆSTE",
     GOAL_ITEMS = "Ting",
     YARDS = "{n} yd",
     ARRIVED = "Du er fremme",

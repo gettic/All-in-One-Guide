@@ -15,7 +15,7 @@ This is a beta. It has two demo routes:
 
 - Both routes include each class's starting letter, and neither one grinds.
 - The guide follows the game itself (quest log, finished quests, level, bags, position). It only remembers which step you are on, and your skips.
-- The guide window shows the step to do now in a "NOW" box, with the next steps under "NEXT". The arrow points to the spot.
+- The guide window shows the step to do now at the top, with the next steps under it. The arrow points to the spot.
 - Quest facts come from the Warcraft Wiki, CMaNGOS and ForeverDB (see [Credits](#credits)). They are not yet all confirmed on WoW Forever. If a step looks wrong, please [report it](#report-a-mistake).
 - Texts are in English and Danish.
 
@@ -26,7 +26,7 @@ This is a beta. It has two demo routes:
 | Steps | Optional steps never block. Some steps can be done in any order. Steps that need a higher level say "in 2 levels" and return when you get there. Quests that don't exist on WoW Forever are skipped by themselves. |
 | "Only if you have it" steps | Some optional steps show only while an item is in your bags (for example "use the book if a kobold drops it"). If you loot it later, the step comes back. In Elwynn, one short optional step (about 3 minutes, skip it any time) kills more kobold vermin until the Nibbled-On Book drops, because it starts a quest chain worth about 1,700 XP. |
 | Skips | Skip a step, or say you're not doing a quest (its follow-ups drop out too). The Undo button or `/aog undo` takes back your last skips. |
-| Step button | Next to the window. It holds the quest item the step needs, or your hearthstone. You click it; the addon never uses anything by itself. In combat it stays as it is and catches up right after. |
+| Step button | Next to the window (the target button sits beside it). It holds the quest item the step needs, or your hearthstone. You click it; the addon never uses anything by itself. In combat it stays as it is and catches up right after. |
 | "Use it now" reminders | The step button glows (and gently pulses) when the target is in range, when you are at the spot, or right after you loot the item. In the menu: off, glow, glow and text, or glow, text and sound (sound is off unless you pick it). |
 | Hints | Hearthstone (ready now or in N minutes; a warning if it is set to another inn than the route expects) and flight paths (new one here, one you lack, which place to pick on the flight map). Known flight paths are remembered per character. |
 | Arrow | One arrow for everything: your corpse after you release, then a spot another addon asks for, then a spot you picked, then the step. It turns green when you face it, yellow to the side and red behind, and shows distance as walk time or yards. |
@@ -36,29 +36,55 @@ This is a beta. It has two demo routes:
 | Quest items | Tells you when a looted item starts a quest, and gives advice for each quest item in your bags. See [Quest items](#quest-items). |
 | First Aid | With First Aid learned, optional lines say what bandages to make and when to train. See [First Aid](#first-aid). |
 | Map pins | Pins for the current step only (an any-order group's other open stops too, at most 12) on the world map and the minimap, in the same colours as the step icons. Minimap pins follow you smoothly as you move. Click one to point the arrow there. Each kind can be turned off in the menu. |
-| Window | The tip line and the "n done" button are under the steps. Drag the right edge to make it wider or narrower, the bottom edge to show more or fewer coming steps, or the bottom-right corner to change both. Not while locked or in combat, and not in small mode. Height is saved per character; Settings > Guide window has a "Steps shown" slider. A step with very many goal lines makes the window taller, so nothing draws over anything else. Window size is in the settings. The window looks the same in and out of combat. It stays put at login, also when its scale isn't 100 %. |
-| NOW window | The current step has its own small window on top of the guide window, with the step button inside it. See [NOW window](#now-window). |
+| Guide window | One window with the zone, the current step, the next steps, info chips and a progress bar, in a black and red look with rounded corners. See [The guide window](#the-guide-window). |
+| Target button | An extra button that targets the mob your step names (English game only). See [Target button](#target-button). |
+| Quest giver check | If a quest NPC doesn't offer a quest the guide wants, the guide skips it for now. See [Quest giver check](#quest-giver-check). |
+| Time left | A chip shows how long the rest of the guide should take. It learns your own pace. |
 | "On the way" goals | Kill and loot goals you can do while walking show under the current step. See [On the way goals](#on-the-way-goals). |
 | NPC talk helper | In an NPC's quest list, quests your route takes get a small tag and the rest can be faded. See [NPC talk helper](#npc-talk-helper). |
 | Tooltip step line | Mobs, NPCs and objects that are part of your current step get one line on their tooltip. See [Tooltip step line](#tooltip-step-line). |
 | Main window | One window for guides, settings, quest items, reports and About. See [The main window](#the-main-window). |
-| 3D view | The NPC or mob of your current step turns as a 3D model next to the guide window (lined up with the top of the NOW window when it is attached). See [3D view](#3d-view). |
-| Mob areas | On kill and collect steps the arrow leads you round the area where the mobs usually spawn. See [Mob areas](#mob-areas). |
+| 3D view | The NPC or mob of your current step turns as a 3D model, by default inside the guide window. See [3D view](#3d-view). |
+| Mob areas | On kill and collect steps the arrow leads you to the nearest spot where the mobs spawn and you haven't cleared yet. See [Mob areas](#mob-areas). |
 | Ghost | Walking as a ghost doesn't tick travel steps. |
 | Full quest log | Shows which quests the route doesn't need. |
 | Travel steps | Fly, hearthstone, get a flight path, set your hearthstone, learn, train, use an item, notes, and grind as a last resort. |
 
 The route packs for levels 1-20 are not in this beta yet.
 
-### NOW window
+### The guide window
 
-- The current step sits in its own small window on top of the guide window. The step button is inside it. The NEXT steps stay in the guide window.
-- Drag the grip (or the guide's title bar) to move both windows together.
-- The chain button takes the NOW window off the guide, so it can go anywhere with its own lock and size (Settings > Guide window: "Free step window size"). Press it again to put it back on top.
-- It hides with the guide window.
-- Turn it off with "Current step in its own window" (title menu or Settings > Guide window) for the one-window look.
-- In combat the windows can't be dragged while the step button shows.
-- If the guide window sat at the very top of the screen, the pair is moved down a little so both fit.
+From the top:
+
+- The zone.
+- The current step: the 3D view on its left, the verb in colour, "for <quest>", the place with coords and distance, and its goals underneath. The goal to do now is marked red.
+- The next steps (3 by default; the bottom edge or "Next steps shown" changes it). Each is one line: a framed tag in the step's colour (TURN IN, ACCEPT, KILL, GO TO ...), what it is about, and the coords at the right. A long name is cut with "...". Hover a line for the NPC and the place. Each line is a bit fainter than the one above.
+- Info chips: guide, level / XP and time left.
+- Back, a progress bar ("step 14 / 53 · 26 %") and next.
+
+How it behaves:
+
+- A tall step makes the window grow up (its bottom edge stays). It shrinks back on the next step. Changing the window size or "Next steps shown" keeps the top of the window on screen.
+- Finished goals fold into one "3 done" line (click to open). A goal that just finished flashes green first.
+- Drag the right edge to make it wider or narrower, the bottom edge to show more or fewer coming steps, or the bottom-right corner to change both. Not while locked or in combat, and not in small mode. Size is saved per character.
+- Default background opacity is 90 % (Settings > Guide window: "Background").
+- The window looks the same in and out of combat. It stays put at login, also when its scale isn't 100 %.
+
+### Target button
+
+- English game only. Setting: Settings > Guide window > "Target button" (on by default), and its own key binding.
+- A button next to the step button. When you press it, it targets the mob the step names (`/targetexact`).
+- Its tooltip says "Click to target it (when it's in range)".
+- It never targets by itself and only changes outside fights.
+- Mob names come from CMaNGOS data (GPL).
+
+### Quest giver check
+
+- Setting: Settings > Steps > "Skip quests not offered yet" (on by default).
+- When you talk to a quest NPC and a quest the guide wants isn't in their list, the guide skips that quest and its follow-ups for now and shows a short notice. It brings the quest back when it may be ready.
+- The guide knows the levels of most route quests (CMaNGOS data), so grey quests of an overlevelled character are never marked "not offered yet".
+- The notice's menu has "Show it again", and "Report" fills in a report draft that you send yourself.
+- The quest comes back by itself when the NPC offers it later, after a level up (only if you are near), or after a hand-in that may unlock it.
 
 ### On the way goals
 
@@ -113,24 +139,27 @@ The smart arrow is on by default. Switch it in the arrow's right-click menu or o
 
 ### Path line
 
-- The arrow's way (through doors and cave mouths to the goal, or a straight line when there is no door) shows as dots on the world map and on the minimap.
-- The minimap dots follow its zoom, rotation and shape (square minimaps too) and stop at its edge.
+- The arrow's way (through doors and cave mouths to the goal, or a straight line when there is no door) shows as a dotted line on the world map and a solid line on the minimap. The solid line is easy to tell apart from the dotted loop round mob areas.
+- The minimap line follows its zoom, rotation and shape (square minimaps too) and stops at its edge.
 - Two switches in Settings > Map pins: "Path line on the world map" and "Path line on the minimap". Both are on by default.
 
 ### 3D view
 
-- The NPC or mob of your current step shows as a 3D model next to the guide window (on the left by default). Steps without a model show a small "No 3D model for this step" card.
+- The NPC or mob of your current step shows as a 3D model, by default inside the guide window: a square at the top left of the current step, with the step text beside it. Steps without a model show a small "No 3D model for this step" card.
 - Drag it to turn the model, use the mouse wheel to zoom, double-click to reset, right-click for options.
-- Settings > Guide window: "Show the 3D view", "3D view position" (left, right, below or free; Shift+drag it when free), "3D view size" and "Hide the 3D view in combat" (on by default).
+- Settings > Guide window: "Show the 3D view", "3D view position" (inside the window, left, right, below or free; Shift+drag it when free), "3D view size" and "Hide the 3D view in combat" (on by default; this applies to the outside positions, inside the window it stays during fights).
 - Switch it on or off with the title menu or `/aog model`.
 
 ### Mob areas
 
-- On kill and collect steps the arrow leads you in a loop round the area where the mobs usually spawn, so you walk past them. The arrow is orange and says "Kill as you go: spot 2 of 6". The path line follows the loop.
-- It holds its point in combat.
-- Setting: Settings > Arrow > "Lead me round mob areas" (on by default). In the arrow's right-click menu: "Lead me round the mob area" on or off, and "Point at the middle instead".
-- Loops so far: the Northshire kobolds (the camp and Echo Ridge), and the Valley of Trials boars and vile familiars.
-- The loops come from CMaNGOS classic-db spawn positions, so WoW Forever's spawns may differ a little.
+- On kill and collect steps the arrow points at the nearest spot where the mobs spawn that you haven't cleared yet (you were there and walked away). The arrow is orange and says "Kill as you go: spot 2 of 6". The path line follows it.
+- A cleared spot turns grey until its mobs respawn. The respawn time is an estimate, shown with "~".
+- Dots for the spots show on the world map and the minimap (Settings > Map pins: "Spawn spots on the world map" and "Spawn spots on the minimap", both on by default).
+- In combat the arrow keeps its spot.
+- Settings > Arrow: "Lead me round mob areas" (on by default) and "Spawn spot order": Mixed (default: loops where the guide has them, spots elsewhere), Nearest spot, or Loop. In the arrow's right-click menu: "Lead me round the mob area" on or off, "Spawn spot order: {mode}" (changes the order), and "Point at the middle instead".
+- When every spot is cleared, the arrow says "All cleared: they respawn here in ~N min".
+- Hand-made loops so far: the Northshire kobolds (the camp and Echo Ridge), and the Valley of Trials boars and vile familiars.
+- Spawn spots and respawn times come from CMaNGOS classic-db (GPL), so WoW Forever's spawns may differ a little.
 
 ### Quest items
 
@@ -161,8 +190,8 @@ The first time you log in, the addon opens the guide only if it starts where you
 If v0.1 gave a character the guide for another start area (for example a gnome on the Elwynn guide) and it hasn't been started, it is closed once at login with a chat line, and the right guide opens (or the list of guides shows). Guides you opened yourself, or made progress in, are never closed.
 
 - `/aog` opens the [main window](#the-main-window). `/aog show` shows or hides the guide window. Esc never closes the guide window.
-- Drag the title bar to move the window. The padlock locks it. The minus button switches to a small window (the NOW box and one next line).
-- Right-click the title bar (or click the menu button) for the guide menu: open main window, choose a guide, settings, report a mistake, small mode, lock, the current step in its own window, quiet mode and a few more.
+- Drag the title bar to move the window. The padlock locks it. The minus button switches to a small window (the current step and one next line).
+- Right-click the title bar (or click the menu button) for the guide menu: open main window, choose a guide, settings, report a mistake, small mode, lock, quiet mode and a few more.
 - Hover a step for its quest, zone, coordinates and why it waits. Click it to point the arrow there. Shift-click puts the quest link into an open chat box (it is never sent). Ctrl-click opens the map there.
 - Right-click a step for skip, make current, not doing this quest, point the arrow here, or copy a `/way` line.
 - Right-click the arrow for skip, hide until the next step, clear a picked spot, smart arrow, lock, size, opacity, click-through and arrival sound (off). The mouse wheel changes its size. Alt+drag moves it while it is locked.
@@ -186,7 +215,7 @@ Choose English, Dansk or "Same as the game" under General > Language, or with `/
 
 ### Key bindings
 
-Under "All-in-One Guide" in the game's key binding page: show or hide, next, previous, skip, use the step's item, arrow on or off, and menu. The addon sets no keys itself.
+Under "All-in-One Guide" in the game's key binding page: show or hide, next, previous, skip, use the step's item, target the step's mob, arrow on or off, and menu. The addon sets no keys itself.
 
 ### Other addons
 

@@ -13,13 +13,18 @@
 -- MINI_MAX dots, pooled (no new textures after the first draw). Updates: like the minimap pins, every frame
 -- only while moving / zooming / a rotating minimap ("follow"), a 0.25 s check when still ("watch"), nothing at
 -- all when there is nothing to show. Secret or missing position / facing = no trail (never a guessed one).
+-- Minimap (v0.3, the user's wish): the way to a goal is a solid line (pooled Line regions, MINI_LINES, cut at the
+-- shape's rim per quarter), the hunt loop stays dotted, so the two are easy to tell apart. Dots and lines are
+-- updated in place (never hidden and shown again while the trail stays the same); dots have a fixed draw order
+-- per leg (sublevel) and exact duplicates (a closed loop's last dot on its first) are drawn once: two dots on one
+-- spot in the same layer swapped order as they were re-anchored each frame (the beta.6 flicker report).
 -- Settings: pathMap, pathMinimap (both default on). Theme: color.pathNow / pathLater / pathCorpse,
--- size.pathDot / pathGap / pathMiniDot / pathMiniGap.
+-- size.pathDot / pathGap / pathMiniDot / pathMiniGap / pathMiniLine.
 --   ns.PathLine.Points() -> list of map points (the player first) | nil   .Refresh()   .DrawWorld(map)   .DrawMini()
 --   .Check() / .Follow(elapsed) / .Watch() / .mode   .world / .mini = { used = n, dots = {...} }   .provider
 local _, ns = ...
 local Th, Co = ns.Theme, ns.Compat
-local PL = { WORLD_MAX = 120, MINI_MAX = 60, WATCH = 0.25, CALM = 0.3, POLL = 0.25, placed = 0, worldDraws = 0,
+local PL = { WORLD_MAX = 120, MINI_MAX = 60, MINI_LINES = 30, WATCH = 0.25, CALM = 0.3, POLL = 0.25, placed = 0, worldDraws = 0,
     checks = 0, polls = 0 }
 ns.PathLine = PL
 
@@ -67,7 +72,7 @@ local NONE = {}   -- the key for "no target" (one fixed table: a new {} each tim
 local function RouteKey(t)
     if t == nil then return NONE, 0 end
     local H = ns.Hunt
-    if H and H.Active(t) then return H.state.pts, H.state.i end
+    if H and H.Active(t) then return H.RouteKey() end   -- a loop or (v0.3) the spawn spot list
     local SR = ns.SmartRoute
     local st = SR and SR.state
     local on = SR and SR.On() and SR.straightFor ~= t and st and st.target == t
@@ -106,7 +111,7 @@ local function WorldOf(map, x, y)
 end
 
 -- ------------------------------------------------------------------ dots (pooled textures on one holder)
-local function NewSet() return { used = 0, dots = {}, made = 0 } end
+local function NewSet() return { used = 0, dots = {}, made = 0, sub = {} } end
 PL.world, PL.mini = NewSet(), NewSet()
 
 local function Dot(set, holder, i)
@@ -131,6 +136,21 @@ local function HideFrom(set, n)
 end
 
 local function Clear(set) HideFrom(set, 0) end
+
+-- minimap lines (go-to legs): pooled Line regions; .ends[i] = { x1, y1, x2, y2 } (pixels from the centre)
+PL.miniLines = { used = 0, segs = {}, ends = {}, made = 0, color = {} }
+local function ClearLines()
+    local L = PL.miniLines
+    for i = 1, L.used do
+        local g = L.segs[i]
+        if g then g:Hide() end
+    end
+    L.used = 0
+end
+local function ClearMini()
+    Clear(PL.mini)
+    ClearLines()
+end
 
 -- Liang-Barsky: the part [t0, t1] of a -> b inside the box, nil when none.
 local function ClipBox(ax, ay, bx, by, x0, y0, x1, y1)
@@ -345,8 +365,19 @@ end
 
 local last = {}
 PL.last = last
+local PlaceLines   -- below (the go-to legs as lines)
 
--- Places the minimap dots from one set of readings.
+-- The hunt loop (dots) or a way to a goal (a solid line on the minimap).
+local function LoopShown(t)
+    local H = ns.Hunt
+    local st = H and H.state
+    return st ~= nil and st.active and st.target == t
+end
+PL.LoopShown = LoopShown
+
+local placedX, placedY = {}, {}   -- this placement's dot spots (exact duplicates are drawn once)
+
+-- Places the minimap trail (dots or lines) from one set of readings.
 function PL.PlaceMini(mm, pm, px, py, radius, w, h, facing, rotate)
     PL.placed = PL.placed + 1
     local set = PL.mini
@@ -354,11 +385,11 @@ function PL.PlaceMini(mm, pm, px, py, radius, w, h, facing, rotate)
     -- a rotating minimap without a facing we can read: no trail (never a guessed turn)
     if not t or not pm or type(radius) ~= "number" or radius <= 0 or w <= 0 or h <= 0
         or (rotate and type(facing) ~= "number") then
-        Clear(set)
+        ClearMini()
         return 0
     end
     local c0, ox, oy = WorldOf(pm, px, py)
-    if not c0 then Clear(set) return 0 end
+    if not c0 then ClearMini() return 0 end
     local pts = Ahead(t)
     local size = Th.Size("pathMiniDot")
     local hw, hh = w / 2 - size / 2, h / 2 - size / 2
@@ -375,10 +406,18 @@ function PL.PlaceMini(mm, pm, px, py, radius, w, h, facing, rotate)
         end
     end
     local holder = MiniHolder(mm)
+    local corpse = ns.Arrow and ns.Arrow.source == "corpse"
+    if not LoopShown(t) then
+        local lines = PlaceLines(mm, holder, xs, ys, #pts, w, h, corpse)
+        if lines then
+            Clear(set)
+            return lines
+        end
+    end
+    ClearLines()
     local quarters = Quarters()
     local gap = math.max(1, Th.Size("pathMiniGap"))
-    local corpse = ns.Arrow and ns.Arrow.source == "corpse"
-    local n = 0
+    local n, nEnds = 0, 0
     for k = 1, #pts do
         local ax, ay, bx, by = xs[k], ys[k], xs[k + 1], ys[k + 1]
         if not (ax and bx) then break end   -- another continent from here on: nothing more to draw
@@ -390,12 +429,27 @@ function PL.PlaceMini(mm, pm, px, py, radius, w, h, facing, rotate)
                 local x, y = ax + (bx - ax) * u, ay + (by - ay) * u
                 if not Inside(x, y, hw, hh, quarters) then return end
                 if n >= PL.MINI_MAX then return false end
+                -- a dot on a loop point is drawn once (a closed loop's last leg ends where its first leg ends);
+                -- only leg ends are compared, so a dot never drops out because another one passes close by
+                if u >= 1 - 1e-9 then
+                    for j = 1, nEnds do
+                        if abs(placedX[j] - x) < 0.5 and abs(placedY[j] - y) < 0.5 then return end
+                    end
+                    nEnds = nEnds + 1
+                    placedX[nEnds], placedY[nEnds] = x, y
+                end
                 n = n + 1
                 local d = Dot(set, holder, n)
                 d:SetSize(size, size)
                 d:SetVertexColor(cr, cg, cb, ca)
+                -- fixed draw order: the leg you walk now on top (same layer + sublevel = no fixed order)
+                local sub = k == 1 and 2 or 1
+                if set.sub[n] ~= sub then
+                    set.sub[n] = sub
+                    d:SetDrawLayer("OVERLAY", sub)
+                end
                 d:SetPoint("CENTER", mm, "CENTER", x, y)
-                d:Show()
+                if not d:IsShown() then d:Show() end
             end)
         end
         if n >= PL.MINI_MAX then break end
@@ -404,10 +458,118 @@ function PL.PlaceMini(mm, pm, px, py, radius, w, h, facing, rotate)
     return n
 end
 
+-- The part [t0, t1] of a -> b inside the ellipse (x/hw)^2 + (y/hh)^2 <= 1, nil when none.
+local function ClipEllipse(ax, ay, bx, by, hw, hh)
+    local dx, dy = bx - ax, by - ay
+    local A = (dx / hw) ^ 2 + (dy / hh) ^ 2
+    local B = 2 * (ax * dx / (hw * hw) + ay * dy / (hh * hh))
+    local Cc = (ax / hw) ^ 2 + (ay / hh) ^ 2 - 1
+    if A == 0 then
+        if Cc <= 0 then return 0, 1 end
+        return nil
+    end
+    local disc = B * B - 4 * A * Cc
+    if disc < 0 then return nil end
+    local r = sqrt(disc)
+    local t0, t1 = math.max(0, (-B - r) / (2 * A)), math.min(1, (-B + r) / (2 * A))
+    if t1 <= t0 then return nil end
+    return t0, t1
+end
+PL.ClipEllipse = ClipEllipse
+
+-- One go-to leg a -> b (pixels) as 0-3 pieces inside the minimap's shape: cut to the box; a round shape cuts to
+-- the ellipse; a mixed shape (some corners square) is split at the axes first, each quarter cut by its own rule.
+local function Pieces(ax, ay, bx, by, hw, hh, quarters, out)
+    local t0, t1 = ClipBox(ax, ay, bx, by, -hw, -hh, hw, hh)
+    if not t0 or t1 <= t0 then return end
+    local dx, dy = bx - ax, by - ay
+    ax, ay, bx, by = ax + dx * t0, ay + dy * t0, ax + dx * t1, ay + dy * t1
+    local allRound = quarters[1] and quarters[2] and quarters[3] and quarters[4]
+    local allSquare = not (quarters[1] or quarters[2] or quarters[3] or quarters[4])
+    if allSquare then out[#out + 1] = { ax, ay, bx, by } return end
+    if allRound then
+        local u0, u1 = ClipEllipse(ax, ay, bx, by, hw, hh)
+        if u0 then
+            dx, dy = bx - ax, by - ay
+            out[#out + 1] = { ax + dx * u0, ay + dy * u0, ax + dx * u1, ay + dy * u1 }
+        end
+        return
+    end
+    dx, dy = bx - ax, by - ay
+    local ts = { 0, 1 }
+    if dx ~= 0 then local t = -ax / dx if t > 0 and t < 1 then ts[#ts + 1] = t end end
+    if dy ~= 0 then local t = -ay / dy if t > 0 and t < 1 then ts[#ts + 1] = t end end
+    table.sort(ts)
+    for k = 1, #ts - 1 do
+        local sx, sy = ax + dx * ts[k], ay + dy * ts[k]
+        local ex, ey = ax + dx * ts[k + 1], ay + dy * ts[k + 1]
+        local mx, my = (sx + ex) / 2, (sy + ey) / 2
+        local q = (mx >= 0 and my < 0 and 1) or (mx < 0 and my < 0 and 2) or (mx >= 0 and 3) or 4
+        if quarters[q] then
+            local u0, u1 = ClipEllipse(sx, sy, ex, ey, hw, hh)
+            if u0 then
+                local ddx, ddy = ex - sx, ey - sy
+                out[#out + 1] = { sx + ddx * u0, sy + ddy * u0, sx + ddx * u1, sy + ddy * u1 }
+            end
+        elseif ex - sx ~= 0 or ey - sy ~= 0 then
+            out[#out + 1] = { sx, sy, ex, ey }
+        end
+    end
+end
+PL.Pieces = Pieces
+
+-- Places the go-to legs as solid lines (xs / ys = pixel points, the player first). Updated in place.
+local pieces = {}
+function PlaceLines(mm, holder, xs, ys, npts, w, h, corpse)
+    local L = PL.miniLines
+    if type(holder.CreateLine) ~= "function" then return nil end   -- no Line regions: the dots instead
+    local thick = math.max(1, Th.Size("pathMiniLine"))
+    local hw, hh = w / 2 - thick / 2, h / 2 - thick / 2
+    local quarters = Quarters()
+    local n = 0
+    for k = 1, npts do
+        local ax, ay, bx, by = xs[k], ys[k], xs[k + 1], ys[k + 1]
+        if not (ax and bx) then break end
+        for j = #pieces, 1, -1 do pieces[j] = nil end
+        Pieces(ax, ay, bx, by, hw, hh, quarters, pieces)
+        local color = LegColor(k, corpse)
+        for _, pc in ipairs(pieces) do
+            if n >= PL.MINI_LINES then break end
+            n = n + 1
+            local g = L.segs[n]
+            if not g then
+                g = holder:CreateLine(nil, "OVERLAY")
+                if g.SetSnapToPixelGrid then g:SetSnapToPixelGrid(false) end
+                if g.SetTexelSnappingBias then g:SetTexelSnappingBias(0) end
+                L.segs[n] = g
+                L.made = L.made + 1
+            end
+            if L.color[n] ~= color then
+                L.color[n] = color
+                g:SetColorTexture(Th.Color(color))
+                g:SetDrawLayer("OVERLAY", k == 1 and 2 or 1)
+            end
+            g:SetThickness(thick)
+            g:SetStartPoint("CENTER", mm, pc[1], pc[2])
+            g:SetEndPoint("CENTER", mm, pc[3], pc[4])
+            local e = L.ends[n] or {}
+            e[1], e[2], e[3], e[4] = pc[1], pc[2], pc[3], pc[4]
+            L.ends[n] = e
+            if not g:IsShown() then g:Show() end
+        end
+    end
+    for i = n + 1, L.used do
+        local g = L.segs[i]
+        if g then g:Hide() end
+    end
+    L.used = n
+    return n
+end
+
 function PL.DrawMini()
     local mm = Co.fn.Minimap
     if not mm or not MiniOn() then
-        Clear(PL.mini)
+        ClearMini()
         for k in pairs(last) do last[k] = nil end
         return 0
     end
@@ -432,7 +594,7 @@ function PL.Check(elapsed)
     if not t then
         -- the target went away without a bus event (arrow menu "Hide until the next step"): drop the dots and
         -- stop the driver; the next target comes with StepChanged / WaypointChanged (Refresh starts it again)
-        Clear(PL.mini)
+        ClearMini()
         for k in pairs(last) do last[k] = nil end
         if PL.world.used > 0 then Clear(PL.world) end
         PL.wpm = nil
@@ -459,8 +621,8 @@ function PL.Check(elapsed)
             PL.PlaceMini(mm, rpm, rpx, rpy, radius, w, h, facing, rotate)
             changed = true
         end
-    elseif PL.mini.used > 0 or last.pm ~= nil then
-        Clear(PL.mini)
+    elseif PL.mini.used > 0 or PL.miniLines.used > 0 or last.pm ~= nil then
+        ClearMini()
         for k in pairs(last) do last[k] = nil end   -- placed again in full when it shows
     end
     if MapOpen() and WorldOn() and sinceWorld >= PL.POLL then
@@ -544,12 +706,15 @@ end
 ns.SelfChecks[#ns.SelfChecks + 1] = { label = "path", fn = function(h)
     h.Count()
     if WorldOn() and not PL.attached then h.Problem("path: world map path line is on but not attached to the world map") end
-    if PL.world.used > PL.WORLD_MAX or PL.mini.used > PL.MINI_MAX then h.Problem("path: more dots than the cap") end
+    if PL.world.used > PL.WORLD_MAX or PL.mini.used > PL.MINI_MAX or PL.miniLines.used > PL.MINI_LINES then
+        h.Problem("path: more dots / lines than the cap")
+    end
     if (PL.driver:GetScript("OnUpdate") ~= nil) ~= (PL.mode == "follow") then
         h.Problem("path: follow OnUpdate doesn't match its mode")
     end
     if PL.mode and not PL.Wanted() then h.Problem("path: follow runs with nothing to show") end
-    h.Info(("path: world %d, minimap %d dots, follow %s"):format(PL.world.used, PL.mini.used, tostring(PL.mode or "off")))
+    h.Info(("path: world %d, minimap %d dots %d lines, follow %s"):format(PL.world.used, PL.mini.used, PL.miniLines.used,
+        tostring(PL.mode or "off")))
 end }
 
 local function Later() ns.Errors.Call("pathline", PL.Refresh) end

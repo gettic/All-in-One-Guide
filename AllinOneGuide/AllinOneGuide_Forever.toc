@@ -3,7 +3,7 @@
 ## Title: All-in-One Guide
 ## Notes: Leveling guide with one guide window and a waypoint arrow.
 ## Author: gettic
-## Version: 0.2.0-beta.6
+## Version: 0.2.0-beta.7
 ## SavedVariables: AllinOneGuideDB, AllinOneGuideRecDB
 ## SavedVariablesPerCharacter: AllinOneGuideCharDB
 ## IconTexture: Interface\AddOns\AllinOneGuide\media\logo_64
@@ -38,8 +38,11 @@ Data\QuestItems.lua
 Data\Planned.lua
 Data\FirstAid.lua
 Data\ModelIds.lua
+Data\MobNames.lua
+Data\QuestLevels.lua
 Data\Taxi.lua
 Data\Names.lua
+Data\Pace.lua
 Packs\Format.lua
 Packs\Conditions.lua
 Packs\StepTypes.lua
@@ -50,12 +53,15 @@ Engine\Reminders.lua
 Engine\Waypoint.lua
 Engine\SmartRoute.lua
 Engine\HuntPath.lua
+Engine\Spots.lua
 Engine\BagQuests.lua
+Engine\QuestGiver.lua
 Engine\FirstAid.lua
 Link\GearSet.lua
 Routes\Durotar.lua
 Routes\Elwynn.lua
 Routes\Connectors.lua
+Routes\Spots.lua
 Theme\Theme.lua
 Theme\Dark.lua
 Theme\Media.lua
@@ -68,15 +74,16 @@ UI\Popups.lua
 UI\Notice.lua
 UI\Rows.lua
 UI\Window.lua
-UI\NowWindow.lua
 UI\Arrow.lua
 UI\StepButton.lua
+UI\TargetButton.lua
 UI\ModelView.lua
 UI\Pins.lua
 UI\Keys.lua
 UI\Settings.lua
 UI\Minimap.lua
 UI\PathLine.lua
+UI\SpotDots.lua
 Data\Report.lua
 UI\Hub.lua
 UI\HubGuides.lua

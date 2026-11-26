@@ -102,7 +102,7 @@ end
 
 -- "Why am I seeing this?": which part sent it and its off switch (lines for the hover tooltip).
 local SOURCE = { reminders = "STEPS", logfull = "QUESTS", undo = "STEPS", lang = "OTHER", selftest = "SELFTEST", conflicts = "LINK",
-    questitems = "QUESTS" }
+    questitems = "QUESTS", questgiver = "NPC" }
 function N.Why(n)
     local L = ns.L
     local part = SOURCE[n.source or ""] or SOURCE[n.id] or SOURCE[n.kind] or "OTHER"
@@ -141,13 +141,23 @@ function N.Cut(text) return (ns.U.Utf8Cut(text or "", N.MaxChars())) end
 -- The right-click menu items for a notice.
 function N.MenuItems(n)
     local L = ns.L
-    return {
+    local items = {
         { text = L.NOTICE_LATER_HOUR, fn = function() N.Later(n.id, "hour") end, disabled = n.kind == DANGER },
         { text = L.NOTICE_LATER_SESSION, fn = function() N.Later(n.id, "session") end },
         { text = L.NOTICE_LATER_DAY, fn = function() N.Later(n.id, "day") end, disabled = n.kind == DANGER },
         { text = L.NOTICE_HIDE_CHAR, fn = function() N.HideChar(n.id) end, disabled = n.kind == DANGER },
         { text = L.NOTICE_HIDE_KIND, fn = function() N.HideKind(n.kind) end, disabled = n.kind == DANGER },
     }
+    -- a notice's own rows (n.menu = { { text, fn } }) come first (quest giver check: "Show it again")
+    if type(n.menu) == "table" then
+        for k = #n.menu, 1, -1 do
+            local m = n.menu[k]
+            if type(m) == "table" and type(m.text) == "string" and type(m.fn) == "function" then
+                table.insert(items, 1, { text = m.text, fn = m.fn })
+            end
+        end
+    end
+    return items
 end
 
 -- Combat start / end and Quiet mode change what may show.

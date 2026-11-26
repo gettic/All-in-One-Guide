@@ -20,6 +20,8 @@ Md.FILES = {
     -- NOW window + main window (art agent, 2026-11-25): one row of 32 x 32 cells; four 64 x 64 shields
     glyphs2 = { w = 256, h = 32 },
     emblems = { w = 256, h = 64 },
+    -- one-window look (art agent, 2026-11-26; plans\guide-window-look\art-map.md): 9-slices, tiles, target
+    round = { w = 256, h = 64 },
 }
 
 -- glyphs.tga slot numbers (plans\default-theme\theme-notes.md, "Art files")
@@ -63,7 +65,29 @@ Md.REGIONS = {
     ["emblem.horde"] = { "emblems", 0.25, 0.5, 0, 1 },
     ["emblem.neutral"] = { "emblems", 0.5, 0.75, 0, 1 },
     ["emblem.soon"] = { "emblems", 0.75, 1, 0, 1 },
+    -- round.tga (MANIFEST "round.tga regions"): 9-slice pieces (corners in Md.SLICE) and single pieces
+    ["frame.panel"] = { "round", 0, 0.125, 0, 0.5 },
+    ["frame.border"] = { "round", 0, 0.125, 0.5, 1 },
+    ["frame.shadow"] = { "round", 0.25, 0.5, 0, 1 },
+    ["round.s"] = { "round", 0.125, 0.25, 0, 0.5 },
+    ["btn.target"] = { "round", 0.125, 0.25, 0.5, 1 },
+    ["frame.stepbutton2"] = { "round", 0.5, 0.75, 0, 1 },
 }
+-- 9-slice corner sizes in texture coordinates (du, dv) for the round.tga pieces.
+Md.SLICE = {
+    ["frame.panel"] = { 0.0546875, 0.21875 },
+    ["frame.border"] = { 0.0546875, 0.21875 },
+    ["frame.shadow"] = { 0.10546875, 0.421875 },
+    ["round.s"] = { 0.03125, 0.125 },
+}
+-- Tiles: 16 x 16 cells, 4 x 4 at the right end of round.tga (cell c: l = 0.75 + 0.0625 * (c % 4), t = 0.25 * floor(c / 4)).
+Md.TILES = { ["tile.base"] = 0, ["tile.open"] = 1, ["tile.accept"] = 2, ["tile.turnin"] = 3, ["tile.kill"] = 4,
+    ["tile.loot"] = 5, ["tile.use"] = 6, ["tile.goto"] = 7, ["tile.talk"] = 8, ["tile.train"] = 9, ["tile.fly"] = 10,
+    ["tile.hearth"] = 11, ["tile.note"] = 12, ["tile.done"] = 13 }
+for key, c in pairs(Md.TILES) do
+    local l, t = 0.75 + 0.0625 * (c % 4), 0.25 * math.floor(c / 4)
+    Md.REGIONS[key] = { "round", l, l + 0.0625, t, t + 0.25 }
+end
 
 local PER_ROW, CELL = 8, 1 / 8
 

@@ -84,6 +84,17 @@ function A.MenuItems()
     if ns.Hunt then
         items[#items + 1] = { text = L.MENU_ARROW_HUNT, checked = S.Get("huntPath"),
             fn = function() S.Set("huntPath", not S.Get("huntPath")) end }
+        -- v0.3 spawn spots: which kind (both / nearest spot / loops), one row that steps through them
+        if ns.Spots and S.Get("huntPath") then
+            local d = S.byKey.huntMode
+            local cur = S.Get("huntMode")
+            items[#items + 1] = { text = ns.U.Fill(L.MENU_ARROW_MODE, { mode = L[d.choiceLabels[cur]] or cur }),
+                fn = function()
+                    local mode = d.choices[1]
+                    for i, v in ipairs(d.choices) do if v == cur then mode = d.choices[i % #d.choices + 1] end end
+                    S.Set("huntMode", mode)
+                end }
+        end
         if A.via and A.via.hunt and A.target then
             local t = A.target
             items[#items + 1] = { text = L.MENU_ARROW_CENTRE, fn = function()
@@ -503,7 +514,7 @@ end
 ns.Bus.On("SettingsChanged", A, function(_, key)
     if key == "arrow" then A.Update()
     elseif key == "arrowScale" or key == "arrowAlpha" or key == "arrowClickThrough" then A.ApplyLook() A.Update()
-    elseif key == "arrowUnit" or key == "smartArrow" or key == "huntPath" then A.Update() end
+    elseif key == "arrowUnit" or key == "smartArrow" or key == "huntPath" or key == "huntMode" then A.Update() end
 end, "ui", 75)
 ns.Bus.On("FeatureChanged", A, function() A.Update() end, "ui", 75)
 -- v0.2 M4: high contrast / colour-blind / font size (Theme\Overlay.lua)

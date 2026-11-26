@@ -33,6 +33,7 @@ Ky.NAMES = {
     ALLINONEGUIDE_ARROW = "KEY_ARROW",
     ALLINONEGUIDE_MENU = "KEY_MENU",
     ["CLICK AllinOneGuideStepButton:LeftButton"] = "KEY_ITEM",
+    ["CLICK AllinOneGuideTargetButton:LeftButton"] = "KEY_TARGET",
 }
 
 function Ky.Run(action)

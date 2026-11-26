@@ -494,8 +494,8 @@ ns.SelfChecks[#ns.SelfChecks + 1] = { label = "hub", fn = function(h)
     -- one title bar height for the guide window, the main window and the dialogs (look review #5)
     local want = Th.Size("title")
     local bars = { f and f.titleBar, ns.UI and ns.UI.title, ns.Popups.frame and ns.Popups.frame.titleBar,
-        ns.Popups.copy and ns.Popups.copy.titleBar, ns.NowWin and ns.NowWin.strip }
-    for i = 1, 5 do
+        ns.Popups.copy and ns.Popups.copy.titleBar }
+    for i = 1, 4 do
         local tb = bars[i]
         if tb and math.abs((tb:GetHeight() or 0) - want) > 0.5 then h.Problem("hub: a title bar isn't " .. want .. " high") end
     end

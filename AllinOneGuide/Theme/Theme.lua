@@ -179,6 +179,24 @@ function Th.Motion(key)
     return type(v) == "number" and v or 0
 end
 
+-- The keys a new theme should set itself (the rest falls back to its base theme): the window's look.
+Th.REQUIRED = {
+    "color.panel", "color.panelSolid", "color.border", "color.shadow", "color.text", "color.text.dim", "color.upcoming",
+    "color.accent", "color.accentText", "color.accentGlow", "color.zone", "color.titleBg", "color.goalNowBg",
+    "color.goalNowEdge", "color.barTrack", "color.barFill", "color.chipBg", "color.chipText", "color.button",
+    "color.buttonHover", "color.verb.accept", "color.verb.turnin", "color.verb.kill", "color.verb.loot",
+    "color.verb.goto", "font.step", "font.goal", "font.title", "font.small", "size.corner", "size.pad", "size.title",
+}
+
+-- The REQUIRED keys theme `name` resolves to nothing (base chain included, overlays left out). {} = complete.
+function Th.MissingKeys(name)
+    local out = {}
+    for _, key in ipairs(Th.REQUIRED) do
+        if Th.Raw(key, name) == nil then out[#out + 1] = key end
+    end
+    return out
+end
+
 -- Every key a theme uses (for the "every key resolves" test and the self-test).
 function Th.Keys(name)
     local out, seen = {}, {}

@@ -147,8 +147,9 @@ https://warcraft.wiki.gg/wiki/Ruzan
 CMaNGOS classic-db (https://github.com/cmangos/classic-db), GPL-3.0.
 Some NPC positions, quest giver/turn-in ids, creature spawn areas
 (grid-snapped), city gate object positions (smart arrow), quest item
-and loot/vendor ids and model
-display ids were checked against or derived
+and loot/vendor ids, model display ids, mob names (target button), quest levels
+(quest giver check), and
+spawn spots and respawn times were checked against or derived
 from this database. Game facts in it come from World of Warcraft,
 (c) Blizzard Entertainment; they are not covered by our GPL licence
 and are used here only as reference facts in a free, non-commercial

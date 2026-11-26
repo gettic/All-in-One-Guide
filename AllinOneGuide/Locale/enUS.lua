@@ -58,20 +58,7 @@ ns.Locale.Add("enUS", {
     -- the guide window
     TITLE = "All-in-One Guide",
     COUNTER = "step {i}/{n}",                   -- top right of the window
-    CHIP_DONE_ONE = "{n} step done",            -- the chip above the steps (1)
-    CHIP_DONE_MANY = "{n} steps done",          -- (2 or more)
     NEXT_LINE = "Next: {text}",                 -- small mode, under the current step
-    NOW_HEAD = "NOW",                           -- the small header on the current step's box
-    NEXT_HEAD = "NEXT",                         -- the small header over the following steps
-    NOW_STRIP = "{section} - step {i}/{n}",     -- the NOW window's title strip, after "NOW"
-    TIP_NOW_GRIP = "Drag to move",
-    TIP_NOW_GRIP_PAIR = "Drag to move the guide with it",
-    TIP_NOW_DETACH = "Take this window off the guide",
-    TIP_NOW_ATTACH = "Put this window back on top of the guide",
-    TIP_NOW_LOCK = "Lock this window in place",
-    TIP_NOW_UNLOCK = "Unlock this window",
-    NOW_NO_DRAG_COMBAT = "the windows can't move in combat while the item button shows",
-    MENU_NOWWINDOW = "Current step in its own window",
     GOAL_ITEMS = "Items",                       -- goal line of an item step
     YARDS = "{n} yd",                           -- distance, whole yards
     ARRIVED = "You're there",                   -- under the arrow, inside the step's spot
@@ -236,6 +223,10 @@ ns.Locale.Add("enUS", {
     VIA_KIND_PATH = "Follow the path",
     HUNT_HINT = "Kill as you go: spot {i} of {n}",
     HUNT_COMBAT = "Arrow waits until the fight ends",
+    -- spawn spots (Engine\Spots.lua): {n} = spots not cleared yet; {min} = minutes, always an estimate ("~")
+    SPOT_HINT = "Nearest spawn spot ({n} to go)",
+    SPOT_RESPAWN = "All cleared: they respawn here in ~{min} min",
+    MENU_ARROW_MODE = "Spawn spot order: {mode}",
     VIA_KIND_STAIRS = "Take the stairs",
     -- v0.2 quest items in the bags (Engine\BagQuests.lua, UI\HubBag.lua)
     HUB_QUESTITEMS = "Quest items",
@@ -287,6 +278,11 @@ ns.Locale.Add("enUS", {
     KEY_BACK = "Previous step",
     KEY_SKIP = "Skip the current step",
     KEY_ITEM = "Use the step's item",
+    KEY_TARGET = "Target the step's mob",
+    SET_TARGETBUTTON = "Target button",
+    SETTIP_TARGETBUTTON = "A button above the window: press it to target the step's mob (English game client only)",
+    TIP_TARGET = "Target: {name}",
+    TIP_TARGET_HINT = "Click to target it (when it's in range)",
     KEY_ARROW = "Arrow on or off",
     KEY_MENU = "Open the guide menu",
     -- /aog restore (a backup is made before saved data is updated to a new version)
@@ -353,8 +349,8 @@ ns.Locale.Add("enUS", {
     SETTIP_OPACITY = "How solid the window's background is",
     SET_WIDTH = "Width",
     SETTIP_WIDTH = "The window's width; the step area keeps its height",
-    SET_LINES = "Steps shown",
-    SETTIP_LINES = "How many steps the list shows. You can also drag the window's bottom edge",
+    SET_LINES = "Next steps shown",
+    SETTIP_LINES = "How many next steps the window shows. You can also drag its bottom edge",
     SET_SCALE = "Window size",
     SETTIP_SCALE = "Makes the whole window bigger or smaller",
     SET_FOLLOWUISCALE = "Follow the UI scale",
@@ -365,14 +361,6 @@ ns.Locale.Add("enUS", {
     SETTIP_HIGHCONTRAST = "A solid dark background and brighter text",
     SET_COLORBLIND = "Colour-blind colours",
     SETTIP_COLORBLIND = "The arrow goes from blue (ahead) to orange (behind); done marks turn blue",
-    SET_NOWWINDOW = "Current step in its own window",
-    SETTIP_NOWWINDOW = "Off: the current step sits at the top of the guide window again",
-    SET_NOWATTACHED = "Keep it on top of the guide",
-    SETTIP_NOWATTACHED = "The current step's window sits on top of the guide window and moves with it",
-    SET_NOWLOCKED = "Lock the free step window",
-    SETTIP_NOWLOCKED = "The current step's window can't be moved while it's on its own",
-    SET_NOWSCALE = "Free step window size",
-    SETTIP_NOWSCALE = "Makes the current step's window bigger or smaller while it's on its own",
     SET_ARROW = "Show the arrow",
     SETTIP_ARROW = "The arrow that points to the current step's spot",
     SET_ARROWSCALE = "Arrow size",
@@ -389,6 +377,15 @@ ns.Locale.Add("enUS", {
     SETTIP_SMARTARROW = "Leads you through doors, gates and paths instead of a straight line to the spot",
     SET_HUNTPATH = "Lead me round mob areas",
     SETTIP_HUNTPATH = "On kill and collect steps, the arrow leads you spot by spot where they spawn",
+    SET_HUNTMODE = "Spawn spot order",
+    SETTIP_HUNTMODE = "Nearest spot: the closest spot not cleared yet. Loop: the same round every time. Mixed: loops where the guide has them",
+    HUNT_MODE_AUTO = "Mixed",
+    HUNT_MODE_SPOTS = "Nearest spot",
+    HUNT_MODE_LOOPS = "Loop",
+    SET_SPOTMAP = "Spawn spots on the world map",
+    SETTIP_SPOTMAP = "Dots for the spawn spots of your kill step; grey ones are cleared",
+    SET_SPOTMINIMAP = "Spawn spots on the minimap",
+    SETTIP_SPOTMINIMAP = "Dots for the spawn spots of your kill step on the minimap; grey ones are cleared",
     SET_MAPPINS = "Pins on the world map",
     SETTIP_MAPPINS = "Numbered pins for the next steps on the world map",
     SET_MINIMAPPINS = "Pins on the minimap",
@@ -556,6 +553,16 @@ ns.Locale.Add("enUS", {
     NPC_WHY_NOTDOING = "you're not doing it",
     NPC_WHY_NA = "not in WoW Forever",
     NPC_WHY_BEHIND = "you're past that step",
+    NPC_WHY_NOTOFFERED = "not offered yet",
+
+    -- Quest giver check (Engine\QuestGiver.lua): a route quest the NPC didn't offer is skipped for now.
+    -- {quest} = the quest's name
+    SET_QUESTGIVERCHECK = "Skip quests not offered yet",
+    SETTIP_QUESTGIVERCHECK = "When an NPC doesn't offer a guide quest yet, the guide skips it for now and brings it back when it may be ready",
+    QG_NOTICE = "Not offered yet: {quest}",
+    QG_REPORT = "Report",
+    QG_SHOW_AGAIN = "Show it again",
+    QG_REPORT_NOTE = "Quest {quest} not offered by NPC {npc} at level {level}",
 
     -- Tooltip step line (UI\TooltipStep.lua): one line at the bottom of a mob / NPC / object tooltip.
     -- {text} = the game's objective text with its count ("Kobold Vermin slain 4/10") or our step text
@@ -577,7 +584,8 @@ ns.Locale.Add("enUS", {
     SET_MODELVIEWER = "Show the 3D view",
     SETTIP_MODELVIEWER = "Shows the NPC or mob of your current step as a 3D model next to the guide",
     SET_MODELPOS = "3D view position",
-    SETTIP_MODELPOS = "Where the 3D view sits: left, right or below the guide, or free (Shift+drag it)",
+    SETTIP_MODELPOS = "Where the 3D view sits: inside the window, or left, right or below it. Free: Shift+drag",
+    CHOICE_MODEL_NOW = "Inside the window",
     SET_MODELSCALE = "3D view size",
     SETTIP_MODELSCALE = "Makes the 3D view bigger or smaller; it also follows the window size",
     SET_MODELHIDECOMBAT = "Hide the 3D view in combat",
@@ -601,4 +609,32 @@ ns.Locale.Add("enUS", {
     MODEL_TIP_RIGHT = "Right-click for options",
     MODEL_SHOWN = "3D view on",
     MODEL_HIDDEN = "3D view off (type /aog model to show it again)",
+    -- the one window (2026-11-26)
+    FOR_QUEST = "for {quest}",                  -- under the current step's text
+    PLACE_LINE = "{zone} · {coords}",           -- the place line under it
+    -- verbs coloured at the start of a step's text, per tile kind ("|" between the words; longest is tried first)
+    VERB_TURNIN = "Turn in|Hand in",
+    VERB_ACCEPT = "Accept",
+    VERB_LOOT = "Pick up|Loot|Collect",
+    VERB_KILL = "Kill|Slay|Grind",
+    VERB_USE = "Use|Click|Open",
+    VERB_GOTO = "Go to|Go back|Go|Follow|Leave|Cross|Run|Head|Return|Enter",
+    VERB_NOTE = "Reach",
+    VERB_TALK = "Talk to|Speak to",
+    VERB_TRAIN = "Train|Learn",
+    VERB_FLY = "Fly to|Fly|Get the flight path",
+    VERB_HEARTH = "Hearth to|Hearth|Set your hearthstone",
+    TAG_NOTE = "Note",                          -- next step's tag when its text has no verb (shown in capitals)
+    CHIP_LEVEL = "Level {level}",
+    CHIP_LEVEL_XP = "Level {level} · {pct} % XP",
+    CHIP_TIME_MIN = "~ {n} min left",
+    CHIP_TIME_HOURS = "~ {h} h {n} min left",
+    TIP_TIME_EST = "Estimated from the guide's steps",
+    TIP_TIME_PACE = "From your own pace over {n} steps",
+    TIP_RANGE = "Click to choose a guide",
+    GOAL_DONE_FOLD = "{n} done",             -- finished goals folded into one line
+    FOLD_OPEN = "click to open",
+    FOLD_CLOSE = "click to close",
+    NAV_TEXT = "step {i} / {n} · {p} %",
+    TIP_BAR = "Click for the steps you've done",
 })

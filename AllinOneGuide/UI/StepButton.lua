@@ -14,7 +14,7 @@ local _, ns = ...
 local Th, K, Co = ns.Theme, ns.UIKit, ns.Compat
 local CQ = ns.CombatQueue
 -- CROP: item icons show only their inner 84 % (Blizzard's baked edge sits under our frame; look review #9)
--- LEVEL_GAP: inside the NOW window, the button's frame level is this far above the window's
+-- LEVEL_GAP: (was: inside the old NOW window, the frame level gap above it; kept for the target button)
 local SB = { NAME = "AllinOneGuideStepButton", SIZE = 36, HEARTHSTONE = 6948, item = nil, want = nil, CROP = 0.08,
     LEVEL_GAP = 20 }
 ns.StepButton = SB
@@ -46,7 +46,8 @@ local function Build()
     b.border = b:CreateTexture(nil, "BORDER")
     b.border:SetSize(52, 52)
     b.border:SetPoint("CENTER")
-    Th.Glyph(b.border, "frame.stepbutton")
+    -- (the one window: the rounded frame, its hole covers the icon's square corners)
+    Th.Glyph(b.border, Th.Has("slot.frame.button") and "frame.button" or "frame.stepbutton")
     b.border:SetVertexColor(Th.Color("stepFrame"))
     b.edge = { b.border }
     -- outlined (font.buttonText): readable on busy item icons
@@ -149,45 +150,39 @@ function SB.Tooltip(owner)
     tip:Show()
 end
 
--- Places the button left of the window's top edge, at the window's own scale (look review #1). The window's
--- GetLeft / GetTop are in its own scaled units: k turns them into UIParent units, and the button's offsets
--- are in its own units (UIParent units / its scale). Secure: only from Apply (combat queue).
--- With the NOW window (UI\NowWindow.lua) the button sits inside its top-right instead, at its scale, one
--- fixed level gap above it (tos: never SetToplevel / Raise on that window; the level is set only here, out
--- of combat).
-local function InNow()
-    local NW = ns.NowWin
-    return NW and NW.On() and NW.frame ~= nil
+-- Places the button in the row above the window's top-left (the one window, 4f: item first, the target button right
+-- of it), at the window's own scale. The window's GetLeft / GetTop are in its own scaled units: k turns them into
+-- UIParent units, and the button's offsets are in its own units (UIParent units / its scale). Secure: only from Apply
+-- (combat queue). SB.Spot(i) = the i-th spot of that row (UI\TargetButton.lua uses spot 2, or 1 without an item).
+function SB.Spot(i)
+    local w = ns.UI and ns.UI.frame
+    local p = Co.fn.UIParent
+    local s = ns.Overlay.WindowScale()
+    if type(s) ~= "number" or s <= 0 then s = 1 end
+    local x, y = w and w:GetLeft(), w and w:GetTop()
+    local ps = p and p.GetEffectiveScale and p:GetEffectiveScale()
+    if not (x and y and ps and ps > 0) then return nil, nil, s end
+    local k = w:GetEffectiveScale() / ps
+    local gap = Th.Size("buttonRowGap")
+    -- the frame art sticks out 8 on each side: the first button's frame lines up with the window's left edge
+    local bx = x * k / s + 8 + (i - 1) * (SB.SIZE + 16)
+    local by = y * k / s + gap + SB.SIZE
+    return bx, by, s
 end
-SB.InNow = InNow
 
 local function Place(b)
     local p = Co.fn.UIParent
-    local now = InNow()
-    local s = ns.Overlay.WindowScale(now and ns.NowWin.ScaleKey() or nil)
-    if type(s) ~= "number" or s <= 0 then s = 1 end
+    local x, y, s = SB.Spot(1)
     b:SetScale(s)
     b:ClearAllPoints()
-    local w = now and ns.NowWin.frame or (ns.UI and ns.UI.frame)
-    local x, y = w and (now and w:GetRight() or w:GetLeft()), w and w:GetTop()
-    local ps = p and p.GetEffectiveScale and p:GetEffectiveScale()
-    if x and y and ps and ps > 0 then
-        local k = w:GetEffectiveScale() / ps
-        if now then
-            local inset, down = ns.NowWin.ButtonSpot()
-            local kw = k / s   -- the window's units -> the button's units
-            b:SetPoint("TOPRIGHT", p, "BOTTOMLEFT", (x - inset) * kw, (y - down) * kw)
-            b:SetFrameLevel((w:GetFrameLevel() or 0) + SB.LEVEL_GAP)
-        else
-            b:SetPoint("TOPRIGHT", p, "BOTTOMLEFT", x * k / s - Th.Size("stepButtonGap"), y * k / s)
-        end
+    if x then
+        b:SetPoint("TOPLEFT", p, "BOTTOMLEFT", x, y)
     else
         b:SetPoint("CENTER", p, "CENTER", -200 / s, 0)
     end
-    SB.placed = { x = x, y = y, scale = s, now = now }
+    SB.placed = { x = x, y = y, scale = s }
 end
 SB.Place = Place
-
 -- Secure part: item attribute, place, shown. Only ever called through the combat queue.
 local function Apply(id)
     local b = SB.frame or Build()
@@ -242,7 +237,7 @@ ns.SelfChecks[#ns.SelfChecks + 1] = { label = "stepbutton", fn = function(h)
         local want = Co.ItemIcon(SB.item)
         if want and b.icon:GetTexture() ~= want then h.Problem("stepbutton: the icon isn't the item on the button") end
     end
-    -- look review #1: next to the window's top-left at the window's scale (unless the screen edge clamps it)
+    -- the one window: in the row above the window's top-left at the window's scale (unless the screen top clamps it)
     local bad = SB.Misplaced()
     if bad then h.Problem("stepbutton: " .. bad) end
     -- look review #9: the icon is cropped; the glow pulses exactly while it is up (motion on)
@@ -255,37 +250,32 @@ ns.SelfChecks[#ns.SelfChecks + 1] = { label = "stepbutton", fn = function(h)
     end
 end }
 
--- nil when the button sits where it should (or can't be judged now), else a short reason.
-function SB.Misplaced()
-    local now = InNow()
-    local b, w = SB.frame, now and ns.NowWin.frame or (ns.UI and ns.UI.frame)
-    if not (b and w and b:IsShown() and w:IsShown()) or Co.InCombat() or CQ.Pending("stepbutton") then return nil end
+-- nil when a button sits where it should (or can't be judged now), else a short reason. spot: 1 = the item button.
+function SB.MisplacedAt(b, spot)
+    local w = ns.UI and ns.UI.frame
+    if not (b and w and b:IsShown() and w:IsShown()) or Co.InCombat() then return nil end
     local p = Co.fn.UIParent
     local ps = p and p:GetEffectiveScale()
-    if now then
-        local br, bt, wr, wt = b:GetRight(), b:GetTop(), w:GetRight(), w:GetTop()
-        if not (ps and br and bt and wr and wt) then return nil end
-        local kb, kw = b:GetEffectiveScale() / ps, w:GetEffectiveScale() / ps
-        if math.abs(kb - kw) > 0.01 then return ("scale %.2f, the NOW window %.2f"):format(kb, kw) end
-        if (b:GetFrameLevel() or 0) <= (w:GetFrameLevel() or 0) then return "under the NOW window" end
-        local inset, down = ns.NowWin.ButtonSpot()
-        if math.abs(bt * kb - (wt - down) * kw) > 1 then return "not at the NOW window's top" end
-        if math.abs(br * kb - (wr - inset) * kw) > 1 then return "not at the NOW window's right" end
-        return nil
-    end
-    local bl, br, bt = b:GetLeft(), b:GetRight(), b:GetTop()
-    local wl, wt = w:GetLeft(), w:GetTop()
-    if not (ps and bl and br and bt and wl and wt) then return nil end
+    local bl, bt, wl, wt = b:GetLeft(), b:GetTop(), w:GetLeft(), w:GetTop()
+    if not (ps and bl and bt and wl and wt) then return nil end
     local kb, kw = b:GetEffectiveScale() / ps, w:GetEffectiveScale() / ps
     if math.abs(kb - kw) > 0.01 then return ("scale %.2f, the window %.2f"):format(kb, kw) end
-    local gap = Th.Size("stepButtonGap") * kb
-    local room = wl * kw - gap - (br - bl) * kb
-    if room < 0 then return nil end   -- clamped at the screen's left edge
-    if math.abs(bt * kb - wt * kw) > 1 then return "not level with the window's top" end
-    if math.abs((wl * kw - br * kb) - gap) > 1 then return ("gap %.1f, wanted %.1f"):format(wl * kw - br * kb, gap) end
+    local p2 = p:GetHeight()
+    if bt * kb > p2 - 0.5 then return nil end   -- clamped at the screen's top edge
+    local x, y = SB.Spot(spot)
+    if not x then return nil end
+    if math.abs(bt - y) > 1 then return "not in the row above the window's top" end
+    if math.abs(bl - x) > 1 then return ("not at spot %d of that row"):format(spot) end
+    -- above the window, never on it
+    local bb = b:GetBottom()
+    if bb and bb * kb < wt * kw - 0.5 then return "covers the window's top" end
     return nil
 end
 
+function SB.Misplaced()
+    if CQ.Pending("stepbutton") then return nil end
+    return SB.MisplacedAt(SB.frame, 1)
+end
 ns.Bus.On("Login", SB, function()
     if not ns.Feature.IsOn("stepbutton") then return end
     local function Up() SB.Update() end

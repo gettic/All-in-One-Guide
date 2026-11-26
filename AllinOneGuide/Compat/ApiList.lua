@@ -132,7 +132,13 @@ ns.ApiList = {
     { id = "AvailQuestInfo", path = "GetAvailableQuestInfo", feature = "npchelper", kind = "function", src = "xml Blizzard_UIPanels_Game\\Mainline\\QuestFrame.lua:393 (5th return = questID; not in the docs)" },
     { id = "ScrollInitCb", path = "ScrollUtil.AddInitializedFrameCallback", kind = "function", src = "xml Blizzard_SharedXML\\Shared\\Scroll\\ScrollUtil.lua:21 (callbacks run through secureexecuterange)" },
     { id = "GossipAvail", path = "C_GossipInfo.GetAvailableQuests", kind = "function", src = "doc GossipInfoDocumentation.lua:33 (self-check only)" },
-    { id = "GossipActive", path = "C_GossipInfo.GetActiveQuests", kind = "function", src = "doc GossipInfoDocumentation.lua:24 (self-check only)" },
+    { id = "GossipActive", path = "C_GossipInfo.GetActiveQuests", kind = "function", src = "doc GossipInfoDocumentation.lua:24 (self-check, quest giver check)" },
+    -- Quest giver check (Engine\QuestGiver.lua, plans\quest-giver-check\): the open NPC's quest lists, read only
+    { id = "GossipNumAvail", path = "C_GossipInfo.GetNumAvailableQuests", feature = "questgiver", kind = "function", src = "doc GossipInfoDocumentation.lua:100" },
+    { id = "GossipNumActive", path = "C_GossipInfo.GetNumActiveQuests", feature = "questgiver", kind = "function", src = "doc GossipInfoDocumentation.lua:91" },
+    { id = "GossipOptions", path = "C_GossipInfo.GetOptions", kind = "function", src = "doc GossipInfoDocumentation.lua:124 (missing = no option count)" },
+    { id = "GreetNumAvail", path = "GetNumAvailableQuests", feature = "questgiver", kind = "function", src = "xml Blizzard_UIPanels_Game\\Mainline\\QuestFrame.lua:337" },
+    { id = "GreetNumActive", path = "GetNumActiveQuests", feature = "questgiver", kind = "function", src = "xml Blizzard_UIPanels_Game\\Mainline\\QuestFrame.lua:336" },
 
     -- Tooltip step line (plans\tooltip-step\plan.md): our own lines after Blizzard builds a unit / object tooltip.
     -- Enum.TooltipDataType / TooltipDataLineType are read in UI\TooltipStep.lua (pcall; missing = no post-call).

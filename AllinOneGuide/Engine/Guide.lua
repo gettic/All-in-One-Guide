@@ -100,17 +100,52 @@ function Guide:Skipped(step)
     if q then
         if self.save.notDoing and next(self.save.notDoing) and self:Dropped(q) then return true end
         if ns.QuestData and ns.QuestData.NotAvailable(q) then return true end
+        if self:Held(q) then return true end
     end
     return false
 end
 
--- Why a step is passed over: "skip", "notdoing", "na" or nil.
+-- Why a step is passed over: "skip", "notdoing", "na", "notoffered" or nil.
 function Guide:SkipReason(step)
     if self.save.skips[step.id] == true then return "skip" end
     local q = step.quest
     if q and self.save.notDoing and next(self.save.notDoing) and self:Dropped(q) then return "notdoing" end
     if q and ns.QuestData and ns.QuestData.NotAvailable(q) then return "na" end
+    if q and self:Held(q) then return "notoffered" end
     return nil
+end
+
+-- Quest giver check (Engine\QuestGiver.lua): the quest's NPC didn't offer it, or it follows (through `pre`)
+-- a quest that wasn't offered. Its steps wait until the mark is cleared.
+function Guide:Held(q, depth)
+    local QG = ns.QuestGiver
+    if not (QG and QG.any) then return false end
+    if QG.Marked(q) then return true end
+    depth = depth or 0
+    if depth > 10 then return false end
+    for _, p in ipairs(self:PreMap()[q] or {}) do
+        if not GS.IsDone(p) and self:Held(p, depth + 1) then return true end
+    end
+    return false
+end
+
+-- Quest giver check: quest q may be offered again. Its accept step ahead of the current step needs nothing
+-- (the route gets there); one behind comes back as a background goal only when near(step) says so (least
+-- travel: never sends the player back). Once accepted, its later steps behind come back too (Refresh).
+function Guide:BringBack(q, near)
+    local list = self:AcceptsOf()[q]
+    if not list then return false end
+    for _, i in ipairs(list) do
+        local s = self:Step(i)
+        if s and i < self.pos and self:IsStop(s, i) and near(s) then
+            for _, b in ipairs(self.bg) do if b == i then return true end end
+            self.bg[#self.bg + 1] = i
+            self.backQuests = self.backQuests or {}
+            self.backQuests[q] = true
+            return true
+        end
+    end
+    return false
 end
 
 -- ------------------------------------------------------------------ not doing a quest (v0.2)
@@ -550,6 +585,22 @@ function Guide:Refresh()
             end
         end
         if not next(self.itemWait) then self.itemWait = nil end
+    end
+    -- quest giver check: a quest brought back (BringBack) and now accepted: its objective / turn-in steps behind
+    -- the current step ride along as background goals
+    if self.backQuests then
+        for q in pairs(self.backQuests) do
+            if GS.InLog(q) then
+                self.backQuests[q] = nil
+                for i = 1, math.min(self.pos - 1, self:Count()) do
+                    local s = self:Step(i)
+                    if s and s.quest == q and s.type ~= "accept" and self:IsStop(s, i) then AddBg(self, i) end
+                end
+            elseif GS.IsDone(q) then
+                self.backQuests[q] = nil
+            end
+        end
+        if not next(self.backQuests) then self.backQuests = nil end
     end
     if self.pinned then
         local s = self:Step(self.pos)

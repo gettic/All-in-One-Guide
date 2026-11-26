@@ -68,7 +68,7 @@ function Ov.Opacity(a)
 end
 
 -- The window's own scale; with followUIScale off it cancels the UI scale out (same size on screen).
--- key: the scale setting ("scale" = the guide window and the attached NOW window; "nowScale" = the free one)
+-- key: the scale setting (default "scale" = the guide window)
 function Ov.WindowScale(key)
     local s = ns.Settings.Get(key or "scale")
     if not ns.Settings.Get("followUIScale") then
@@ -92,13 +92,21 @@ function Ov.KeepOnScreen(f)
     local fs, ps = f:GetEffectiveScale(), p:GetEffectiveScale()
     local k = fs / ps                           -- frame units -> parent units
     local pw, ph = p:GetWidth(), p:GetHeight()
+    -- f.keepRoom = { left, right, top, bottom }: room (frame units) kept free around the frame (the one window: its
+    -- soft shadow, and the button row above its top); f.keepBottom: anchored by its bottom-left (it grows up)
+    local m = type(f.keepRoom) == "function" and f.keepRoom() or f.keepRoom or {}
+    local ml, mr, mt, mb = (m[1] or 0) * k, (m[2] or 0) * k, (m[3] or 0) * k, (m[4] or 0) * k
     local dx, dy = 0, 0
-    if l * k < 0 then dx = -l * k elseif r * k > pw then dx = pw - r * k end
-    if b * k < 0 then dy = -b * k elseif t * k > ph then dy = ph - t * k end
-    if dx == 0 and dy == 0 then return false end
-    -- re-anchor by TOPLEFT in the frame's own units
+    if l * k - ml < 0 then dx = ml - l * k elseif r * k + mr > pw then dx = pw - r * k - mr end
+    if b * k - mb < 0 then dy = mb - b * k elseif t * k + mt > ph then dy = ph - t * k - mt end
+    if math.abs(dx) < 0.01 and math.abs(dy) < 0.01 then return false end
     f:ClearAllPoints()
-    f:SetPoint("TOPLEFT", p, "BOTTOMLEFT", (l * k + dx) / k, (t * k + dy) / k)
+    if f.keepBottom then
+        f:SetPoint("BOTTOMLEFT", p, "BOTTOMLEFT", (l * k + dx) / k, (b * k + dy) / k)
+    else
+        -- re-anchor by TOPLEFT in the frame's own units
+        f:SetPoint("TOPLEFT", p, "BOTTOMLEFT", (l * k + dx) / k, (t * k + dy) / k)
+    end
     return true
 end
 

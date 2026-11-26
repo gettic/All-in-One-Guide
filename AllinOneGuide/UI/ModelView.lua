@@ -1,7 +1,9 @@
 -- SPDX-License-Identifier: GPL-3.0-or-later
 -- Copyright (C) 2026 gettic
 -- The 3D viewer (v0.3): one PlayerModel frame `AllinOneGuideModel` that shows the NPC or mob the current step is
--- about, docked to the guide window (setting modelPos: left (default) / right / below / free). Display only:
+-- about. Setting modelPos: "now" (default, "Inside the window") = a square at the step block's top-left in the one
+-- window, the step text right of it and the goal lines under it (UI\Window.lua + UI\Rows.lua `lean`; stays frozen in
+-- combat). Or docked to the window: left / right / below, or free. Display only:
 -- no targeting, no reading of other units, nothing secure (PlayerModel isn't protected, so it may move in combat).
 --   * target, in order: a hunt-path target (SetTarget(npc, "hunt"), static pack data only, never a live
 --     "nearest mob"), else the step's `model` (a display id), `targetNpc`, `npc`
@@ -17,7 +19,7 @@
 local _, ns = ...
 local Th, K, Co = ns.Theme, ns.UIKit, ns.Compat
 local MV = {
-    NAME = "AllinOneGuideModel", POSITIONS = { "left", "right", "below", "free" },
+    NAME = "AllinOneGuideModel", POSITIONS = { "now", "left", "right", "below", "free" },
     ZOOM_MAX = 0.8, ZOOM_STEP = 0.1, TURN = 0.02, CHECK_AFTER = 0.5, CLEAR_AFTER = 30, DOUBLE = 0.35,
     -- step types that are about someone even without an npc id: they get the card instead of nothing
     CARD_TYPES = { accept = true, turnin = true, objective = true, useitem = true },
@@ -48,20 +50,64 @@ end
 -- data; source "hunt" wins while set, nil clears it. Anything else is ignored.
 function MV.SetTarget(npc, source)
     if source ~= "hunt" then return false end
+    local step = ns.Engine.Current()
+    local before = MV.InsideSlot(step)
     MV.hunt = PosInt(npc)
+    -- inside the NOW window: only when the row must make (or give back) room, redraw the guide on the next
+    -- frame (never from inside the caller: the hunt path calls this while the arrow is being aimed)
+    if (before ~= nil) ~= (MV.InsideSlot(step) ~= nil) and ns.UI and ns.UI.frame then
+        Co.After(0, function()
+            ns.Errors.Call("ui", ns.UI.Refresh)
+            ns.Errors.Call("model", MV.Update)
+        end)
+    end
     MV.Update()
     return true
 end
 
+-- Inside the window (position "now", the default): the square in the step block.
+function MV.InsideMode()
+    return S().Get("modelPos") == "now"
+end
+
+-- The square's size from the settings alone (the window keeps this room for it whether a step has a model or not),
+-- or nil when the view isn't inside (off / another position / small mode / safe mode).
+function MV.InsideSize()
+    if not (S().Get("modelViewer") and MV.InsideMode()) or ns.safeMode or S().Get("small") then return nil end
+    if not ns.Feature.IsOn("model") then return nil end
+    local size = Th.Size("modelInside")
+    if ns.UI and ns.UI.Width and ns.UI.Width() < 272 then size = Th.Size("modelInsideMin") end
+    return math.floor(size * S().Get("modelScale") + 0.5)
+end
+
+-- The square's size (window units) when the step block shows the 3D view for this step, else nil.
+-- Pure (UI\Window.lua Refresh asks it before laying out the row): the same rules as Why() below, so the room
+-- is kept exactly when the viewer shows. A step with nothing to show (card targets) shows its tile and text from
+-- the left; the card stands in only when a model fails to load.
+function MV.InsideSlot(step)
+    local size = MV.InsideSize()
+    if not size or not step then return nil end
+    local t = MV.TargetFor(step)
+    if not t or t.card then return nil end
+    return size
+end
+
 -- Why it's hidden now, or nil when it shows.
+-- Inside the NOW window it never hides for combat (the user's answer: "Stay, frozen"): the window's look
+-- doesn't change in fights; it just doesn't load anything new until the fight ends.
 function MV.Why()
     if not S().Get("modelViewer") then return "off" end
     if ns.safeMode then return "safe" end
     if not (ns.UI and ns.UI.IsShown and ns.UI.IsShown()) then return "window" end
     if ns.UI.suppressed then return "suppressed" end
     if S().Get("small") then return "small" end
-    if Co.InCombat() and S().Get("modelHideCombat") then return "combat" end
-    if not MV.TargetFor(ns.Engine.Current()) then return "none" end
+    local inside = MV.InsideMode()
+    if not inside and Co.InCombat() and S().Get("modelHideCombat") then return "combat" end
+    local t = MV.TargetFor(ns.Engine.Current())
+    if not t then return "none" end
+    if inside then
+        if t.card then return "none" end
+    end
     return nil
 end
 
@@ -132,6 +178,22 @@ local function Build()
 end
 MV.Build = function() return MV.frame or Build() end
 
+-- Inside the window: a rounded box (round.s at size.cornerButton) instead of the square fill + hairlines.
+function MV.Round(on)
+    local f = MV.frame
+    if not f then return end
+    if on and not f.round then
+        f.round = K.Slice(f, "round", Th.Size("cornerButton"), "modelBg", { sub = -1 })
+        f.roundEdge = K.Slice(f, "frame.border", Th.Size("cornerButton"), "modelEdge", { layer = "BORDER" })
+        if not f.round then f.round = false end
+    end
+    local r = on and f.round and true or false
+    K.SliceShown(f.round or nil, r)
+    K.SliceShown(f.roundEdge or nil, r)
+    f.bg:SetShown(not r)
+    for _, e in ipairs(f.edges) do e:SetShown(not r) end
+end
+
 -- ------------------------------------------------------------------ placing
 local function Scale()
     local s = ns.Overlay.WindowScale()
@@ -159,26 +221,11 @@ function MV.SaveSpot()
     return true
 end
 
--- The room the step button takes at the window's top-left (window units), so a left dock sits under it.
--- With the NOW window on, the button sits inside that window instead: no room taken.
-local function ButtonRoom()
-    local SB = ns.StepButton
-    if not (SB and SB.frame and SB.frame:IsShown()) then return 0 end
-    if SB.InNow and SB.InNow() then return 0 end
-    return SB.SIZE + 8 + Th.Size("modelGap")
-end
-
--- The NOW window when it sits attached on top of the guide window (then "above" docks over it), else nil.
-local function NowOnTop()
-    local NW = ns.NowWin
-    if not (NW and NW.On and NW.On() and NW.Attached() and NW.frame and NW.frame:IsShown()) then return nil end
-    return NW.frame
-end
-MV.NowOnTop = NowOnTop
+-- The item / target buttons sit in a row above the window (not beside it): a left dock takes no room for them.
+local function ButtonRoom() return 0 end
 
 -- Which side it docks to: the wanted one, or another one when that has no room on the screen.
--- below -> above (over the attached NOW window, never on it) -> left / right (whichever fits) when the
--- screen is too short for both (beta.5 fix: "above" used to cover the NOW window or be clamped onto the guide).
+-- below -> above -> left / right (whichever fits) when the screen is too short for both.
 function MV.Side(want, f, w)
     local p = Co.UIParent()
     if want == "free" or not (p and w) then return want end
@@ -192,8 +239,6 @@ function MV.Side(want, f, w)
     local roomL = wl * kw - gap - vw >= 0
     local roomR = wr * kw + gap + vw <= pw
     local top = wt * kw
-    local now = NowOnTop()
-    if now and now:GetTop() then top = math.max(top, now:GetTop() * (now:GetEffectiveScale() / ps)) end
     local roomB = wb * kw - gap - vh >= 0
     local roomA = top + gap + vh <= ph
     if want == "left" and not roomL and roomR then return "right" end
@@ -209,11 +254,28 @@ end
 function MV.Place()
     local f, w, p = MV.frame, ns.UI and ns.UI.frame, Co.UIParent()
     if not f then return end
+    if MV.InsideMode() and w then
+        -- inside the window: a square at the step block's top-left, the step text right of it (Refresh keeps the room)
+        if f:GetParent() ~= w then f:SetParent(w) end
+        local size = MV.InsideSize() or math.floor(Th.Size("modelInside") * S().Get("modelScale") + 0.5)
+        f:SetScale(1)
+        f:SetSize(size, size)
+        f:ClearAllPoints()
+        local x, y = ns.UI.SlotSpot()
+        f:SetPoint("TOPLEFT", w, "TOPLEFT", x, -y)
+        f:SetFrameLevel((w:GetFrameLevel() or 0) + 3)
+        MV.side = "now"
+        MV.Round(true)
+        return
+    end
+    MV.Round(false)
+    if p and f:GetParent() ~= p then f:SetParent(p) f:SetFrameStrata("MEDIUM") end
     local s = Scale()
     f:SetScale(s)
     f:SetSize(Th.Size("modelW"), Th.Size("modelH"))
     f:ClearAllPoints()
     local want = S().Get("modelPos")
+    if want == "now" then want = "left" end   -- (inside not possible, e.g. small mode: the left dock)
     local side = MV.Side(want, f, w)
     MV.side = side
     local ms = S().Get("modelScale")
@@ -230,22 +292,8 @@ function MV.Place()
             f:SetPoint("CENTER", p, "CENTER", 0, 0)
         end
     elseif side == "right" or side == "left" then
-        -- the user's wish (2026-11-25): with the NOW window attached on top, the viewer's top lines up with the
-        -- NOW window's top (anchored to it, so it follows); else the guide's top (left: under the item button)
-        local now = NowOnTop()
-        local fs = f:GetEffectiveScale()
-        if now and fs and fs > 0 then
-            local ns_, ws = now:GetEffectiveScale(), w:GetEffectiveScale()
-            if side == "right" then
-                local nr, wr = now:GetRight(), w:GetRight()
-                local dx = (nr and wr) and (wr * ws - nr * ns_) / fs or 0
-                f:SetPoint("TOPLEFT", now, "TOPRIGHT", dx + gap, 0)
-            else
-                local nl, wl = now:GetLeft(), w:GetLeft()
-                local dx = (nl and wl) and (wl * ws - nl * ns_) / fs or 0
-                f:SetPoint("TOPRIGHT", now, "TOPLEFT", dx - gap, 0)
-            end
-        elseif side == "right" then
+        -- level with the window's top
+        if side == "right" then
             f:SetPoint("TOPLEFT", w, "TOPRIGHT", gap, 0)
         else
             f:SetPoint("TOPRIGHT", w, "TOPLEFT", -gap, -ButtonRoom() / ms)
@@ -253,26 +301,54 @@ function MV.Place()
     elseif side == "below" then
         f:SetPoint("TOPLEFT", w, "BOTTOMLEFT", 0, -gap)
     elseif side == "above" then
-        -- over the attached NOW window's top (same left edge as the guide window), else the guide's top
-        local now = NowOnTop()
-        if now then
-            -- anchored to the NOW window itself (it moves and grows with it), lined up with the guide's left
-            local nl, wl = now:GetLeft(), w:GetLeft()
-            local dx = 0
-            if nl and wl then dx = (wl * w:GetEffectiveScale() - nl * now:GetEffectiveScale()) / f:GetEffectiveScale() end
-            f:SetPoint("BOTTOMLEFT", now, "TOPLEFT", dx, gap)
-        else
-            f:SetPoint("BOTTOMLEFT", w, "TOPLEFT", 0, gap)
-        end
+        f:SetPoint("BOTTOMLEFT", w, "TOPLEFT", 0, gap)
     else
         f:SetPoint("TOPRIGHT", w, "TOPLEFT", -gap, -ButtonRoom() / ms)
     end
+end
+
+-- Inside the window: at the step block's top-left under the title bar, the square's size, beside (never under)
+-- the step text, and the row shows no number / icon. nil when right.
+function MV.InsideProblem()
+    local f = MV.frame
+    local n = ns.UI and ns.UI.frame
+    if not (n and n:IsShown()) then return "the window is hidden" end
+    if f:GetParent() ~= n then return "not in the window" end
+    local k = n:GetEffectiveScale()
+    local function R(o)
+        local l, r, b, t = o:GetLeft(), o:GetRight(), o:GetBottom(), o:GetTop()
+        if not (l and r and b and t) then return nil end
+        local e = o:GetEffectiveScale() / k   -- in the window's units
+        return l * e, r * e, b * e, t * e
+    end
+    local fl, fr, fb, ft = R(f)
+    local nl, nr, nb, nt = R(n)
+    if not (fl and nl) then return nil end
+    local want = ns.UI.slot
+    if want and (math.abs((fr - fl) - want) > 0.5 or math.abs((ft - fb) - want) > 0.5) then
+        return ("size %.0fx%.0f, wanted %d"):format(fr - fl, ft - fb, want)
+    end
+    local x, y = ns.UI.SlotSpot()
+    if math.abs(fl - (nl + x)) > 0.5 or math.abs(ft - (nt - y)) > 0.5 then return "not at the window's left, under its title" end
+    if fb < nb - 0.5 or fr > nr + 0.5 then return "sticks out of the window" end
+    local row = ns.UI.rows and ns.UI.rows[1]
+    if row and row:IsShown() and row:GetParent() == ns.UI.area and ns.UI.slot then
+        if not row.lean then return "the step row still has its number / icon" end
+        if row.num:IsShown() or row.badge.disc:IsShown() then return "the step number / icon still show" end
+        local ln = row.lines and row.lines[1]
+        local gt = ln and ln.text:IsShown() and ln.text:GetTop()
+        if gt and gt * (row:GetEffectiveScale() / k) > fb + 0.5 then return "a goal line runs beside the 3D view" end
+        local tl = R(row.text)
+        if tl and tl < fr - 0.5 then return "the step text runs under the 3D view" end
+    end
+    return nil
 end
 
 -- nil when it sits where it should (or can't be judged now), else a short reason. Self-test + offline tests.
 function MV.Misplaced()
     local f, w, p = MV.frame, ns.UI and ns.UI.frame, Co.UIParent()
     if not (f and w and p and f:IsShown() and w:IsShown()) or MV.side == "free" or MV.moving then return nil end
+    if MV.side == "now" then return MV.InsideProblem() end
     local ps = p:GetEffectiveScale()
     local fl, fr, fb, ft = f:GetLeft(), f:GetRight(), f:GetBottom(), f:GetTop()
     local wl, wr, wb, wt = w:GetLeft(), w:GetRight(), w:GetBottom(), w:GetTop()
@@ -283,37 +359,22 @@ function MV.Misplaced()
     fl, fr, fb, ft = fl * kf, fr * kf, fb * kf, ft * kf
     wl, wr, wb, wt = wl * kw, wr * kw, wb * kw, wt * kw
     local gap = Th.Size("modelGap") * kw
-    -- never on the guide window or the attached NOW window, also when the screen edge clamps it (beta.5)
-    local function Covers(l, r, b, t) return fl < r - 0.5 and fr > l + 0.5 and fb < t - 0.5 and ft > b + 0.5 end
-    if Covers(wl, wr, wb, wt) then return "covers the guide window" end
-    local now = NowOnTop()
-    if now then
-        local kn = now:GetEffectiveScale() / ps
-        local nl, nr, nb, nt = now:GetLeft(), now:GetRight(), now:GetBottom(), now:GetTop()
-        if nl and nr and nb and nt and Covers(nl * kn, nr * kn, nb * kn, nt * kn) then return "covers the NOW window" end
-    end
+    -- never on the guide window, also when the screen edge clamps it (beta.5)
+    if fl < wr - 0.5 and fr > wl + 0.5 and fb < wt - 0.5 and ft > wb + 0.5 then return "covers the guide window" end
     -- clamped at a screen edge: the gaps aren't judged
     if fl < 0.5 or fb < 0.5 or fr > p:GetWidth() - 0.5 or ft > p:GetHeight() - 0.5 then return nil end
     local side = MV.side
-    -- left / right with the NOW window attached: level with the NOW window's top (the user's wish)
-    local nowTop = now and now:GetTop() and now:GetTop() * (now:GetEffectiveScale() / ps)
     if side == "left" then
         if math.abs((wl - fr) - gap) > 1 then return ("left gap %.1f, wanted %.1f"):format(wl - fr, gap) end
-        if nowTop then
-            if math.abs(ft - nowTop) > 1 then return "not level with the NOW window's top" end
-        elseif math.abs((wt - ft) - ButtonRoom() * kw) > 1 then return "not under the step button / window top" end
+        if math.abs((wt - ft) - ButtonRoom() * kw) > 1 then return "not under the step button / window top" end
     elseif side == "right" then
         if math.abs((fl - wr) - gap) > 1 then return ("right gap %.1f, wanted %.1f"):format(fl - wr, gap) end
-        if math.abs(ft - (nowTop or wt)) > 1 then
-            return nowTop and "not level with the NOW window's top" or "not level with the window's top"
-        end
+        if math.abs(ft - wt) > 1 then return "not level with the window's top" end
     elseif side == "below" then
         if math.abs((wb - ft) - gap) > 1 then return ("gap below %.1f, wanted %.1f"):format(wb - ft, gap) end
         if math.abs(fl - wl) > 1 then return "not level with the window's left edge" end
     elseif side == "above" then
-        local top = wt
-        if now and now:GetTop() then top = math.max(top, now:GetTop() * (now:GetEffectiveScale() / ps)) end
-        if math.abs((fb - top) - gap) > 1 then return ("gap above %.1f, wanted %.1f"):format(fb - top, gap) end
+        if math.abs((fb - wt) - gap) > 1 then return ("gap above %.1f, wanted %.1f"):format(fb - wt, gap) end
         if math.abs(fl - wl) > 1 then return "not level with the window's left edge" end
     end
     return nil
@@ -549,7 +610,7 @@ function MV.Tip(owner)
     K.Tooltip(owner, title, lines)
 end
 
-local POS_LABEL = { left = "CHOICE_MODEL_LEFT", right = "CHOICE_MODEL_RIGHT", below = "CHOICE_MODEL_BELOW", free = "CHOICE_MODEL_FREE" }
+local POS_LABEL = { now = "CHOICE_MODEL_NOW", left = "CHOICE_MODEL_LEFT", right = "CHOICE_MODEL_RIGHT", below = "CHOICE_MODEL_BELOW", free = "CHOICE_MODEL_FREE" }
 MV.POS_LABEL = POS_LABEL
 
 function MV.MenuItems()
@@ -576,7 +637,7 @@ ns.Slash.Add("model", function() MV.Toggle() end, "HELP_MODEL")
 
 -- ------------------------------------------------------------------ wiring
 local SETTING_KEYS = { modelViewer = true, modelPos = true, modelScale = true, modelHideCombat = true, small = true,
-    scale = true, followUIScale = true }
+    scale = true, followUIScale = true, width = true }
 
 ns.Bus.On("Login", MV, function()
     local function Up() ns.Errors.Call("model", MV.Update) end
@@ -595,6 +656,10 @@ ns.Bus.On("Login", MV, function()
         if key == "modelPos" and S().Get("modelPos") == "free" and MV.frame and MV.frame:IsShown() and not FreeSpot() then
             MV.SaveSpot()   -- free starts where it is
         end
+        -- inside the NOW window the step row makes or gives back the room: redraw the guide first
+        if (key == "modelViewer" or key == "modelPos" or key == "modelScale") and ns.UI.frame then
+            ns.Errors.Call("ui", ns.UI.Refresh)
+        end
         if SETTING_KEYS[key] then Up() end
     end, "model", 85)
     Up()
@@ -604,7 +669,7 @@ end, "model", 95)
 ns.SelfChecks[#ns.SelfChecks + 1] = { label = "model", fn = function(h)
     h.Count()
     for _, key in ipairs({ "color.modelBg", "color.modelEdge", "color.modelText", "size.modelW", "size.modelH",
-        "size.modelGap", "size.modelInset" }) do
+        "size.modelGap", "size.modelInset", "size.modelInside" }) do
         if not Th.Has(key) then h.Problem("model: theme lacks " .. key) end
     end
     local f = MV.frame

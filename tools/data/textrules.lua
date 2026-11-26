@@ -10,7 +10,7 @@ return {
         { key = "^POPUP_", en = 12, why = "dialog buttons" },
         { key = "^MENU_", en = 32, why = "drop-down rows" },
         { key = "^TIP_", en = 44, why = "one-line tooltips" },
-        { key = "^CHIP_", en = 20, why = "the done chip" },
+        { key = "^CHIP_", en = 20, why = "a chip" },
         { key = "^COUNTER$", en = 14, why = "window corner" },
         { key = "^TITLE$", en = 28, why = "window title" },
         { key = "^NEXT_LINE$", en = 10, why = "small mode prefix" },

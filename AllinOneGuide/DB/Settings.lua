@@ -37,26 +37,33 @@ S.schema = {
     -- Tooltip step line (UI\TooltipStep.lua): "full" = with counts, "short" = only that it's part of the step
     { key = "tooltipStep", scope = "account", kind = "choice", default = "full", choices = { "off", "short", "full" }, export = true,
         page = "steps", choiceLabels = { off = "TIPSTEP_MODE_OFF", short = "TIPSTEP_MODE_SHORT", full = "TIPSTEP_MODE_FULL" } },
+    -- quest giver check (Engine\QuestGiver.lua): a route quest the NPC doesn't offer is skipped for now
+    { key = "questGiverCheck", scope = "account", kind = "bool", default = true, export = true, page = "steps" },
 
     { key = "locked", scope = "char", kind = "bool", default = false, export = true, page = "window" },
     { key = "small", scope = "char", kind = "bool", default = false, export = true, page = "window" },
-    { key = "opacity", scope = "char", kind = "number", default = 0.8, min = 0.2, max = 1, step = 0.1, export = true, page = "window" },
+    { key = "opacity", scope = "char", kind = "number", default = 0.9, min = 0.2, max = 1, step = 0.1, export = true, page = "window" },
     -- width / followUIScale move the window the secure step button docks to (beta.3 fix: combat like scale)
     { key = "width", scope = "char", kind = "number", default = 272, min = 240, max = 420, step = 4, export = true, page = "window",
         combat = true },
-    -- beta.4: the step area's height in step lines (the bottom / corner grip); default 10 = the fixed height
+    -- the next steps under the step block, in step lines (the bottom / corner grip; one window 2026-11-26: default
+    -- 3 like the mock-up, min 1; a saved 4..30 keeps its value). Before: the whole step area, default 10 = the fixed height
     -- before the grip (Theme size.stepLines), so saves without it look the same. Height only: the item button
     -- docks to the window's top, so no combat wait.
-    { key = "lines", scope = "char", kind = "number", default = 10, min = 4, max = 30, step = 1, export = true, page = "window",
+    { key = "lines", scope = "char", kind = "number", default = 3, min = 1, max = 30, step = 1, export = true, page = "window",
         whole = true },   -- whole lines only (Get / Set round)
     { key = "scale", scope = "char", kind = "number", default = 1, min = 0.6, max = 1.6, step = 0.05, export = true, page = "window",
         combat = true },   -- moves the window the secure step button docks to
+    -- the target button above the window (UI\TargetButton.lua, English clients only); secure: waits for combat end
+    { key = "targetButton", scope = "char", kind = "bool", default = true, export = true, page = "window", combat = true },
     { key = "followUIScale", scope = "account", kind = "bool", default = true, export = true, page = "window", combat = true },
     -- the 3D viewer (UI\ModelView.lua, v0.3): the step's NPC / mob next to the guide window. Position and size
     -- sit next to the window size (the user's wish). Not secure: no combat wait.
     { key = "modelViewer", scope = "char", kind = "bool", default = true, export = true, page = "window" },
-    { key = "modelPos", scope = "char", kind = "choice", default = "left", choices = { "left", "right", "below", "free" },
-        export = true, page = "window", choiceLabels = { left = "CHOICE_MODEL_LEFT", right = "CHOICE_MODEL_RIGHT",
+    -- "now" (default since the NOW-window viewer, the user's yes 2026-11-26): inside the NOW window; a saved
+    -- left / right / below / free stays as the player picked it
+    { key = "modelPos", scope = "char", kind = "choice", default = "now", choices = { "now", "left", "right", "below", "free" },
+        export = true, page = "window", choiceLabels = { now = "CHOICE_MODEL_NOW", left = "CHOICE_MODEL_LEFT", right = "CHOICE_MODEL_RIGHT",
         below = "CHOICE_MODEL_BELOW", free = "CHOICE_MODEL_FREE" } },
     { key = "modelScale", scope = "char", kind = "number", default = 1, min = 0.6, max = 1.6, step = 0.05, export = true,
         page = "window" },
@@ -64,13 +71,12 @@ S.schema = {
     { key = "fontSize", scope = "account", kind = "number", default = 2, min = -4, max = 4, step = 1, export = true, page = "window" },  -- min -4 (was -2; font size fix 2026-11-25): 8 pt step text; default +2 (was 0; the user, 2026-11-25)
     { key = "highContrast", scope = "account", kind = "bool", default = false, export = true, page = "window" },
     { key = "colorBlind", scope = "account", kind = "bool", default = false, export = true, page = "window" },
-    -- the NOW window (UI\NowWindow.lua): the current step in its own window, attached on top of the guide
-    -- window or free. combat = true: each one moves the window the secure step button docks in.
-    { key = "nowWindow", scope = "char", kind = "bool", default = true, export = true, page = "window", combat = true },
-    { key = "nowAttached", scope = "char", kind = "bool", default = true, export = true, page = "window", combat = true },
-    { key = "nowLocked", scope = "char", kind = "bool", default = false, export = true, page = "window" },
-    { key = "nowScale", scope = "char", kind = "number", default = 1, min = 0.6, max = 1.6, step = 0.05, export = true,
-        page = "window", combat = true },
+    -- the old NOW window (before the one window, 2026-11-26): no meaning any more; kept (no page, no texts) so old
+    -- saves keep their values. UI.Migrate reads nowWindow / nowAttached once; nowLocked / nowScale are only kept.
+    { key = "nowWindow", scope = "char", kind = "bool", default = true, export = false },
+    { key = "nowAttached", scope = "char", kind = "bool", default = true, export = false },
+    { key = "nowLocked", scope = "char", kind = "bool", default = false, export = false },
+    { key = "nowScale", scope = "char", kind = "number", default = 1, min = 0.6, max = 1.6, step = 0.05, export = false },
 
     { key = "arrow", scope = "char", kind = "bool", default = true, export = true, page = "arrow" },
     { key = "arrowScale", scope = "char", kind = "number", default = 1, min = 0.6, max = 1.6, step = 0.05, export = true, page = "arrow" },
@@ -82,12 +88,19 @@ S.schema = {
     -- smart arrow: lead through doors, gates and paths (Engine\SmartRoute.lua); off = the straight arrow
     { key = "smartArrow", scope = "account", kind = "bool", default = true, export = true, page = "arrow" },
     { key = "huntPath", scope = "account", kind = "bool", default = true, export = true, page = "arrow" },
+    -- v0.3 spawn spots (Engine\Spots.lua): "auto" = hand-made loops stay, the nearest spawn spot everywhere else;
+    -- "spots" / "loops" = only that kind. huntPath off still turns both off (a saved off stays off).
+    { key = "huntMode", scope = "account", kind = "choice", default = "auto", choices = { "auto", "spots", "loops" },
+        export = true, page = "arrow", choiceLabels = { auto = "HUNT_MODE_AUTO", spots = "HUNT_MODE_SPOTS", loops = "HUNT_MODE_LOOPS" } },
 
     { key = "mapPins", scope = "account", kind = "bool", default = true, export = true, page = "map" },
     { key = "minimapPins", scope = "account", kind = "bool", default = true, export = true, page = "map" },
     -- path line (UI\PathLine.lua): the arrow's way as dots on the world map / the minimap
     { key = "pathMap", scope = "account", kind = "bool", default = true, export = true, page = "map" },
     { key = "pathMinimap", scope = "account", kind = "bool", default = true, export = true, page = "map" },
+    -- spawn spots (UI\SpotDots.lua): the current step's spots as dots
+    { key = "spotMap", scope = "account", kind = "bool", default = true, export = true, page = "map" },
+    { key = "spotMinimap", scope = "account", kind = "bool", default = true, export = true, page = "map" },
 
     { key = "chatTab", scope = "account", kind = "number", default = 1, min = 1, max = 10, step = 1, export = true, page = "advanced" },
     { key = "gearSetLink", scope = "account", kind = "bool", default = true, export = true, page = "advanced" },
@@ -232,7 +245,7 @@ end
 
 -- A number setting's value as shown next to its slider.
 function S.NumberText(d, v)
-    if d.key == "opacity" or d.key == "arrowAlpha" or d.key == "scale" or d.key == "arrowScale" or d.key == "nowScale"
+    if d.key == "opacity" or d.key == "arrowAlpha" or d.key == "scale" or d.key == "arrowScale"
         or d.key == "modelScale" then
         return ("%d%%"):format(math.floor(v * 100 + 0.5))
     end

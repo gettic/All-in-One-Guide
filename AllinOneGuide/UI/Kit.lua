@@ -7,7 +7,8 @@ local _, ns = ...
 local Th, Co = ns.Theme, ns.Compat
 -- texts / fills / glyphs / gradients are remembered with their theme keys, so a theme or overlay change
 -- (high contrast, colour-blind, font size: Theme\Overlay.lua) can re-apply them: K.Restyle()
-local K = { texts = {}, panels = {}, fills = {}, glyphs = {}, gradients = {}, byFs = {}, byTex = setmetatable({}, { __mode = "k" }) }
+local K = { texts = {}, panels = {}, fills = {}, glyphs = {}, gradients = {}, slices = {}, byFs = {},
+    byTex = setmetatable({}, { __mode = "k" }) }
 ns.UIKit = K
 
 -- A font string with a theme font and colour. Remembered so fonts can be re-applied (theme change,
@@ -46,6 +47,7 @@ function K.Restyle()
     for _, f in ipairs(K.fills) do f.tex:SetColorTexture(Th.Color(f.key)) end
     for _, g in ipairs(K.glyphs) do g.tex:SetVertexColor(Th.Color(g.key)) end
     for _, g in ipairs(K.gradients) do K.Gradient(g.tex, g.orientation, g.from, g.to, true) end
+    for _, s in ipairs(K.slices) do K.TintSlice(s) end
     if K.panelAlpha then K.SetPanelAlpha(K.panelAlpha) end
 end
 
@@ -103,6 +105,171 @@ function K.SetPanelAlpha(alpha)
     local r, g, b = Th.Color("panel")
     K.panelAlpha = alpha
     for _, bg in ipairs(K.panels) do bg:SetColorTexture(r, g, b, alpha) end
+    for _, s in ipairs(K.slices) do
+        if s.follow then K.TintSlice(s) end
+    end
+end
+
+-- ------------------------------------------------------------------ rounded look (the one window, 4e / 4f)
+-- A 9-slice from a theme slot (frame.panel / frame.border / frame.shadow / round, art in Theme\Media.lua): nine
+-- textures over `opts.rel` (default parent): four corners `corner` units square, edges and centre stretched,
+-- tinted with colorKey (follow = its alpha is the opacity setting, like K.Panel). nil when the theme has no art.
+--   opts: layer, sub, rel, out (outset: the shadow), hollow (no centre), topOnly (square bottom corners), follow
+local PIECES = { "tl", "t", "tr", "l", "c", "r", "bl", "b", "br" }
+function K.Slice(parent, slotKey, corner, colorKey, opts)
+    opts = opts or {}
+    local slot = Th.Raw("slot." .. slotKey) or slotKey
+    local file, l, r, t, b = ns.Media.Get(slot)
+    local cuts = ns.Media.SLICE[slot]
+    if not (file and cuts and corner and corner > 0) then return nil end
+    local u = { l, l + cuts[1], r - cuts[1], r }
+    local v = { t, t + cuts[2], b - cuts[2], b }
+    local s = { pieces = {}, key = colorKey, corner = corner, rel = opts.rel or parent, out = opts.out or 0,
+        follow = opts.follow, shown = true }
+    for i, name in ipairs(PIECES) do
+        if not (opts.hollow and name == "c") then
+            local col, row = (i - 1) % 3, math.floor((i - 1) / 3)
+            if opts.topOnly and row == 2 then row = 1 end
+            local tex = parent:CreateTexture(nil, opts.layer or "BACKGROUND", nil, opts.sub)
+            tex:SetTexture(file)
+            tex:SetTexCoord(u[col + 1], u[col + 2], v[row + 1], v[row + 2])
+            s.pieces[name] = tex
+        end
+    end
+    K.PlaceSlice(s)
+    K.TintSlice(s)
+    K.slices[#K.slices + 1] = s
+    return s
+end
+
+-- (Re)anchors the pieces; corner = a new corner size (it must stay under half the covered height / width).
+function K.PlaceSlice(s, corner)
+    if corner then s.corner = corner end
+    local c, o, rel, p = s.corner, s.out, s.rel, s.pieces
+    for _, tex in pairs(p) do tex:ClearAllPoints() end
+    p.tl:SetSize(c, c)
+    p.tl:SetPoint("TOPLEFT", rel, "TOPLEFT", -o, o)
+    p.tr:SetSize(c, c)
+    p.tr:SetPoint("TOPRIGHT", rel, "TOPRIGHT", o, o)
+    p.bl:SetSize(c, c)
+    p.bl:SetPoint("BOTTOMLEFT", rel, "BOTTOMLEFT", -o, -o)
+    p.br:SetSize(c, c)
+    p.br:SetPoint("BOTTOMRIGHT", rel, "BOTTOMRIGHT", o, -o)
+    p.t:SetPoint("TOPLEFT", p.tl, "TOPRIGHT", 0, 0)
+    p.t:SetPoint("BOTTOMRIGHT", p.tr, "BOTTOMLEFT", 0, 0)
+    p.b:SetPoint("TOPLEFT", p.bl, "TOPRIGHT", 0, 0)
+    p.b:SetPoint("BOTTOMRIGHT", p.br, "BOTTOMLEFT", 0, 0)
+    p.l:SetPoint("TOPLEFT", p.tl, "BOTTOMLEFT", 0, 0)
+    p.l:SetPoint("BOTTOMRIGHT", p.bl, "TOPRIGHT", 0, 0)
+    p.r:SetPoint("TOPLEFT", p.tr, "BOTTOMLEFT", 0, 0)
+    p.r:SetPoint("BOTTOMRIGHT", p.br, "TOPRIGHT", 0, 0)
+    if p.c then
+        p.c:SetPoint("TOPLEFT", p.tl, "BOTTOMRIGHT", 0, 0)
+        p.c:SetPoint("BOTTOMRIGHT", p.br, "TOPLEFT", 0, 0)
+    end
+end
+
+-- Colour (its theme key, or `key` to switch it); a follow slice takes the opacity setting as its alpha.
+function K.TintSlice(s, key)
+    if not s then return end
+    if key then s.key = key end
+    local r, g, b, a = Th.Color(s.key)
+    if s.follow and K.panelAlpha then a = K.panelAlpha end
+    for _, tex in pairs(s.pieces) do tex:SetVertexColor(r, g, b, a) end
+end
+
+function K.SliceShown(s, on)
+    if not s then return end
+    s.shown = on and true or false
+    for _, tex in pairs(s.pieces) do tex:SetShown(s.shown) end
+end
+
+-- The rounded window frame: soft shadow outside, panel (alpha = opacity), border ring. A theme without the art
+-- or with size.corner 0 gets the flat K.Panel. Returns { shadow, panel, border } or the flat background.
+function K.RoundPanel(frame)
+    local c = Th.Size("corner")
+    if c > 0 and Th.Has("slot.frame.panel") then
+        local sh = Th.Size("shadow")
+        local rp = {
+            shadow = K.Slice(frame, "frame.shadow", sh + c, "shadow", { sub = -8, out = sh, hollow = true }),
+            panel = K.Slice(frame, "frame.panel", c, "panel", { sub = -7, follow = true }),
+            border = K.Slice(frame, "frame.border", c, "border", { layer = "BORDER", sub = -8 }),
+        }
+        if rp.panel then
+            frame.round = rp
+            return rp
+        end
+    end
+    return K.Panel(frame, true)
+end
+
+-- A soft rounded square behind a glyph button (the window's header buttons): replaces its square hover box.
+function K.SoftSquare(b)
+    local c = Th.Size("cornerSquare")
+    local sq = K.Slice(b, "round", c, "buttonSquare", { sub = -2 })
+    if not sq then return end
+    local hov = K.Slice(b, "round", c, "buttonHoverBg", { sub = -1 })
+    K.SliceShown(hov, false)
+    b.hover:Hide()
+    b.square = sq
+    b.hover = { Show = function() K.SliceShown(hov, true) end, Hide = function() K.SliceShown(hov, false) end,
+        IsShown = function() return hov.shown end }
+end
+
+-- ------------------------------------------------------------------ tiles (rounded-square step / goal icons)
+-- kind -> symbol slot, base colour key, symbol colour key. "open" is a whole tile (no symbol).
+local TILE = {
+    accept = { "tile.accept", "tile.accept", "tileDark" }, turnin = { "tile.turnin", "tile.turnin", "tileDark" },
+    kill = { "tile.kill", "tile.kill", "white" }, loot = { "tile.loot", "tile.loot", "tileDark" },
+    use = { "tile.use", "tile.use", "white" }, ["goto"] = { "tile.goto", "tile.goto", "white" },
+    talk = { "tile.talk", "tile.talk", "white" }, train = { "tile.train", "tile.train", "white" },
+    fly = { "tile.fly", "tile.fly", "white" }, hearth = { "tile.hearth", "tile.hearth", "white" },
+    note = { "tile.note", "tile.note", "white" }, done = { "tile.done", "tile.done", "white" },
+}
+K.TILE = TILE
+
+function K.Tile(parent, size, sub)
+    local base = parent:CreateTexture(nil, "ARTWORK", nil, sub or 1)
+    base:SetSize(size, size)
+    local sym = parent:CreateTexture(nil, "ARTWORK", nil, (sub or 1) + 1)
+    sym:SetAllPoints(base)
+    return { base = base, sym = sym }
+end
+
+-- kind: a TILE key or "open"; dim = a done step (45 % on the textures, never on text).
+function K.SetTile(tile, kind, dim)
+    local a = dim and 0.45 or 1
+    local t = TILE[kind]
+    if not t then
+        Th.Glyph(tile.base, "tile.open")
+        local r, g, b = Th.Color("tile.open")
+        tile.base:SetVertexColor(r, g, b, a)
+        tile.sym:Hide()
+        tile.kind = "open"
+        return
+    end
+    Th.Glyph(tile.base, "tile.base")
+    local r, g, b = Th.Color(t[2])
+    tile.base:SetVertexColor(r, g, b, a)
+    Th.Glyph(tile.sym, t[1])
+    local r2, g2, b2 = Th.Color(t[3])
+    tile.sym:SetVertexColor(r2, g2, b2, a)
+    tile.sym:SetShown(tile.base:IsShown())
+    tile.kind = kind
+end
+
+function K.TileShown(tile, on)
+    tile.base:SetShown(on and true or false)
+    tile.sym:SetShown((on and tile.kind ~= "open") and true or false)
+end
+
+-- A step's tile / verb kind by its type (the verb at the start of its text may say more: UI.Verb).
+local TYPE_KIND = { accept = "accept", turnin = "turnin", ["goto"] = "goto", level = "note", grind = "kill", manual = "note",
+    learn = "train", train = "train", note = "note", useitem = "use", fly = "fly", getfp = "fly", hearth = "hearth",
+    sethearth = "hearth" }
+function K.TileKind(step)
+    if step.type == "objective" then return step.item and "loot" or "kill" end
+    return TYPE_KIND[step.type] or "note"
 end
 
 -- A theme glyph texture tinted with a theme colour.
@@ -223,6 +390,17 @@ function K.TitleBar(frame, opts)
     tb.bg:SetPoint("TOPLEFT", tb, "TOPLEFT", 1, -1)
     tb.bg:SetPoint("BOTTOMRIGHT", tb, "BOTTOMRIGHT", -1, 0)
     K.Gradient(tb.bg, "VERTICAL", "titleBottom", "titleTop")
+    -- opts.round (the one window): a flat header with rounded top corners and a thin line under it
+    if opts.round then
+        tb.round = K.Slice(tb, "frame.panel", Th.Size("corner"), "titleBg", { sub = 1, topOnly = true })
+        if tb.round then
+            tb.bg:Hide()
+            tb.line = K.Fill(tb, "BORDER", "headLine")
+            tb.line:SetHeight(K.Hair(1))
+            tb.line:SetPoint("BOTTOMLEFT", tb, "BOTTOMLEFT", 1, 0)
+            tb.line:SetPoint("BOTTOMRIGHT", tb, "BOTTOMRIGHT", -1, 0)
+        end
+    end
     tb:EnableMouse(true)
     if opts.drag then
         tb:RegisterForDrag("LeftButton")

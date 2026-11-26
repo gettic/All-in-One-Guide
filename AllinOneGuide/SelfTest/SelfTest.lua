@@ -262,13 +262,13 @@ end
 
 local function Win() return ns.UI and ns.UI.frame end
 
--- The guide window's parts. Every new UI feature adds a line here (and a scenario offline).
+-- The guide window's parts (the one window). Every new UI feature adds a line here (and a scenario offline).
 function ST.MainParts()
     local UI = ns.UI or {}
-    local tb, ft, nl = UI.title or {}, UI.footer or {}, UI.noticeLine or {}
+    local tb, ft, nl, ch = UI.title or {}, UI.footer or {}, UI.noticeLine or {}, UI.chips or {}
     local small = ns.Settings.Get("small")
     local guide = UI.model and UI.model.state == "guide"
-    local nowWin = ns.NowWin and ns.NowWin.On() or false
+    local full = guide and not small
     return {
         { name = "window", obj = UI.frame },
         { name = "title", obj = UI.title },
@@ -277,26 +277,27 @@ function ST.MainParts()
         { name = "title.small", obj = tb.small, art = { "icon" } },
         { name = "title.lock", obj = tb.lock, art = { "icon" } },
         { name = "title.close", obj = tb.close, art = { "icon" } },
-        { name = "header", obj = UI.header, shownOnly = small },
+        -- the rounded corners (our own art; a flat panel stands in without it)
+        { name = "panel.round", obj = UI.frame and UI.frame.round and UI.frame.round.panel and UI.frame.round.panel.pieces.c, opt = true, shownOnly = true, behind = true },
         { name = "area", obj = UI.area },
         { name = "row1", obj = UI.rows and UI.rows[1], opt = not guide, shownOnly = not guide },
-        -- the NOW box around the current step, its header, and the NEXT header (shown when steps follow)
-        -- (with the NOW window the box stays hidden: its parts are in ST.NowParts)
-        { name = "now", obj = UI.nowBox and UI.nowBox.bg, opt = not guide or nowWin, shownOnly = not guide or nowWin, behind = true },
-        { name = "now.head", obj = UI.nowBox and UI.nowBox.head, opt = not guide or nowWin, shownOnly = not guide or nowWin },
-        { name = "next.head", obj = UI.nextHead, opt = true, shownOnly = true },
+        { name = "row1.tile", obj = UI.rows and UI.rows[1] and UI.rows[1].badge.disc, opt = true, shownOnly = true, artSelf = true },
+        { name = "divider", obj = UI.divider, opt = true, shownOnly = true, thin = true },
         { name = "state", obj = UI.stateText, shownOnly = true },
         { name = "state.icon", obj = UI.stateIcon, shownOnly = true, artSelf = true },
         { name = "notice", obj = UI.noticeLine, shownOnly = true },
         { name = "notice.icon", obj = nl.icon, opt = true, shownOnly = true, artSelf = true },
-        { name = "chip", obj = UI.chip, shownOnly = true },
-        { name = "chip.tick", obj = UI.chip and UI.chip.tick, opt = true, shownOnly = true, artSelf = true },
-        -- look review #7: the chip is a small button (fill + caret)
-        { name = "chip.fill", obj = UI.chip and UI.chip.fill, opt = true, shownOnly = true },
-        { name = "chip.caret", obj = UI.chip and UI.chip.caret, opt = true, shownOnly = true, artSelf = true },
+        -- the info chips (route / level / time left; a chip that doesn't fit hides)
+        { name = "chips", obj = UI.chips, opt = not full, shownOnly = not full },
+        { name = "chip.range", obj = ch.range, opt = true, shownOnly = true },
+        { name = "chip.level", obj = ch.level, opt = true, shownOnly = true },
+        { name = "chip.time", obj = ch.time, opt = true, shownOnly = true },
+        -- back / progress bar / next
         { name = "footer", obj = UI.footer, shownOnly = small },
-        { name = "footer.back", obj = ft.prev, shownOnly = small, art = { "icon" } },
-        { name = "footer.next", obj = ft.next, shownOnly = small, art = { "icon" } },
+        { name = "footer.back", obj = ft.prev, opt = not guide, shownOnly = small or not guide, art = { "icon" } },
+        { name = "footer.next", obj = ft.next, opt = not guide, shownOnly = small or not guide, art = { "icon" } },
+        { name = "footer.bar", obj = ft.bar, shownOnly = small },
+        { name = "footer.text", obj = ft.text, opt = not guide, shownOnly = small or not guide },
         -- v0.2 M3: the width grip (hidden while locked)
         { name = "grip", obj = UI.grip, opt = true, shownOnly = true },
         -- beta.4: the height grip (bottom edge) and the size corner (hidden while locked and in small mode)
@@ -305,22 +306,18 @@ function ST.MainParts()
     }
 end
 
--- The NOW window (the current step in its own window, while a guide is open): checked on its own.
-function ST.NowParts()
-    local NW = ns.NowWin or {}
-    local on = NW.On and NW.On() or false
-    local guide = ns.UI and ns.UI.model and ns.UI.model.state == "guide"
-    local need = on and guide and ns.UI.IsShown()
-    local o = not need
+-- The row of buttons above the window's top-left: the target button (when the current step names a mob and the
+-- client is English). The item button has its own check (UI\StepButton.lua self-check).
+function ST.ButtonParts()
+    local TB = ns.TargetButton or {}
+    local want = TB.Wanted and TB.Wanted() or false
+    local o = not want
     return {
-        { name = "now.window", obj = NW.frame, opt = o, shownOnly = o },
-        { name = "now.strip", obj = NW.strip, opt = o, shownOnly = o },
-        { name = "now.grip", obj = NW.grip, opt = o, shownOnly = o, artSelf = true },
-        { name = "now.label", obj = NW.head, opt = o, shownOnly = o },
-        { name = "now.attach", obj = NW.attach, opt = o, shownOnly = o, art = { "icon" } },
-        { name = "now.lock", obj = NW.lock, opt = o, shownOnly = o, art = { "icon" } },
+        { name = "target", obj = TB.frame, opt = o, shownOnly = o },
+        { name = "target.icon", obj = TB.frame and TB.frame.icon, opt = o, shownOnly = o, artSelf = true },
     }
 end
+ST.NowParts = ST.ButtonParts
 
 -- The main window (full run: opened on Guides for a moment, without remembering the page): frame, title bar,
 -- nav, heading, version, the Guides page's search box, chips and first card with its shield.
@@ -662,7 +659,7 @@ end
 local function StepMain()
     if run.ui then
         CheckGroup(ST.MainParts())
-        CheckGroup(ST.NowParts())
+        CheckGroup(ST.ButtonParts())
         CheckGroup(ST.ArrowParts())
         CheckGroup(ST.NpcParts())
         CheckGroup(ST.ModelParts())

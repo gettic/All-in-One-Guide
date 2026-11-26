@@ -3,7 +3,8 @@
 -- Compiles the readable pack sources (packs-src\*.lua) into readable rows (AllinOneGuide\Routes\*.lua).
 -- The pack checker runs first; any error stops the build. Same source, same bytes (LF line ends).
 -- Also builds the smart arrow's connectors (packs-src\connectors\ -> Routes\Connectors.lua, tools\connectors.lua)
--- and writes each step's connector room (`room`) into its row.
+-- and writes each step's connector room (`room`) into its row. The spawn spots (packs-src\spots\ ->
+-- Routes\Spots.lua, tools\import\spots.lua) too.
 -- Run (from the repository folder; tools\build.ps1 does this):
 --   luajit tools/build.lua [--check] [--out <folder>] [--all] [--addon AllinOneGuide] [--words <file>] [packs-src/x.lua ...]
 --   --check: write nothing, fail when a compiled file differs from its source (or is missing).
@@ -114,6 +115,38 @@ do
     local code = PC.CC().Run({ addon = opts.addon, out = opts.out .. "/Connectors.lua", check = opts.check,
         exploits = opts.exploits })
     if code ~= 0 then failed = failed + 1 end
+end
+-- spawn spots (packs-src\spots\*.lua, tools\import\spots.lua) -> <out>\Spots.lua: checked, then compiled into one
+-- file; --check compares
+do
+    local SP = assert(loadfile(toolsDir .. "/import/spots.lua"))("--lib", toolsDir)
+    local files, bad = {}, false
+    for _, f in ipairs(L.ListDir("packs-src/spots", "lua")) do
+        local path = "packs-src/spots/" .. f
+        local d, err = L.LoadData(path)
+        local errs = d and SP.Check(d, path) or { path .. ": " .. tostring(err) }
+        for _, e in ipairs(errs) do print("ERROR spots " .. e) end
+        if #errs > 0 then bad = true else files[#files + 1] = path end
+    end
+    if bad then
+        failed = failed + 1
+    elseif #files > 0 then
+        local text = SP.Compile(files)
+        local path = opts.out .. "/Spots.lua"
+        local old = L.ReadFile(path)
+        if old == text then
+            same = same + 1
+        elseif opts.check then
+            print("DIFFERS " .. path .. (old and "" or " (missing)") .. ": run tools\\build.ps1")
+            failed = failed + 1
+        else
+            local fh = assert(io.open(path, "wb"))
+            fh:write(text)
+            fh:close()
+            built = built + 1
+            print("built " .. path)
+        end
+    end
 end
 -- text style lint of the addon's own texts (tools\textlint.lua; v0.1.1): any error fails the build
 local TL = assert(loadfile(toolsDir .. "/textlint.lua"))("--lib", toolsDir)

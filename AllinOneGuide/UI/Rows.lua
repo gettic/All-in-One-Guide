@@ -1,22 +1,32 @@
 -- SPDX-License-Identifier: GPL-3.0-or-later
 -- Copyright (C) 2026 gettic
--- Step rows and goal lines. A row = number, badge, main text, right-hand info (distance or done tick),
--- then for the current step: goal lines (checkbox + text + count), the coordinate line and background
--- goals. States: "current" (accent bar + glow, bright text), "upcoming" (dim by colour), "done".
+-- Step rows and goal lines (the one window, 4f). A row = (number when the theme has a number column) + tile icon +
+-- text (the window colours its verb) + right-hand info (coords / "in 2 levels" / done tick); the current step also
+-- gets sub lines under its text ("for <quest>", the place line with the distance) and goal lines (tile + text +
+-- count), the goal to do now tinted with an edge. States: "current", "upcoming" (dim by colour), "done".
 -- Never SetAlpha on text: dimming is always a text colour.
 --   ns.Rows.New(parent) -> row;  ns.Rows.Set(row, data) -> height
---   data = { number, badge, text, state, right, goals = { { text, have, need, done } }, coord, maxLines, boxed,
---            reserveRight (units kept free on the right: the NOW window's item button) }
---   a goal may also carry kind ("kill" / "loot" / "use": travel side goal icon), side (its step), more ("+n more")
+--   data = { number, tile (K.TILE kind), text, state, right, goals = { { text, have, need, done, kind } }, coord,
+--            sub = { { text, right } } (lines under the text; the one with place = true gets the distance),
+--            maxLines, boxed (no glow / bar of its own), focus (index of the goal to do now),
+--            lean (the 3D view on the left: no number, no icon), leanX (where the text starts), leanH (the goal lines
+--            start under this height: the 3D view's square), reserveRight (units kept free on the right),
+--            tag = { kind, word } + target + fade + sep (a next step as one line, mock-up 4h) }
+--   a goal may also carry kind ("kill" / "loot" / "use": its tile), side (its step), more ("+n more")
 local _, ns = ...
 local Th, K = ns.Theme, ns.UIKit
 local R = {}
 ns.Rows = R
--- side goal kind -> K.BADGE entry (glyph + colour key; our own theme glyphs)
+-- side goal kind -> K.BADGE entry (old badge art: the map pins and the "side goals" self-check use it)
 local SIDE_BADGE = { kill = "objective", loot = "collect", use = "useitem" }
 R.SIDE_BADGE = SIDE_BADGE
+-- goal kind -> tile kind
+local GOAL_TILE = { kill = "kill", loot = "loot", use = "use", talk = "talk", ["goto"] = "goto" }
+R.GOAL_TILE = GOAL_TILE
 
 local function Pad() return Th.Size("pad") end
+local function NumW() return Th.Size("numberCol") end
+local function TileS(LH) return math.max(8, math.min(Th.Size("tile"), LH - 2)) end
 
 function R.New(parent)
     local row = CreateFrame("Frame", nil, parent)
@@ -35,15 +45,15 @@ function R.New(parent)
     row.flash:SetAllPoints(row)
     row.flash:Hide()
     row.num = K.Text(row, "small", "stepNumber", "RIGHT")
-    row.num:SetWidth(14)
+    row.num:SetWidth(math.max(1, NumW()))
     row.num:SetPoint("TOPLEFT", row, "TOPLEFT", Pad() - 4, -3)
-    row.badge = K.Badge(row, Th.Size("badge"))
-    row.badge.disc:SetPoint("TOPLEFT", row, "TOPLEFT", Pad() + 14, -1)
+    -- the tile icon (row.badge keeps the old names: .disc = the tile, .glyph = its symbol)
+    local tile = K.Tile(row, Th.Size("tile"))
+    tile.disc, tile.glyph = tile.base, tile.sym
+    row.badge = tile
     -- v0.2 fix (text over the NOW box): top anchors only on both sides plus a set height, so the text never
     -- centres itself in a tall row (a "RIGHT" point also pins the vertical middle) and never draws past its line(s)
     row.text = K.Text(row, "step", "text")
-    row.text:SetPoint("TOPLEFT", row, "TOPLEFT", Pad() + 14 + Th.Size("badge") + 6, -1)
-    row.text:SetPoint("TOPRIGHT", row, "TOPRIGHT", -(Pad() + 44), -1)
     row.text:SetJustifyV("TOP")
     row.text:SetHeight(Th.LineHeight("step") - 1)
     row.right = K.Text(row, "goal", "text.dim", "RIGHT")
@@ -51,57 +61,175 @@ function R.New(parent)
     row.tick = K.Glyph(row, "done", Th.Size("badge"), "goalDone")
     row.tick:SetPoint("TOPRIGHT", row, "TOPRIGHT", -Pad(), 0)
     row.lines = {}
+    row.subs = {}
+    -- a faint hairline at the top of a next step (mock-up 4h; not the first one: the divider is above it)
+    row.sep = K.Fill(row, "ARTWORK", "divider")
+    row.sep:SetHeight(K.Hair(1))
+    row.sep:SetPoint("TOPLEFT", row, "TOPLEFT", Pad(), 0)
+    row.sep:SetPoint("TOPRIGHT", row, "TOPRIGHT", -Pad(), 0)
+    row.sep:Hide()
     return row
 end
 
--- A goal / coordinate line inside a row (created on first use).
+-- The framed verb tag of a next step (4h): 1 px frame + the verb in capitals, both in the step's colour
+-- (created on first use; tinted per row, so a white fill with a vertex colour).
+local function Tag(row)
+    if row.tag then return row.tag end
+    local tg = { edges = {} }
+    tg.text = K.Text(row, "small", "text", "CENTER")
+    for i = 1, 4 do
+        local e = K.Fill(row, "ARTWORK", "white")
+        tg.edges[i] = e
+    end
+    row.tag = tg
+    return tg
+end
+
+local function TagShown(row, on)
+    local tg = row.tag
+    if not tg then return end
+    tg.text:SetShown(on)
+    for _, e in ipairs(tg.edges) do e:SetShown(on) end
+end
+
+-- Cuts a one-line text with "..." until it fits w (the font string shows it as is). Returns the shown text.
+local function Cut(fs, text, w)
+    fs:SetText(text)
+    if w <= 0 or (fs:GetStringWidth() or 0) <= w then return text end
+    local lo, hi, best = 0, #text, ""
+    while lo <= hi do
+        local mid = math.floor((lo + hi) / 2)
+        local s = text:sub(1, mid)
+        -- (never cut inside a UTF-8 letter)
+        while #s > 0 and s:byte(#s) >= 0x80 and s:byte(#s) < 0xC0 do s = s:sub(1, #s - 1) end
+        while #s > 0 and s:byte(#s) >= 0xC0 do s = s:sub(1, #s - 1) end
+        fs:SetText(s:gsub("%s+$", "") .. "...")
+        if (fs:GetStringWidth() or 0) <= w then best = fs:GetText() lo = mid + 1 else hi = mid - 1 end
+    end
+    if best == "" then best = "..." end
+    fs:SetText(best)
+    return best
+end
+R.Cut = Cut
+
+local function Faded(fs, key, a)
+    local r, g, b, al = Th.Color(key)
+    K.Color(fs, key)
+    if a and a < 1 then fs:SetTextColor(r, g, b, (al or 1) * a) end
+end
+
+-- A sub line under the step text ("for <quest>", the place line): text + right-hand text (created on first use).
+local function Sub(row, i)
+    local s = row.subs[i]
+    if s then return s end
+    s = { text = K.Text(row, "goal", "sub"), right = K.Text(row, "goal", "text.dim", "RIGHT") }
+    s.text:SetJustifyV("MIDDLE")
+    s.right:SetJustifyV("MIDDLE")
+    row.subs[i] = s
+    return s
+end
+
+-- A goal / coordinate line inside a row (created on first use): its tinted background (the goal to do now / done),
+-- the edge, and three tiles of which one shows: the kind tile (pin), the empty tile (box), the done tile (tick).
 local function Line(row, i)
     local ln = row.lines[i]
     if ln then return ln end
-    local box = Th.Size("box")
     ln = {}
-    ln.fill = row:CreateTexture(nil, "ARTWORK", nil, 1)
-    ln.fill:SetSize(box, box)
-    Th.Glyph(ln.fill, "check.fill")
-    ln.fill:SetVertexColor(Th.Color("goalDoneBox"))
-    ln.box = row:CreateTexture(nil, "ARTWORK", nil, 2)
-    ln.box:SetAllPoints(ln.fill)
-    Th.Glyph(ln.box, "check.box")
-    ln.tick = row:CreateTexture(nil, "ARTWORK", nil, 3)
-    ln.tick:SetAllPoints(ln.fill)
-    Th.Glyph(ln.tick, "check.tick")
-    ln.tick:SetVertexColor(Th.Color("goalDone"))
-    ln.pin = row:CreateTexture(nil, "ARTWORK", nil, 2)
-    ln.pin:SetAllPoints(ln.fill)
-    Th.Glyph(ln.pin, "badge.goto")
-    ln.pin:SetVertexColor(Th.Color("icon.goto"))
+    ln.holder = CreateFrame("Frame", nil, row)
+    ln.bg = K.Slice(row, "round", Th.Size("cornerSquare"), "goalNowBg", { rel = ln.holder, sub = 2 })
+    if not ln.bg then
+        local f = K.Fill(row, "BACKGROUND", "goalNowBg", 2)
+        f:SetAllPoints(ln.holder)
+        ln.bgFlat = f
+    end
+    ln.edge = K.Fill(row, "ARTWORK", "goalNowEdge")
+    ln.edge:SetPoint("TOPLEFT", ln.holder, "TOPLEFT", 0, 0)
+    ln.edge:SetPoint("BOTTOMLEFT", ln.holder, "BOTTOMLEFT", 0, 0)
+    ln.edge:SetWidth(Th.Size("focusEdge"))
+    local size = Th.Size("tile")
+    ln.tile = K.Tile(row, size, 3)
+    ln.pin = ln.tile.base
+    ln.open = K.Tile(row, size, 3)
+    K.SetTile(ln.open, "open")
+    ln.box = ln.open.base
+    ln.done = K.Tile(row, size, 3)
+    K.SetTile(ln.done, "done")
+    ln.tick, ln.fill = ln.done.base, ln.done.sym
+    ln.open.base:SetAllPoints(ln.pin)
+    ln.done.base:SetAllPoints(ln.pin)
     -- placed per line by R.Set (top anchors + the goal line's height, never a middle point)
     ln.text = K.Text(row, "goal", "goal")
     ln.text:SetJustifyV("MIDDLE")
     ln.right = K.Text(row, "goal", "text.dim", "RIGHT")
     ln.right:SetJustifyV("MIDDLE")
+    -- the fold line ("3 done", one line for the finished goals): a caret after its text, the line clickable
+    ln.caret = K.Glyph(row, "btn.caret", math.max(8, Th.Size("tile") - 2), "goalDone", "ARTWORK")
+    ln.caret:Hide()
+    ln.holder:SetScript("OnMouseUp", function(_, button)
+        if button == "LeftButton" and ln.fold and row.onFold then row.onFold() end
+    end)
     row.lines[i] = ln
     return ln
 end
 
+local function LineBg(ln, key)
+    if ln.bg then
+        K.SliceShown(ln.bg, key ~= nil)
+        if key then K.TintSlice(ln.bg, key) end
+    elseif ln.bgFlat then
+        ln.bgFlat:SetShown(key ~= nil)
+        if key then ln.bgFlat:SetColorTexture(Th.Color(key)) end
+    end
+end
+
 local function ShowLine(ln, shown)
-    for _, k in ipairs({ "fill", "box", "tick", "pin", "text", "right" }) do ln[k]:SetShown(shown) end
+    for _, k in ipairs({ "text", "right" }) do ln[k]:SetShown(shown) end
+    ln.holder:SetShown(shown)
+    if not shown then
+        ln.caret:Hide()
+        ln.fold = nil
+        ln.holder:EnableMouse(false)
+        K.TileShown(ln.tile, false)
+        K.TileShown(ln.open, false)
+        K.TileShown(ln.done, false)
+        ln.edge:Hide()
+        LineBg(ln, nil)
+    end
 end
 
 -- Room kept free on the right of a text for its right-hand text (count, distance, "in 2 levels"):
--- at least the usual 44, more when that text is wider (big fonts), so the two never overlap.
--- row.reserve (d.reserveRight, NOW window): room kept free on the far right for the item button.
-local function RightInset(rightFs, gap, reserve)
+-- at least the usual 44 (none when there is no right-hand text in lean / goal-line mode), more when it is wider.
+local function RightInset(rightFs, gap, reserve, min)
     local w = rightFs and rightFs:GetText() ~= nil and rightFs:GetText() ~= "" and (rightFs:GetStringWidth() or 0) or 0
-    return Pad() + math.max(44, math.ceil(w) + gap) + (reserve or 0)
+    return Pad() + math.max(min or 44, w > 0 and math.ceil(w) + gap or 0) + (reserve or 0)
 end
+
+-- Where the main text starts: after the number and tile, or at leanX beside the 3D view.
+local function TextX(row)
+    if row.lean then return row.leanX or Pad() end
+    return Pad() + NumW() + Th.Size("tile") + 6
+end
+R.TextX = TextX
+
+-- Where goal lines start: under the 3D view at the row's left (full width), else in the text column.
+local function GoalX(row)
+    if row.lean then return Pad() end
+    return TextX(row)
+end
+R.GoalX = GoalX
 
 -- A goal / coordinate line's text: top anchors at the line's top (ln.top), clear of its right-hand text.
 local function PlaceLineText(row, ln)
-    local x = Pad() + 14 + Th.Size("badge") + 6 + Th.Size("box") + 5
+    local x = GoalX(row) + Th.Size("tile") + 5 + (ln.indent or 0)
     ln.text:ClearAllPoints()
     ln.text:SetPoint("TOPLEFT", row, "TOPLEFT", x, -ln.top)
-    ln.text:SetPoint("TOPRIGHT", row, "TOPRIGHT", -RightInset(ln.right, 4, row.reserve), -ln.top)
+    ln.text:SetPoint("TOPRIGHT", row, "TOPRIGHT", -RightInset(ln.right, 4, row.reserve, row.lean and 0 or nil), -ln.top)
+end
+
+local function PlaceSubText(row, s)
+    s.text:ClearAllPoints()
+    s.text:SetPoint("TOPLEFT", row, "TOPLEFT", TextX(row), -s.top)
+    s.text:SetPoint("TOPRIGHT", row, "TOPRIGHT", -RightInset(s.right, 4, row.reserve, 0), -s.top)
 end
 
 -- Lays out one row; returns its height.
@@ -110,25 +238,32 @@ function R.Set(row, d)
     local state = d.state or "upcoming"
     local current = state == "current"
     row.step = d.step   -- v0.2 M3: the right-click step menu, hover and clicks
+    -- lean (3D view on the left): the 3D view stands where the number and tile were
+    local lean = d.lean and true or false
+    row.lean = lean
+    row.leanX = lean and d.leanX or nil
+    local numbered = NumW() > 0 and not lean
+    row.num:SetShown(numbered)
     row.current, row.rightText = current, d.right
-    -- d.boxed: the row sits in the window's NOW box, which draws its own panel and accent edge
+    -- d.boxed: the step block draws its own look; no glow / bar of the row's own
     row.glow:SetShown(current and not d.boxed)
     row.bar:SetShown(current and not d.boxed)
-    row.num:SetText(d.number and tostring(d.number) or "")
-    K.Color(row.num, current and "accent" or "stepNumber")
-    K.SetBadge(row.badge, d.badge or "manual", state == "done")
-    -- the badge and done tick never get taller than the line (small fonts: a 14 px badge in an 11 px line
-    -- drew into the next row); the badge stays centred in its column
-    local full = Th.Size("badge")
-    local bs = math.max(8, math.min(full, LH - 1))
-    row.badge.disc:SetSize(bs, bs)
-    row.badge.disc:ClearAllPoints()
-    row.badge.disc:SetPoint("TOPLEFT", row, "TOPLEFT", Pad() + 14 + (full - bs) / 2, -1)
-    row.tick:SetSize(bs, bs)
+    row.num:SetText(numbered and d.number and tostring(d.number) or "")
+    K.Color(row.num, current and "accentText" or "stepNumber")
+    -- the tile never gets taller than the line (small fonts); centred in its column
+    local ts = TileS(LH)
+    local tile = row.badge
+    K.SetTile(tile, d.tile or "note", state == "done")
+    tile.base:SetSize(ts, ts)
+    tile.base:ClearAllPoints()
+    tile.base:SetPoint("TOPLEFT", row, "TOPLEFT", Pad() + NumW() + (Th.Size("tile") - ts) / 2, -math.max(0, (LH - ts) / 2))
+    K.TileShown(tile, not lean)
+    row.tick:SetSize(ts, ts)
     row.text:SetText(d.text or "")
     K.Color(row.text, (state == "done" and "done") or (current and "text") or "upcoming")
-    row.text:SetWordWrap(current and (d.maxLines or 2) > 1)
-    if row.text.SetMaxLines then row.text:SetMaxLines(current and (d.maxLines or 2) or 1) end
+    local most = current and (d.maxLines or (lean and 4 or 3)) or 1
+    row.text:SetWordWrap(most > 1)
+    if row.text.SetMaxLines then row.text:SetMaxLines(most) end
     row.tick:SetShown(state == "done")
     row.right:SetText(state ~= "done" and d.right or "")
     local reserve = tonumber(d.reserveRight) or 0
@@ -139,91 +274,191 @@ function R.Set(row, d)
     row.tick:SetPoint("TOPRIGHT", row, "TOPRIGHT", -(Pad() + reserve), 0)
     -- the main text ends left of the right-hand text (or the done tick)
     local inset = state == "done" and Pad() + math.max(44, Th.Size("badge") + 6) + reserve or RightInset(row.right, 6, reserve)
+    if current and (row.right:GetText() or "") == "" then inset = Pad() + reserve end
     row.text:ClearAllPoints()
-    row.text:SetPoint("TOPLEFT", row, "TOPLEFT", Pad() + 14 + Th.Size("badge") + 6, -1)
+    row.text:SetPoint("TOPLEFT", row, "TOPLEFT", TextX(row), -1)
     row.text:SetPoint("TOPRIGHT", row, "TOPRIGHT", -inset, -1)
-    -- main line height (one line, or two when the current step's text wraps). Measured with room for two
-    -- lines (a set height can cut the measure), then the text gets exactly its line(s). The caller anchors
-    -- the row first, so the width is known (v0.2 fix: a new row measured before it had a width came out one
-    -- line high on login and its second line drew over the goal lines until the next refresh).
+    -- main line height: measured with room for all its lines (a set height can cut the measure), then the text
+    -- gets exactly its line(s). The caller anchors the row first, so the width is known (v0.2 fix).
     local h = LH
-    if current and (d.maxLines or 2) > 1 then
-        row.text:SetHeight(LH * 2 - 1)
+    if most > 1 then
+        row.text:SetHeight(LH * most - 1)
         local sh = row.text:GetStringHeight() or 0
-        if sh > Th.FontSize("step") * 1.6 then h = LH * 2 end
+        local fsz = Th.FontSize("step")
+        local n = 1
+        for k = 2, most do if sh > fsz * (k - 0.4) then n = k end end
+        h = LH * n
     end
     row.text:SetHeight(h - 1)
-    -- goal lines, then the coordinate line
+    -- sub lines under the text (current step): "for <quest>", the place line (its right text = the distance)
+    local ns_ = 0
+    row.coordLine = nil
+    if current then
+        for _, sd in ipairs(d.sub or {}) do
+            ns_ = ns_ + 1
+            local s = Sub(row, ns_)
+            s.top = h
+            s.text:SetText(sd.text or "")
+            s.text:SetHeight(LG)
+            s.right:SetText(sd.right or "")
+            s.right:ClearAllPoints()
+            s.right:SetPoint("TOPRIGHT", row, "TOPRIGHT", -(Pad() + reserve), -h)
+            s.right:SetHeight(LG)
+            s.text:Show()
+            s.right:Show()
+            PlaceSubText(row, s)
+            if sd.place then row.coordLine = s end
+            h = h + LG
+        end
+    end
+    for i = ns_ + 1, #row.subs do
+        row.subs[i].text:Hide()
+        row.subs[i].right:Hide()
+    end
+    -- goal lines (under the 3D view when it shows: full width), then the coordinate line
+    if current and lean and d.leanH then h = math.max(h, d.leanH + Th.Size("blockPad")) end
     local n = 0
     local lines = {}
     if current then
         for _, gl in ipairs(d.goals or {}) do lines[#lines + 1] = { kind = "goal", g = gl } end
         if d.coord then lines[#lines + 1] = { kind = "coord", c = d.coord } end
     end
+    local gx = GoalX(row)
+    local tsg = math.max(8, math.min(Th.Size("tile"), LG - 2))
+    local focus = d.focus
+    row.onFold = d.onFold
     for _, l in ipairs(lines) do
         n = n + 1
         local ln = Line(row, n)
         ShowLine(ln, true)
-        local gx, box = Pad() + 14 + Th.Size("badge") + 6, Th.Size("box")
-        ln.fill:ClearAllPoints()
-        ln.fill:SetPoint("TOPLEFT", row, "TOPLEFT", gx, -(h + (LG - box) / 2))
+        ln.pin:SetSize(tsg, tsg)
+        ln.pin:ClearAllPoints()
+        -- (an opened fold shows its finished goals indented)
+        ln.indent = l.kind == "goal" and l.g.indent and Th.Size("foldIndent") or 0
+        ln.pin:SetPoint("TOPLEFT", row, "TOPLEFT", gx + ln.indent, -(h + (LG - tsg) / 2))
         ln.top = h
+        ln.holder:ClearAllPoints()
+        ln.holder:SetPoint("TOPLEFT", row, "TOPLEFT", gx - 4, -h)
+        ln.holder:SetPoint("TOPRIGHT", row, "TOPRIGHT", -(Pad() - 4 + reserve), -h)
+        ln.holder:SetHeight(LG)
         ln.right:ClearAllPoints()
         ln.right:SetPoint("TOPRIGHT", row, "TOPRIGHT", -(Pad() + reserve), -h)
         ln.right:SetHeight(LG)
         ln.text:SetHeight(LG)
         if l.kind == "goal" then
             local g = l.g
-            -- travel side goal still open: the kind icon (kill / loot / use) in the box's place; done = the tick.
-            -- "+n more" line: no box at all. Both stay one line (cut, never wrapped).
-            local icon = not g.done and not g.more and g.kind and SIDE_BADGE[g.kind]
-            if icon then
-                local b = K.BADGE[icon]
-                Th.Glyph(ln.pin, b[1])
-                ln.pin:SetVertexColor(Th.Color(b[2]))
-            end
-            ln.pin:SetShown(icon and true or false)
-            ln.fill:SetShown(g.done)
-            ln.tick:SetShown(g.done)
-            ln.box:SetShown(not icon and not g.more)
-            ln.box:SetVertexColor(Th.Color(g.done and "goalDoneEdge" or "goalBoxEmpty"))
+            -- open goal with a kind: its tile; done: the done tile; plain open goal: the empty tile; "+n more": none
+            local kindTile = not g.done and not g.more and g.kind and GOAL_TILE[g.kind]
+            if kindTile then K.SetTile(ln.tile, kindTile) end
+            K.TileShown(ln.tile, kindTile and true or false)
+            K.TileShown(ln.done, g.done and true or false)
+            K.TileShown(ln.open, not kindTile and not g.done and not g.more)
             ln.text:SetText(g.text or "")
-            if ln.text.SetWordWrap then ln.text:SetWordWrap(not (g.side or g.more)) end
-            K.Color(ln.text, (g.done and "goalDone") or (g.more and "text.dim") or "goal")
-            if g.need and g.need > 1 then
+            if ln.text.SetWordWrap then ln.text:SetWordWrap(false) end
+            local doneKey = g.indent and "goalDoneDim" or "goalDone"
+            K.Color(ln.text, (g.done and doneKey) or (g.more and "text.dim") or "goal")
+            if g.fold then
+                ln.right:SetText(g.right or "")
+            elseif g.need and g.need > 1 then
                 ln.right:SetText(("%d/%d"):format(g.have or 0, g.need))
             else
                 ln.right:SetText("")
             end
-            K.Color(ln.right, g.done and "goalDone" or "goalCount")
+            K.Color(ln.right, g.fold and "text.dim" or (g.done and doneKey) or "goalCount")
+            local isFocus = focus == n and not g.done and not g.more
+            -- a goal that just finished flashes green before it folds in; the fold line and opened goals: no box
+            local bg = (isFocus and "goalNowBg") or (g.flash and "goalFlashBg")
+                or (g.done and not g.more and not g.fold and not g.indent and "goalDoneBg") or nil
+            LineBg(ln, bg)
+            ln.edge:SetShown(isFocus)
+            -- the fold line: clickable, caret right of its text (pointing right = closed, down = open)
+            ln.fold = g.fold and true or nil
+            ln.holder:EnableMouse(g.fold and true or false)
+            ln.caret:SetShown(g.fold and true or false)
+            if g.fold then
+                Th.Glyph(ln.caret, "btn.caret", g.open and "cw" or nil)
+                ln.caret:ClearAllPoints()
+                local tw = math.min(ln.text:GetStringWidth() or 0, 200)
+                ln.caret:SetPoint("LEFT", row, "TOPLEFT", gx + Th.Size("tile") + 5 + tw + 4, -(h + LG / 2))
+            end
         else
-            ln.fill:Hide()
-            ln.box:Hide()
-            ln.tick:Hide()
-            -- (the pin may have carried a side goal's icon in an earlier draw)
-            Th.Glyph(ln.pin, "badge.goto")
-            ln.pin:SetVertexColor(Th.Color("icon.goto"))
-            if ln.text.SetWordWrap then ln.text:SetWordWrap(true) end
+            ln.fold, ln.indent = nil, 0
+            ln.caret:Hide()
+            ln.holder:EnableMouse(false)
+            K.TileShown(ln.tile, true)
+            K.SetTile(ln.tile, "goto")
+            K.TileShown(ln.tile, true)
+            K.TileShown(ln.open, false)
+            K.TileShown(ln.done, false)
+            if ln.text.SetWordWrap then ln.text:SetWordWrap(false) end
             ln.text:SetText(l.c.text or "")
             K.Color(ln.text, "coord")
             ln.right:SetText(l.c.dist or "")
             K.Color(ln.right, "text.dim")
+            LineBg(ln, nil)
+            ln.edge:Hide()
+            row.coordLine = ln
         end
         PlaceLineText(row, ln)
         h = h + LG
     end
     for i = n + 1, #row.lines do ShowLine(row.lines[i], false) end
-    row.coordLine = d.coord and row.lines[n] or nil
+    -- 4h: a next step is one line: framed verb tag + target (cut with "..." before the coords), fading
+    local tagged = state == "upcoming" and d.tag ~= nil
+    row.tagged = tagged
+    row.sep:SetShown(tagged and d.sep and true or false)
+    if tagged then
+        local a = tonumber(d.fade) or 1
+        local key = "verb." .. tostring(d.tag.kind)
+        if not Th.Has("color." .. key) then key = "upcoming" end
+        local tg = Tag(row)
+        TagShown(row, true)
+        K.TileShown(tile, false)
+        row.num:Hide()
+        tg.text:SetText(d.tag.word or "")
+        Faded(tg.text, key, a)
+        local tw = math.ceil(tg.text:GetStringWidth() or 20) + 8
+        local th = math.max(8, LH - 4)
+        local x = Pad()
+        tg.text:ClearAllPoints()
+        tg.text:SetPoint("TOPLEFT", row, "TOPLEFT", x, -2)
+        tg.text:SetSize(tw, th)
+        local r, g, b, al = Th.Color(key)
+        local e = tg.edges
+        local hair = K.Hair(1)
+        for i = 1, 4 do e[i]:ClearAllPoints() e[i]:SetVertexColor(r, g, b, (al or 1) * a * 0.8) end
+        e[1]:SetPoint("TOPLEFT", tg.text, "TOPLEFT") e[1]:SetPoint("TOPRIGHT", tg.text, "TOPRIGHT") e[1]:SetHeight(hair)
+        e[2]:SetPoint("BOTTOMLEFT", tg.text, "BOTTOMLEFT") e[2]:SetPoint("BOTTOMRIGHT", tg.text, "BOTTOMRIGHT") e[2]:SetHeight(hair)
+        e[3]:SetPoint("TOPLEFT", tg.text, "TOPLEFT") e[3]:SetPoint("BOTTOMLEFT", tg.text, "BOTTOMLEFT") e[3]:SetWidth(hair)
+        e[4]:SetPoint("TOPRIGHT", tg.text, "TOPRIGHT") e[4]:SetPoint("BOTTOMRIGHT", tg.text, "BOTTOMRIGHT") e[4]:SetWidth(hair)
+        -- the target: after the tag, ends a gap before the coords; cut with "..." when too long
+        local tx = x + tw + 6
+        local rw = (row.right:GetText() or "") ~= "" and math.ceil(row.right:GetStringWidth() or 0) or 0
+        local gap = 8
+        local avail = (row:GetWidth() or 0) - tx - Pad() - reserve - (rw > 0 and rw + gap or 0)
+        row.text:ClearAllPoints()
+        row.text:SetPoint("TOPLEFT", row, "TOPLEFT", tx, -1)
+        row.text:SetPoint("TOPRIGHT", row, "TOPRIGHT", -(Pad() + reserve + (rw > 0 and rw + gap or 0)), -1)
+        row.text:SetWordWrap(false)
+        if row.text.SetMaxLines then row.text:SetMaxLines(1) end
+        Cut(row.text, d.target or d.text or "", avail)
+        Faded(row.text, key, a)
+        Faded(row.right, "text.dim", a)
+        row.text:SetHeight(LH - 1)
+        h = LH
+    else
+        TagShown(row, false)
+    end
     row:SetHeight(h)
     return h
 end
 
--- Updates only the distance on the current row's coordinate line (called by the arrow's ticker).
+-- Updates only the distance on the current row's place / coordinate line (called by the arrow's ticker).
 function R.SetDistance(row, text)
-    if row and row.coordLine then
-        row.coordLine.right:SetText(text or "")
-        PlaceLineText(row, row.coordLine)
-    end
+    local ln = row and row.coordLine
+    if not ln then return end
+    ln.right:SetText(text or "")
+    if ln.pin then PlaceLineText(row, ln) else PlaceSubText(row, ln) end
 end
 
 -- The "finished a step" flash (an animation on a texture; nothing with reduced motion).

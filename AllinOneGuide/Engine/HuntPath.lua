@@ -40,6 +40,25 @@ function H.On()
     return ns.Feature.IsOn("huntpath")
 end
 
+-- v0.3 spawn spots: "auto" (hand-made loops stay, the nearest spawn spot elsewhere), "spots" or "loops".
+function H.Mode()
+    local S = ns.Settings
+    local m = S and S.Get and S.Get("huntMode") or "auto"
+    if not ns.Spots or not ns.Feature.IsOn("spots") then return "loops" end
+    return m
+end
+
+-- Which way this step hunts: "spots", "loop" or nil. A generated loop gives way to spots in "auto"; with no spots
+-- for the mob, its loop (any kind) is used.
+function H.Kind(t)
+    local mode = H.Mode()
+    local loop = type(t.path) == "table"
+    if mode ~= "loops" and not (mode == "auto" and loop and t.pathSrc == "hand") and ns.Spots.Has(t) then
+        return "spots"
+    end
+    return loop and "loop" or nil
+end
+
 -- ------------------------------------------------------------------ geometry (world positions cached on our points)
 local function World(p)
     if p.c == nil then
@@ -199,6 +218,7 @@ function H.Reset()
     local st = H.state
     H.state = nil
     if st then SetActive(st, false) end
+    if ns.Spots then ns.Spots.Reset() end
 end
 
 -- "Point at the area centre" for this one target (arrow menu); a new target ends it.
@@ -210,7 +230,17 @@ end
 
 function H.Active(t)
     local st = H.state
+    if ns.Spots and ns.Spots.Active(t) then return true end
     return st ~= nil and st.active and (t == nil or st.target == t)
+end
+
+-- What the path line is made of now (a change re-lays its dots): the loop and its point, or the spot list and spot.
+function H.RouteKey()
+    local sp = ns.Spots and ns.Spots.state
+    if sp and sp.active then return sp.spots, sp.cur end
+    local st = H.state
+    if st then return st.pts, st.i end
+    return nil, 0
 end
 
 -- ------------------------------------------------------------------ the poll
@@ -227,11 +257,21 @@ local function Info(st)
 end
 
 function H.Aim(t, map, x, y, source)
-    if not t or (source ~= nil and source ~= "step") or not H.On() or H.centreFor == t
-        or type(t.path) ~= "table" then
-        if H.state then H.Reset() end
+    local kind = t and (source == nil or source == "step") and H.On() and H.centreFor ~= t and H.Kind(t) or nil
+    if kind == "spots" then
+        -- v0.3: the nearest spawn spot (Engine\Spots.lua) instead of a loop
+        if H.state then
+            local st = H.state
+            H.state = nil
+            SetActive(st, false)
+        end
+        return ns.Spots.Aim(t, map, x, y)
+    end
+    if kind ~= "loop" then
+        if H.state or (ns.Spots and ns.Spots.state) then H.Reset() end
         return nil
     end
+    if ns.Spots and ns.Spots.state then ns.Spots.Reset() end
     if not (Num(map) and Num(x) and Num(y)) then return nil end
     H.stats.polls = H.stats.polls + 1
     local st, key = H.state, Key(t)
@@ -343,6 +383,7 @@ end
 
 -- The loop from the current point round to it again (closed) / to the end and back (open), for the path line.
 function H.Ahead(t)
+    if ns.Spots and ns.Spots.Active(t) then return ns.Spots.Ahead(t) end
     local st = H.state
     if not (st and st.active and st.target == t) then return nil end
     local out, i = { st.pts[st.i] }, st.i
@@ -374,6 +415,7 @@ ns.Bus.On("CombatEnded", H, function() H.inCombat = false end, "huntpath")
 -- hunt for any other target ends at once, so the ModelView's hunt mob and Active() never outlive their step
 -- (beta.5: a step without coordinates leaves the arrow without a target and without polls).
 function H.Check()
+    if ns.Spots then ns.Spots.Check() end
     local st, A = H.state, ns.Arrow
     if not st then return end
     -- the same step read again from the pack (a new frozen copy, same key) keeps its place in the loop
@@ -385,7 +427,9 @@ ns.Bus.On("StepChanged", H, function()
     H.Check()
 end, "huntpath", 99)
 ns.Bus.On("WaypointChanged", H, function() H.Check() end, "huntpath", 99)
-ns.Bus.On("SettingsChanged", H, function(_, key) if key == "huntPath" then H.Reset() end end, "huntpath", 70)
+ns.Bus.On("SettingsChanged", H, function(_, key)
+    if key == "huntPath" or key == "huntMode" then H.Reset() end
+end, "huntpath", 70)
 ns.Bus.On("Login", H, function() H.inCombat = ns.Compat.InCombat() == true end, "huntpath", 60)
 
 -- In-game self-test: the loop state is sane (never more points than the step's loop, an index inside it).

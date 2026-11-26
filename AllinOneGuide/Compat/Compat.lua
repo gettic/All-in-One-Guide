@@ -261,6 +261,58 @@ function Co.GuidNpcId(g)
     return id, NPC_KINDS[kind]
 end
 
+-- Quest giver check (Engine\QuestGiver.lua; read only, never picks anything): the quest lists of the open NPC
+-- window. kind "gossip" (C_GossipInfo) or "greeting" (the quest greeting's index reads). Returns
+-- available = { [questID] = true }, active = { [questID] = true }, options (gossip option count, 0 for a
+-- greeting), quests (how many quest rows in all); or nil when anything is missing, secret, odd, or the counts
+-- don't match the lists (= unknown: nothing is judged from it).
+local function QuestIdOk(q) return not Secret(q) and type(q) == "number" and q > 0 end
+function Co.NpcQuestLists(kind)
+    local avail, active, n = {}, {}, 0
+    if kind == "gossip" then
+        local fa, fc, fna, fnc, fo = F.GossipAvail, F.GossipActive, F.GossipNumAvail, F.GossipNumActive, F.GossipOptions
+        if not (fa and fc and fna and fnc) then return nil end
+        local la, lc, na, nc = fa(), fc(), fna(), fnc()
+        if Secret(la) or Secret(lc) or type(la) ~= "table" or type(lc) ~= "table" then return nil end
+        na, nc = Co.Num(na), Co.Num(nc)
+        if na ~= #la or nc ~= #lc then return nil end
+        for _, pair in ipairs({ { la, avail }, { lc, active } }) do
+            for _, info in ipairs(pair[1]) do
+                local q = type(info) == "table" and info.questID
+                if not QuestIdOk(q) then return nil end
+                pair[2][q] = true
+                n = n + 1
+            end
+        end
+        local opts = 0
+        if fo then
+            local lo = fo()
+            if Secret(lo) or type(lo) ~= "table" then return nil end
+            opts = #lo
+        end
+        return avail, active, opts, n
+    elseif kind == "greeting" then
+        local fna, fnc, fi, fa = F.GreetNumAvail, F.GreetNumActive, F.AvailQuestInfo, F.ActiveQuestID
+        if not (fna and fnc and fi and fa) then return nil end
+        local na, nc = Co.Num(fna()), Co.Num(fnc())
+        if not na or not nc or na < 0 or nc < 0 or na > 40 or nc > 40 then return nil end
+        for i = 1, na do
+            local q = select(5, fi(i))
+            if not QuestIdOk(q) then return nil end
+            avail[q] = true
+            n = n + 1
+        end
+        for i = 1, nc do
+            local q = fa(i)
+            if not QuestIdOk(q) then return nil end
+            active[q] = true
+            n = n + 1
+        end
+        return avail, active, 0, n
+    end
+    return nil
+end
+
 -- v0.2 M6 (dev recorder, /aog where): the open loot window. Returns a list of
 -- { item = itemID or nil, sources = { { id, kind }, ... } } (sources only from Creature / Vehicle /
 -- GameObject GUIDs, see GuidNpcId), or nil when the loot API is missing.

@@ -15,8 +15,9 @@ All files: TGA, 32-bit BGRA, straight alpha, uncompressed (type 2), bottom-left 
 | `minimap.tga` | 32x32 | 4 KB | `build_minimap.py` | minimap button (whole round button, full colour) | v0.2, all themes |
 | `glyphs2.tga` | 256x32 | 32 KB | `build_window_art.py` | NOW window + main window buttons: grip, attach, detach, search, resize (cells below) | NOW + main window, Dark (Blizzard theme fallback) |
 | `emblems.tga` | 256x64 | 64 KB | `build_window_art.py` | guide emblems (shields) on the main window's Guides cards (regions below) | main window, all themes |
+| `round.tga` | 256x64 | 64 KB | `build_round.py` | rounded window look (4e): window panel / border / shadow 9-slices, small rounded 9-slice, target crosshair, rounded button frame, tile icons (regions below) | one-window look, Dark |
 
-**Total raw texture memory: 596 KB** (budget: 600 KB; 4 KB left. `glyphs2.tga` is one row on purpose; adding a second row would go over).
+**Total raw texture memory: 660 KB** (old budget 600 KB: `round.tga` (64 KB, asked for by the guide-window-look build plan) goes 60 KB over it; zipped it adds only ~6 KB).
 
 Note for the `.toc`: the build plan says `IconTexture: ...\media\logo`, but the file is `logo_64` (no `logo.tga` exists). Point `IconTexture` at `Interface\AddOns\AllinOneGuide\media\logo_64`.
 
@@ -28,6 +29,20 @@ Design "Waypoint" (direction A, in use): round dark badge, teal ring, two-tone t
 
 The whole minimap button: round dark badge, thicker teal ring, logo mark simplified for ~31 px (A: bigger arrow, two route dots). Full colour, **not tinted**; texture coordinates (0, 1, 0, 1); transparent outside the circle (no extra border needed; highlight: the same texture with blend mode `ADD` at ~0.35 alpha). **Swapping the logo:** `build_minimap.py` has `LOGO = "A"`; set it to `"B"` (or run `python -B art-src/build_minimap.py B`) for the Guide-book mark in the same round badge. Same file name, size and coords, so no code change.
 
+## round.tga regions
+
+256x64, white / grey, tinted with `SetVertexColor`. 9-slice pieces: for (l, r, t, b) with corner (du, dv) use u = l, l+du, r-du, r and v = t, t+dv, b-dv, b; corners fixed on screen, edges and centre stretched.
+
+| Key | l | r | t | b | Corner du / dv | Shown |
+|---|---|---|---|---|---|---|
+| `frame.panel` | 0.000 | 0.125 | 0.000 | 0.500 | 0.0546875 / 0.21875 (14 px, r 14) | corner `size.corner` 10, tint `color.panel` |
+| `frame.border` | 0.000 | 0.125 | 0.500 | 1.000 | 0.0546875 / 0.21875 | same shape, 1.5 px ring (1 px at corner 10), tint `color.border` |
+| `frame.shadow` | 0.250 | 0.500 | 0.000 | 1.000 | 0.10546875 / 0.421875 (27 px) | hollow soft shadow; corner `size.shadow + size.corner` (18), frame = window + `size.shadow` (8) each side, tint `color.shadow` |
+| `round.s` | 0.125 | 0.250 | 0.000 | 0.500 | 0.03125 / 0.125 (8 px, r 8) | corner = wanted radius (buttons 6, chips 4, header buttons 3, bar 5) |
+| `btn.target` | 0.125 | 0.250 | 0.500 | 1.000 | single | crosshair glyph (white + 1 px dark rim), ~28 px, #FF8C7A |
+| `frame.stepbutton2` | 0.500 | 0.750 | 0.000 | 1.000 | single | 52x52 centred on the 36x36 button; 34 px see-through hole r 5, dark band baked in, tinted ring (#4A4A50, reminder #C8102E) |
+
+Tiles: 4 x 4 cells of 16x16 at x 192-255; cell c: l = 0.75 + 0.0625 * (c % 4), r = l + 0.0625, t = 0.25 * floor(c / 4), b = t + 0.25. `tile.base` (c 0, tinted with the step colour) with a symbol on top (white, or dark #2A1F00 on yellow): 2 `tile.accept` (!), 3 `tile.turnin` (?), 4 `tile.kill` (X), 5 `tile.loot` (sack), 6 `tile.use` (flask), 7 `tile.goto` (arrowhead), 8 `tile.talk` (bubble), 9 `tile.train` (double chevron), 10 `tile.fly` (bird), 11 `tile.hearth` (house), 12 `tile.note` (i), 13 `tile.done` (tick). 1 `tile.open`: whole empty tile (ring + dark middle). 14-15 spare. Shown 12-16 px.
 ## glyphs2.tga cells
 
 One row of 8 cells, 32x32 each; cell `i`: l = `i/8`, r = `(i+1)/8`, **t = 0, b = 1**. Same style as `glyphs.tga`: white with a baked 1 px dark rim, inside the middle 28x28 (2 px clear padding), coloured with `SetVertexColor` (suggested: #A3ADBA, hover white, active / selected accent #2FC4A8).

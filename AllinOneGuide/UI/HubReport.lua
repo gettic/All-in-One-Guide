@@ -287,6 +287,17 @@ end
 ns.Hub.AddPage("report", { title = "HUB_REPORT", icon = "hub.report", order = 57, build = Build, refresh = function()
     ns.Report.NewId()
     HR.opts.stepId = nil
+    -- a pre-filled report (HR.Prefill: the quest giver check's "Report this"): type + note only; the player's
+    -- choices (leave out my location, NPC evidence) stay as they are, nothing is sent until Send / Copy
+    local pf = HR.prefill
+    HR.prefill = nil
+    if type(pf) == "table" then
+        if pf.about then HR.opts.about = pf.about end
+        if type(pf.note) == "string" then
+            HR.opts.note = pf.note
+            if HR.page and HR.page.note then HR.page.note:SetText(pf.note) end
+        end
+    end
     HR.Update()
     -- a fresh page: no "Saved." from last time, the current waiting count
     if HR.page and HR.page.status then
@@ -317,5 +328,12 @@ end }
 -- Opens the Report page (title menu, /aog report).
 function HR.Open()
     return ns.Hub.Open("report")
+end
+
+-- Opens the Report page filled in: opts = { about (a Report.TYPES value), note }. Only fills the page.
+function HR.Prefill(opts)
+    if type(opts) ~= "table" then return false end
+    HR.prefill = { about = opts.about, note = opts.note and ns.U.Utf8Cut(tostring(opts.note), ns.Report.NOTE_MAX) or nil }
+    return HR.Open()
 end
 ns.Slash.Add("report", function() HR.Open() end, "HELP_REPORT", { main = true })

@@ -140,7 +140,8 @@ function NT.Clear() NT.cache = {} end
 
 -- ------------------------------------------------------------------ texts
 local function Fill(key, fields) return ns.U.Fill(ns.L[key], fields) end
-local WHY = { skip = "NPC_WHY_SKIP", notdoing = "NPC_WHY_NOTDOING", na = "NPC_WHY_NA", behind = "NPC_WHY_BEHIND" }
+local WHY = { skip = "NPC_WHY_SKIP", notdoing = "NPC_WHY_NOTDOING", na = "NPC_WHY_NA", behind = "NPC_WHY_BEHIND",
+    notoffered = "NPC_WHY_NOTOFFERED" }
 
 -- Tag text + colour key for a row (nil = no tag). short = the narrow form for a row with a long title.
 function NT.TagText(a, short)

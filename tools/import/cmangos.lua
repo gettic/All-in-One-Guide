@@ -6,6 +6,7 @@
 -- (which creature / game object starts or ends which quest). Used by tools\import\questie-audit.lua as the
 -- second source; its output stays local (plans\).
 --
+-- Also the creature rows' respawn time (spawntimesecsmin), for the spawn spot arrow (tools\import\spots.lua).
 -- World coordinates are turned into zone map percent with a per-map linear fit (x% = a + b * worldY,
 -- y% = c + d * worldX) made from NPCs that both sources have exactly once; the fit is 4 numbers per map, so a
 -- single NPC's cmangos position stays independent of its QuestieDB position.
@@ -32,13 +33,15 @@ function CM.Read(path)
     for line in fh:lines() do
         local tbl = line:match("^INSERT INTO `([%w_]+)` VALUES ")
         if tbl == "creature" then
-            -- (guid, id, map, spawnMask, position_x, position_y, ...)
-            for _, id, map, x, y in line:gmatch("%((%d+),(%d+),(%d+),%d+," .. NUM .. "," .. NUM .. ",") do
+            -- (guid, id, map, spawnMask, position_x, position_y, position_z, orientation, spawntimesecsmin, ...)
+            -- the 4th value kept = spawntimesecsmin (respawn seconds; tools\import\spots.lua), nil when unreadable
+            for _, id, map, x, y, rest in line:gmatch("%((%d+),(%d+),(%d+),%d+," .. NUM .. "," .. NUM .. ",([^%)]*)%)") do
                 id, map = tonumber(id), tonumber(map)
                 if id > 0 and (map == 0 or map == 1) then
                     local list = db.creatures[id] or {}
                     db.creatures[id] = list
-                    list[#list + 1] = { map, tonumber(x), tonumber(y) }
+                    local resp = rest:match("^[%-%d%.eE]+,[%-%d%.eE]+,(%d+),")
+                    list[#list + 1] = { map, tonumber(x), tonumber(y), tonumber(resp) }
                 end
             end
         elseif tbl and REL[tbl] then
@@ -110,7 +113,8 @@ function CM.Calibrate(questie, creatures)
     return fits
 end
 
--- cmangos spawns of `entry` on uiMap `m` as zone percent { { x, y }, ... } (only points inside 0-100).
+-- cmangos spawns of `entry` on uiMap `m` as zone percent { { x, y, respawn seconds or nil }, ... } (only points
+-- inside 0-100).
 function CM.ZonePoints(db, fits, entry, m)
     local f = fits[m]
     local out = {}
@@ -118,7 +122,7 @@ function CM.ZonePoints(db, fits, entry, m)
     for _, p in ipairs(db.creatures[entry] or {}) do
         if p[1] == CM.CONTINENT[m] then
             local x, y = f[1] + f[2] * p[3], f[3] + f[4] * p[2]
-            if x >= 0 and x <= 100 and y >= 0 and y <= 100 then out[#out + 1] = { x, y } end
+            if x >= 0 and x <= 100 and y >= 0 and y <= 100 then out[#out + 1] = { x, y, p[4] } end
         end
     end
     return out
