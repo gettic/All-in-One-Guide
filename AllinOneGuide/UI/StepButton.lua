@@ -142,6 +142,40 @@ function SB.Wanted()
             if id and InBags(id) then return id, q end
         end
     end
+    -- beta.8 fix (the user: "on step 8 i allready have the book ... i dont see a button"): a quest starter the
+    -- route uses a little later (or passed a little earlier) that is already in the bags: offer it now
+    id, q = SB.NearStarter(top)
+    if id then return id, q end
+    return nil
+end
+
+-- The first quest-starting item in the bags that a route step near the current one starts (an accept step
+-- from = "item", or a step with a starter `useItem`), whose quest isn't taken and whose step isn't skipped.
+SB.AHEAD, SB.BEHIND = 25, 15
+function SB.NearStarter(top)
+    if not (top and top.Step and top.pos) then return nil end
+    local skips = top.save and top.save.skips or {}
+    local last = top.Count and top:Count() or top.pos
+    for i = math.max(1, top.pos - SB.BEHIND), math.min(last, top.pos + SB.AHEAD) do
+        local s = top:Step(i)
+        if s and i ~= top.pos and not skips[s.id] and ((s.type == "accept" and s.from == "item") or type(s.useItem) == "number") then
+            local id, q = SB.ItemFor(s)
+            if id and q and InBags(id) and not Taken(q) then return id, q end
+        end
+    end
+    return nil
+end
+
+-- Why the button is hidden now (self-test, offline tests), or nil when it shows / should show.
+function SB.HiddenWhy()
+    if not ns.Feature.IsOn("stepbutton") then return "the stepbutton feature is off" end
+    if not (ns.UI and ns.UI.IsShown and ns.UI.IsShown()) then return "the guide window is hidden" end
+    if ns.UI.Small and ns.UI.Small() then return "small mode" end
+    if ns.Settings.Get("itemButton") == false then return "the Item button setting is off" end
+    local id = SB.Wanted()
+    if not id then return "no item for this step (none named, none in the bags, or its quest is taken)" end
+    if CQ.Pending("stepbutton") then return "waiting for the end of combat" end
+    if not (SB.frame and SB.frame:IsShown()) then return "should show item " .. id .. " but the frame is hidden" end
     return nil
 end
 
@@ -386,6 +420,12 @@ end
 -- In-game self-test (/aog selftest): the button only ever holds type = item, and matches the step out of combat.
 ns.SelfChecks[#ns.SelfChecks + 1] = { label = "stepbutton", fn = function(h)
     h.Count()
+    -- why the item button is hidden on this step (the beta.8 book report): a line the player can paste
+    local why = SB.HiddenWhy()
+    if why then
+        if why:find("should show", 1, true) and not Co.InCombat() then h.Problem("stepbutton: " .. why)
+        else h.Info("stepbutton hidden: " .. why) end
+    end
     local b = SB.frame
     if not b then
         h.Info("stepbutton: not built (no step with an item yet)")
@@ -457,6 +497,8 @@ ns.Bus.On("Login", SB, function()
     -- order 75: after the engine (60) has updated the goals riding along, and the window (70)
     ns.Bus.On("ItemsChanged", SB, Up, "stepbutton", 75)
     ns.Bus.On("BagQuestsChanged", SB, Up, "stepbutton")
+    -- any bag change (a starter the current step doesn't watch, e.g. the book on the kill step before its farm step)
+    ns.Bus.On("BagsChanged", SB, Up, "stepbutton", 75)
     ns.Bus.On("QuestsChanged", SB, Up, "stepbutton", 75)
     ns.Bus.On("CombatQueueChanged", SB, function() SB.Look() end, "stepbutton")
     -- reduced motion on / off: the glow pulse stops / starts at once; itemButton / small: shown or hidden
