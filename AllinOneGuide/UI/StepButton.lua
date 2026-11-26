@@ -20,12 +20,100 @@ local _, ns = ...
 local Th, K, Co = ns.Theme, ns.UIKit, ns.Compat
 local CQ = ns.CombatQueue
 -- CROP: item icons show only their inner 84 % (Blizzard's baked edge sits under our frame; look review #9)
--- LEVEL_GAP: (was: inside the old NOW window, the frame level gap above it; kept for the target button)
+-- LEVEL_GAP: the item / target buttons sit this many frame levels above the guide window (same strata), so no
+--   part of the window (grips +20/+21, the 3D view +3) can ever take their clicks
+-- CLICKS: both up and down (beta.11 fix, the user: "i now see the new iteam buttom. but cant click it?"). An addon's
+--   SecureActionButtonTemplate acts on the DOWN click when the CVar ActionButtonUseKeyDown is on (the default):
+--   SecureActionButton_OnClick gets no isSecureAction from an addon button, so useOnKeyDown = the CVar and
+--   clickAction = (down and useOnKeyDown) or (not down and not useOnKeyDown) (checked in the 16001 UI source,
+--   Blizzard_FrameXML\SecureTemplates.lua + .xml). Registered for "AnyUp" only, the down never reached it: nothing.
+--   With both, exactly one of the two acts, whichever way the CVar is set.
 -- BADGE: the built-in game quest "!" (referenced by path, never copied); our own glyph when it can't be set
 local SB = { NAME = "AllinOneGuideStepButton", SIZE = 36, HEARTHSTONE = 6948, item = nil, want = nil, CROP = 0.08,
-    LEVEL_GAP = 20, BADGE = "Interface\\GossipFrame\\AvailableQuestIcon", BADGE_FALLBACK = "glyph.step.accept",
-    starts = {}, FARM_ALPHA = 0.45 }
+    LEVEL_GAP = 30, BADGE = "Interface\\GossipFrame\\AvailableQuestIcon", BADGE_FALLBACK = "glyph.step.accept",
+    starts = {}, FARM_ALPHA = 0.45, CLICKS = { "AnyUp", "AnyDown" } }
 ns.StepButton = SB
+
+-- Click setup of a secure button (item and target button; at build, out of combat): both clicks, mouse on.
+-- b.aogClicks = what was registered (the game has no getter; for the self-test and the offline tests).
+function SB.Clicks(b)
+    b:RegisterForClicks(unpack(SB.CLICKS))
+    b.aogClicks = SB.CLICKS
+    b:EnableMouse(true)
+end
+
+-- Same strata as the guide window, LEVEL_GAP levels above it (secure: only from Apply, out of combat).
+function SB.Raise(b)
+    local w = ns.UI and ns.UI.frame
+    if not (b and w) then return end
+    b:SetFrameStrata(w:GetFrameStrata() or "MEDIUM")
+    b:SetFrameLevel((w:GetFrameLevel() or 0) + SB.LEVEL_GAP)
+end
+
+local STRATA = { BACKGROUND = 1, LOW = 2, MEDIUM = 3, HIGH = 4, DIALOG = 5, FULLSCREEN = 6,
+    FULLSCREEN_DIALOG = 7, TOOLTIP = 8 }
+SB.STRATA = STRATA
+
+-- Screen rect (left, bottom, right, top) of a frame, or nil.
+local function ScreenRect(f)
+    local l, b, r, t = f:GetLeft(), f:GetBottom(), f:GetRight(), f:GetTop()
+    if not (l and b and r and t) then return nil end
+    local k = f:GetEffectiveScale() or 1
+    return l * k, b * k, r * k, t * k
+end
+
+-- Which of our frames sits on top of the button's centre and takes the mouse (higher strata, or the same strata
+-- at the same or a higher level): its label, else nil. Ours only (the game has no "frame at a point" query).
+function SB.CoveredBy(b)
+    if not (b and b:IsVisible()) then return nil end
+    local l, bo, r, t = ScreenRect(b)
+    if not l then return nil end
+    local cx, cy = (l + r) / 2, (bo + t) / 2
+    local bs = STRATA[b:GetFrameStrata() or "MEDIUM"] or 3
+    local bl = b:GetFrameLevel() or 0
+    local list = {
+        { "the guide window", ns.UI and ns.UI.frame }, { "the 3D view", ns.ModelView and ns.ModelView.frame },
+        { "the arrow", ns.Arrow and ns.Arrow.frame }, { "the item button", SB.frame },
+        { "the target button", ns.TargetButton and ns.TargetButton.frame },
+    }
+    for _, e in ipairs(list) do
+        local f = e[2]
+        if f and f ~= b and f:IsVisible() and f:IsMouseEnabled() then
+            local fl, fb, fr, ft = ScreenRect(f)
+            if fl and cx >= fl and cx <= fr and cy >= fb and cy <= ft then
+                local fs = STRATA[f:GetFrameStrata() or "MEDIUM"] or 3
+                if fs > bs or (fs == bs and (f:GetFrameLevel() or 0) >= bl) then return e[1] end
+            end
+        end
+    end
+    return nil
+end
+
+-- nil when a click on the button reaches its secure action, else a short reason (self-test + offline tests):
+-- both clicks registered, mouse on, enabled, no hit-rect inset that eats the centre, the type and its attribute
+-- set, nothing of ours on top.
+function SB.Unclickable(b, kind, attr)
+    if not b then return "not built" end
+    local c = b.aogClicks or {}
+    local up, down = false, false
+    for _, v in ipairs(c) do
+        if v == "AnyUp" or v == "LeftButtonUp" then up = true end
+        if v == "AnyDown" or v == "LeftButtonDown" then down = true end
+    end
+    if not (up and down) then return "clicks registered: " .. (#c > 0 and table.concat(c, ",") or "none") .. " (needs up and down)" end
+    if b.IsMouseEnabled and not b:IsMouseEnabled() then return "mouse off" end
+    if b.IsEnabled and not b:IsEnabled() then return "disabled" end
+    if b.GetHitRectInsets then
+        local l, r, t, bo = b:GetHitRectInsets()
+        local w, h = b:GetWidth() or 0, b:GetHeight() or 0
+        if (l or 0) + (r or 0) >= w / 2 or (t or 0) + (bo or 0) >= h / 2 then return "hit rect inset too large" end
+    end
+    if b:GetAttribute("type") ~= kind then return "type is " .. tostring(b:GetAttribute("type")) end
+    if b:IsShown() and b:GetAttribute(attr) == nil then return attr .. " attribute not set" end
+    local top = SB.CoveredBy(b)
+    if top then return "covered by " .. top end
+    return nil
+end
 
 -- The quest an item is listed for in ns.QuestItems (q = id or a list), by quest: built once.
 local function ByQuest()
@@ -184,7 +272,7 @@ local function Build()
     local b = CreateFrame("Button", SB.NAME, Co.fn.UIParent, "SecureActionButtonTemplate")
     b:SetSize(SB.SIZE, SB.SIZE)
     b:SetClampedToScreen(true)   -- never off screen when the window sits at the left edge
-    b:RegisterForClicks("AnyUp")
+    SB.Clicks(b)
     b:SetAttribute("type", "item")
     b:Hide()
     local bg = K.Fill(b, "BACKGROUND", "panel")
@@ -371,6 +459,7 @@ local function Place(b)
     local p = Co.fn.UIParent
     local x, y, s = SB.Spot(SB.SpotIndex())
     b:SetScale(s)
+    SB.Raise(b)
     b:ClearAllPoints()
     if x then
         b:SetPoint("TOPLEFT", p, "BOTTOMLEFT", x, y)
@@ -448,6 +537,15 @@ ns.SelfChecks[#ns.SelfChecks + 1] = { label = "stepbutton", fn = function(h)
     -- the one window: in the row above the window's top-left at the window's scale (unless the screen top clamps it)
     local bad = SB.Misplaced()
     if bad then h.Problem("stepbutton: " .. bad) end
+    -- clickability (beta.11 "cant click it"): clicks, mouse, attributes, what's on top at its centre
+    local clicks = table.concat(b.aogClicks or {}, ",")
+    local top = SB.CoveredBy(b)
+    h.Info(("stepbutton click: clicks %s, mouse %s, type %s, item %s, level %s (window %s), on top: %s"):format(
+        clicks ~= "" and clicks or "none", tostring(b:IsMouseEnabled()), tostring(t), tostring(attr),
+        tostring(b:GetFrameLevel()), tostring(ns.UI and ns.UI.frame and ns.UI.frame:GetFrameLevel()),
+        top or "nothing of ours"))
+    local nope = b:IsShown() and not Co.InCombat() and SB.Unclickable(b, "item", "item")
+    if nope then h.Problem("stepbutton: can't be clicked: " .. nope) end
     -- look review #9: the icon is cropped; the glow pulses exactly while it is up (motion on)
     if b.icon.GetTexCoord then
         local l = b.icon:GetTexCoord()
@@ -495,11 +593,13 @@ ns.Bus.On("Login", SB, function()
     ns.Bus.On("ScaleChanged", SB, Replace, "stepbutton", 80)          -- after the window's KeepOnScreen (70)
     -- the bags or the quest log changed: a quest-starting item may have come or gone (Update ends in Look);
     -- order 75: after the engine (60) has updated the goals riding along, and the window (70)
-    ns.Bus.On("ItemsChanged", SB, Up, "stepbutton", 75)
-    ns.Bus.On("BagQuestsChanged", SB, Up, "stepbutton")
+    -- (perf: a StepChanged already waiting in this bus chain updates the button right after; no second update)
+    local function UpUnlessStep() if not ns.Bus.Pending("StepChanged") then SB.Update() end end
+    ns.Bus.On("ItemsChanged", SB, UpUnlessStep, "stepbutton", 75)
+    ns.Bus.On("BagQuestsChanged", SB, UpUnlessStep, "stepbutton")
     -- any bag change (a starter the current step doesn't watch, e.g. the book on the kill step before its farm step)
-    ns.Bus.On("BagsChanged", SB, Up, "stepbutton", 75)
-    ns.Bus.On("QuestsChanged", SB, Up, "stepbutton", 75)
+    ns.Bus.On("BagsChanged", SB, UpUnlessStep, "stepbutton", 75)
+    ns.Bus.On("QuestsChanged", SB, UpUnlessStep, "stepbutton", 75)
     ns.Bus.On("CombatQueueChanged", SB, function() SB.Look() end, "stepbutton")
     -- reduced motion on / off: the glow pulse stops / starts at once; itemButton / small: shown or hidden
     ns.Bus.On("SettingsChanged", SB, function(_, key)

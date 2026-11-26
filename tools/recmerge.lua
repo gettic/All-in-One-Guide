@@ -190,17 +190,30 @@ end
 -- fails is dropped whole; a page id seen before (a duplicate send) is skipped. Values are only ids, numbers, map
 -- cells and comma lists of ids: no names ever (a page with anything else fails the field check).
 RM.D1_FIELDS = { rid = "text", h = "num", v = "text", b = "text", fac = "text", cls = "text", race = "text",
-    realm = "name", loc = "text", day = "day", scr = "text", ui = "num", cnt = "num", k = "kind",
+    realm = "name", loc = "text", day = "day", cnt = "num", k = "kind",
     q = "id", npc = "id", obj = "id", ins = "id", from = "id", m = "id", x = "coord", y = "coord", c = "cell", n = "num",
     xp = "num", mo = "num", pl = "num", ql = "num", it = "id", loot = "num", got = "num", cu = "num", sh = "num",
     gray = "num", cloth = "num", herb = "num", ore = "num", pk = "text", s = "text", t = "num", fn = "id", tn = "id",
     sec = "num", lo = "num", hi = "num", cl = "text", fa = "id", gain = "num", sp = "id", sk = "id", lv = "num", dif = "num",
     tries = "num", ups = "num", sv = "text", rc = "text", sup = "text", min = "num", boss = "text", qs = "text", pz = "num",
-    pn = "num", dd = "num", gs = "num", gx = "num", rt = "text", gph = "num", ck = "text" }
+    pn = "num", dd = "num", gs = "num", gx = "num", rt = "text", gph = "num", ck = "text",
+    -- rev 6 (Data\GatherMore.lua)
+    e = "num", st = "num", skp = "num", und = "num", nd = "num", bk = "num", spc = "num", ns = "num", hs = "num",
+    fl = "num", wk = "num", hr = "num", mt = "num", sw = "num", ft = "num", dev = "num", pct = "num", rd = "num",
+    kv = "text", ms = "num", rf = "num", uk = "text", on = "num", fe = "text", msg = "name", at = "text", stk = "text",
+    tt = "name", nq = "text", oi = "num", why = "text", ch = "text", sz = "name", ct = "name", cf = "name", ml = "num",
+    hc = "num", cn = "num", cb = "num", eq = "text", stt = "text", am = "num", qcu = "num", vcu = "num", dcu = "num",
+    mcu = "num", gv = "num", sks = "text" }
 RM.D1_KINDS = { accept = true, turnin = true, qxp = true, offer = true, drop = true, camp = true, coin = true, sell = true,
     farm = true, gather = true, merchant = true, vend = true, trainer = true, train = true, inn = true, fm = true, fly = true,
     entrance = true, step = true, gph = true, craft = true, gskill = true, mlvl = true, repq = true, repk = true, repo = true,
-    dun = true }
+    dun = true,
+    -- rev 6
+    sact = true, leg = true, trav = true, mv = true, rest = true, mount = true, spec = true, set = true, guide = true,
+    perf = true, use = true, err = true, miss = true, chain = true, pmiss = true, qstart = true, rdrop = true, grp = true,
+    abandon = true, qfail = true, qtime = true, obj = true, ostk = true, death = true, crun = true, gy = true, ctype = true,
+    tap = true, pull = true, ttk = true, cast = true, eat = true, rew = true, gear = true, stat = true, bagfull = true,
+    repair = true, fpl = true, expl = true, ammo = true, earn = true }
 RM.TEXT_OK = "^[%w %.,:_/%+%(%)'!%?%-]*$"   -- what the strict escaping leaves (after unescaping: no separators)
 
 function RM.Adler32(s)
@@ -330,11 +343,35 @@ local function R2(v) return v and math.floor(v * 100 + 0.5) / 100 or nil end
 -- The merge key per kind (which records are the same fact).
 local KEYS = {
     accept = { "q", "npc", "obj", "from", "m" }, turnin = { "q", "npc", "obj", "from", "m" }, qxp = { "q" }, offer = { "q" },
-    drop = { "npc", "it" }, camp = { "npc", "m", "c" }, coin = { "npc" }, sell = { "it" }, farm = { "m", "c" },
+    drop = { "npc", "it" }, camp = { "npc", "m" }, coin = { "npc" }, sell = { "it" }, farm = { "npc", "m" },
     gather = { "obj", "m" }, merchant = { "npc", "m" }, vend = { "npc" }, trainer = { "npc", "m" }, train = { "npc" },
     inn = { "npc", "m" }, fm = { "npc", "fn" }, fly = { "fn", "tn" }, entrance = { "ins", "m" }, step = { "pk", "s" },
     gph = { "rt" }, craft = { "sp", "lv" }, gskill = { "obj", "npc", "sk", "lv" }, mlvl = { "npc", "m", "c" },
     repq = { "q", "fa" }, repk = { "npc", "fa" }, repo = { "fa" }, dun = { "ins" },
+    -- rev 6
+    sact = { "pk", "s" }, leg = { "pk", "s" }, trav = { "pk", "s" }, mv = { "pk", "s" }, rest = { "pl" },
+    mount = { "pl", "rd" }, spec = { "pl", "spc" }, set = { "kv" }, guide = { "pk" }, perf = {}, use = { "uk", "on" },
+    err = { "msg", "at" }, miss = { "npc", "q", "tt" }, chain = { "q", "npc" }, pmiss = { "q", "npc" },
+    qstart = { "it", "npc", "obj", "q" }, rdrop = { "it", "npc", "obj" }, grp = { "q", "npc", "gs" }, abandon = { "q" },
+    qfail = { "q", "why" }, qtime = { "q" }, obj = { "q", "oi" }, ostk = { "q", "s" }, death = { "m", "c", "npc" },
+    crun = { "m" }, gy = { "m", "c" }, ctype = { "npc" }, tap = { "npc", "m" }, pull = { "npc", "m" }, ttk = { "npc", "pl" },
+    cast = { "sp", "pl" }, eat = { "pl" }, rew = { "q", "it" }, gear = { "pl" }, stat = { "why", "pl" },
+    bagfull = { "pk", "s" }, repair = { "pl" }, fpl = { "fn" }, expl = { "m", "sz" }, ammo = { "pl" }, earn = { "pl" },
+}
+-- rev 6: how each new kind merges (sum = add up, mode = most common, med = median, lo / hi = smallest / largest,
+-- per = median of field / n per record). What it is for is in plans\data-gathering\plan.md (rev 6).
+RM.D1_MERGE = {
+    sact = { sum = { "skp", "und", "nd", "bk" } }, trav = { sum = { "hs", "fl", "wk" } },
+    leg = { sum = { "ns", "xp", "sec", "dd" }, lo = { "lo" }, hi = { "hi" }, mode = { "spc" } },
+    mv = { sum = { "hr", "mt", "sw", "ft", "dev" }, mode = { "c" } }, rest = { med = { "pct" } },
+    use = { sum = {} }, err = { mode = { "stk", "fe" } }, miss = { mode = { "ql", "pk" } }, chain = { mode = { "nq" } },
+    pmiss = { lo = { "pl" } }, abandon = { med = { "pl" }, mode = { "gs" } }, qtime = { per = { "min" } },
+    obj = { med = { "sec" } }, ostk = { sum = { "min" } }, death = { med = { "pl" }, mode = { "ml", "hc" } },
+    crun = { per = { "sec" } }, ctype = { mode = { "ct", "cf" } }, pull = { mode = { "ml" } },
+    ttk = { per = { "sec" }, mode = { "ml" } }, cast = { sum = { "cn", "cb" } }, eat = { per = { "sec" } },
+    rew = { mode = { "ch" } }, gear = { mode = { "eq" } }, stat = { mode = { "stt" } }, fpl = { lo = { "pl" } },
+    expl = { mode = { "xp" } }, ammo = { med = { "am" } }, perf = { med = { "ms", "rf" } },
+    earn = { sum = { "qcu", "vcu", "dcu", "mcu", "gv", "min" } }, camp = { sum = { "sec" } },
 }
 local function D1Key(r)
     local p = { r.k }
@@ -466,6 +503,25 @@ function RM.MergeD1(pagesList, opts)
         elseif g.k == "train" or g.k == "vend" then
             for _, fld in ipairs({ "sv", "rc", "sup" }) do f[fld] = Mode(list(fld)) end
         end
+        local how = RM.D1_MERGE[g.k]
+        if how then
+            f.n = sum("n")
+            for _, fld in ipairs(how.sum or {}) do f[fld] = sum(fld) end
+            for _, fld in ipairs(how.mode or {}) do f[fld] = Mode(list(fld)) end
+            for _, fld in ipairs(how.med or {}) do f[fld] = Med(list(fld)) end
+            for _, fld in ipairs(how.lo or {}) do local t = list(fld) table.sort(t) f[fld] = t[1] end
+            for _, fld in ipairs(how.hi or {}) do local t = list(fld) table.sort(t) f[fld] = t[#t] end
+            for _, fld in ipairs(how.per or {}) do
+                local per = {}
+                for _, r in ipairs(g.recs) do if (r.n or 0) > 0 and r[fld] then per[#per + 1] = r[fld] / r.n end end
+                f[fld] = per[1] and R2(Med(Inliers(per))) or nil
+            end
+            if g.k == "leg" and (f.sec or 0) > 0 then f.xph = math.floor(f.xp / f.sec * 3600 / 100 + 0.5) * 100 end
+            if g.k == "earn" and (f.min or 0) > 0 then
+                for _, fld in ipairs({ "qcu", "vcu", "dcu", "mcu", "gv" }) do f[fld .. "h"] = math.floor(f[fld] / f.min * 60 + 0.5) end
+            end
+        end
+        if g.k == "step" then f.e, f.st = Mode(list("e")), sum("st") end
         -- places: the median of the spots (spots far from it are left out)
         local xs, ys = list("x"), list("y")
         if #xs > 0 then
@@ -486,6 +542,9 @@ end
 local D1_ORDER = { "k", "q", "npc", "obj", "ins", "from", "it", "sp", "sk", "fa", "fn", "tn", "pk", "s", "rt", "m", "c", "x",
     "y", "lv", "pl", "gs", "ql", "xp", "mo", "loot", "got", "rate", "err", "loots", "cu", "gray", "cloth", "herb", "ore",
     "tries", "ups", "dif", "lo", "hi", "cl", "gain", "t", "sec", "gph", "min", "runs", "clean", "bosses", "sv", "rc", "sup",
+    "e", "st", "skp", "und", "nd", "bk", "spc", "ns", "xph", "hs", "fl", "wk", "hr", "mt", "sw", "ft", "dev", "pct", "rd",
+    "kv", "ms", "rf", "uk", "on", "fe", "msg", "at", "stk", "tt", "nq", "oi", "why", "ch", "sz", "ct", "cf", "ml", "hc",
+    "cn", "cb", "eq", "stt", "am", "qcu", "vcu", "dcu", "mcu", "gv", "qcuh", "vcuh", "dcuh", "mcuh", "gvh", "sks", "n",
     "batches", "src" }
 function RM.TextD1(recs, stats)
     local lines = {

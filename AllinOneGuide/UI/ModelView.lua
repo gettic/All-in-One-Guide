@@ -484,6 +484,8 @@ end
 
 -- ------------------------------------------------------------------ show / hide
 function MV.Update()
+    -- (for MV.StepUp: which window refresh and which step this update saw)
+    MV.doneAt, MV.doneFor = ns.UI and ns.UI.refreshes, (ns.Engine.Current())
     local why = MV.Why()
     MV.why = why
     local f = MV.frame
@@ -639,9 +641,21 @@ ns.Slash.Add("model", function() MV.Toggle() end, "HELP_MODEL")
 local SETTING_KEYS = { modelViewer = true, modelPos = true, modelScale = true, modelHideCombat = true, small = true,
     scale = true, followUIScale = true, width = true }
 
+-- StepChanged: the window's refresh (order 70) has usually just updated the 3D view for this step already; update
+-- again only when it didn't (window hidden, not refreshed, or another step) (perf: one update per step change)
+function MV.StepUp()
+    local UI = ns.UI
+    if MV.doneAt ~= nil and UI and MV.doneAt == UI.refreshes and MV.doneFor ~= nil
+        and MV.doneFor == (ns.Engine.Current()) and UI.IsShown() then
+        MV.stepSkips = (MV.stepSkips or 0) + 1
+        return
+    end
+    MV.Update()
+end
+
 ns.Bus.On("Login", MV, function()
     local function Up() ns.Errors.Call("model", MV.Update) end
-    ns.Bus.On("StepChanged", MV, Up, "model", 85)
+    ns.Bus.On("StepChanged", MV, function() ns.Errors.Call("model", MV.StepUp) end, "model", 85)
     ns.Bus.On("WindowToggled", MV, Up, "model", 85)
     ns.Bus.On("WindowMoved", MV, Up, "model", 85)
     ns.Bus.On("WindowLayout", MV, Up, "model", 85)

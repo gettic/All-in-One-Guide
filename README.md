@@ -26,9 +26,9 @@ This is a beta. It has two demo routes:
 | Steps | Optional steps never block. Some steps can be done in any order. Steps that need a higher level say "in 2 levels" and return when you get there. Quests that don't exist on WoW Forever are skipped by themselves. |
 | "Only if you have it" steps | Some optional steps show only while an item is in your bags (for example "use the book if a kobold drops it"). If you loot it later, the step comes back. Optional turn-in and objective lines show only once their quest is in your quest log. In Elwynn, one short optional step (about 3 minutes, skip it any time) kills more kobold vermin until the Nibbled-On Book drops, because it starts a quest chain worth about 1,700 XP. |
 | Skips | Skip a step, or say you're not doing a quest (its follow-ups drop out too). The Undo button or `/aog undo` takes back your last skips. |
-| Item button | Above the window, to the right of the target button (on the left when it is the only one). It holds the quest item the step needs, or your hearthstone. It also shows an item that starts a quest (like the Nibbled-On Book) as soon as it is in your bags, with a yellow "!". It is offered on the steps before the step that uses it and shortly after, not only on that step. Click it to open the quest (you still press Accept). While you farm for such an item, it shows "Farming for: {item}". You click it; the addon never uses anything by itself. In combat it stays as it is and catches up right after. Setting: Guide window > "Item button" (on by default). `/aog selftest` says why the button is hidden. |
+| Item button | Above the window, to the right of the target button (on the left when it is the only one). It holds the quest item the step needs, or your hearthstone. It also shows an item that starts a quest (like the Nibbled-On Book) as soon as it is in your bags, with a yellow "!". It is offered on the steps before the step that uses it and shortly after, not only on that step. Click it to open the quest (you still press Accept); a plain mouse click works, also with the game's "cast on key down" option on. While you farm for such an item, it shows "Farming for: {item}". You click it; the addon never uses anything by itself. In combat it stays as it is and catches up right after. Setting: Guide window > "Item button" (on by default). `/aog selftest` says why the button is hidden. |
 | Step notes | A short dim line under the current step's goals says why the guide does it. At most two lines; a longer note ends in "..." and the whole text is in the step's tooltip. When the window can't grow (in combat, at the top of the screen), the note waits. Setting: Steps > "Step notes" (on by default). |
-| Item pictures | The guide window shows an item's own game icon before its name in the current step, on goal lines (instead of the small square) and small on the next-step lines. Point at the name, icon or goal line to see the game's item tooltip (clicking does nothing). Setting: Steps > "Item pictures" (on by default). Item names come from the game, or from CMaNGOS (GPL) data before the game has loaded the item. |
+| Item pictures | The guide window shows an item's own game icon before its name on every step in view: the step text, the note under the step, goal lines (instead of the small square), the next-step lines and the step tooltip. Items a step only names in its text (like the Nibbled-On Book) get their picture too, and so do items new in WoW Forever. Point at the name, icon or goal line to see the game's item tooltip (clicking does nothing). Setting: Steps > "Item pictures" (on by default). Item names come from the game, or from CMaNGOS (GPL) data before the game has loaded the item. |
 | "Use it now" reminders | The step button glows (and gently pulses) when the target is in range, when you are at the spot, or right after you loot the item. In the menu: off, glow, glow and text, or glow, text and sound (sound is off unless you pick it). |
 | Hints | Hearthstone (ready now or in N minutes; a warning if it is set to another inn than the route expects) and flight paths (new one here, one you lack, which place to pick on the flight map). Known flight paths are remembered per character. |
 | Arrow | One arrow for everything: your corpse after you release, then a spot another addon asks for, then a spot you picked, then the step. It turns green when you face it, yellow to the side and red behind, and shows distance as walk time or yards. |
@@ -45,7 +45,7 @@ This is a beta. It has two demo routes:
 | "On the way" goals | Kill and loot goals you can do while walking show under the current step. See [On the way goals](#on-the-way-goals). |
 | NPC talk helper | In an NPC's quest list, quests your route takes get a small tag and the rest can be faded. See [NPC talk helper](#npc-talk-helper). |
 | Tooltip step line | Mobs, NPCs and objects that are part of your current step get one line on their tooltip. See [Tooltip step line](#tooltip-step-line). |
-| Main window | One window for guides, settings, quest items, reports and About. See [The main window](#the-main-window). |
+| Guide menu | One window for guides, settings, quest items, reports and About. See [The guide menu](#the-guide-menu). |
 | 3D view | The NPC or mob of your current step turns as a 3D model, by default inside the guide window. See [3D view](#3d-view). |
 | Mob areas | On kill and collect steps the arrow leads you to the nearest spot where the mobs spawn and you haven't cleared yet. See [Mob areas](#mob-areas). |
 | Ghost | Walking as a ghost doesn't tick travel steps. |
@@ -113,9 +113,9 @@ How it behaves:
 - Hints only. Nothing else happens on hover.
 - Setting: Settings > Steps > "Step line on tooltips": Off, Short (no counts) or With counts (default).
 
-### The main window
+### The guide menu
 
-Open it with `/aog`, right-click the minimap button, or "Open main window" in the guide's title menu. It opens on the page you used last. Pages:
+Open it with `/aog`, right-click the minimap button, left-click the menu button in the guide window's title bar, or "Open guide menu" in the options menu. It opens on the page you used last. Pages:
 
 | Page | What it has |
 |---|---|
@@ -125,7 +125,7 @@ Open it with `/aog`, right-click the minimap button, or "Open main window" in th
 | Report a mistake | See [Report a mistake](#report-a-mistake). |
 | About | Version, licence, links and credits. |
 
-Options > AddOns > All-in-One Guide has one button that opens the main window. The guide's title menu is short; the rest is in Settings.
+Options > AddOns > All-in-One Guide has one button that opens the guide menu. The small options menu is short; the rest is in Settings.
 
 Settings that move the guide window (width, scale, follow UI scale, "Reset this page" on Guide window, `/aog resetpos`) wait until a fight is over and say so in chat, so the step button stays in place.
 
@@ -151,7 +151,7 @@ The smart arrow is on by default. Switch it in the arrow's right-click menu or o
 - The NPC or mob of your current step shows as a 3D model, by default inside the guide window: a square at the top left of the current step, with the step text beside it. Steps without a model show a small "No 3D model for this step" card.
 - Drag it to turn the model, use the mouse wheel to zoom, double-click to reset, right-click for options.
 - Settings > Guide window: "Show the 3D view", "3D view position" (inside the window, left, right, below or free; Shift+drag it when free), "3D view size" and "Hide the 3D view in combat" (on by default; this applies to the outside positions, inside the window it stays during fights).
-- Switch it on or off with the title menu or `/aog model`.
+- Switch it on or off with the options menu or `/aog model`.
 
 ### Mob areas
 
@@ -168,7 +168,7 @@ The smart arrow is on by default. Switch it in the arrow's right-click menu or o
 
 - When you loot an item that starts a quest, the hint line says "This starts a quest: right-click it". When the guide knows the quest, it also says where to hand it in and the XP. This shows once per item and character.
 - After login and on a level-up, the guide gives one piece of advice for each quest item in your bags: **Do it now**, **Keep for later**, **Bank it** (it can't be got again), **Safe to delete** (quest done, or grey and it drops again) or **Keep it** (unknown). An item whose quest is in your log is never called safe to delete.
-- The full list is on the main window's "Quest items" page.
+- The full list is on the guide menu's "Quest items" page.
 - The guide never uses, moves or deletes items. You do that yourself.
 
 ### First Aid
@@ -192,9 +192,9 @@ The first time you log in, the addon opens the guide only if it starts where you
 
 If v0.1 gave a character the guide for another start area (for example a gnome on the Elwynn guide) and it hasn't been started, it is closed once at login with a chat line, and the right guide opens (or the list of guides shows). Guides you opened yourself, or made progress in, are never closed.
 
-- `/aog` opens the [main window](#the-main-window). `/aog show` shows or hides the guide window. Esc never closes the guide window.
+- `/aog` opens the [guide menu](#the-guide-menu). `/aog show` shows or hides the guide window. Esc never closes the guide window.
 - Drag the title bar to move the window. The padlock locks it. The minus button switches to a small window (the current step and one next line).
-- Right-click the title bar (or click the menu button) for the guide menu: open main window, choose a guide, settings, report a mistake, small mode, lock, quiet mode and a few more.
+- The menu button in the title bar: left-click opens the guide menu, right-click opens the options menu (also on a right-click of the title bar): open guide menu, choose a guide, settings, report a mistake, small mode, lock, quiet mode and a few more.
 - Hover a step for its quest, zone, coordinates and why it waits. Click it to point the arrow there. Shift-click puts the quest link into an open chat box (it is never sent). Ctrl-click opens the map there.
 - Right-click a step for skip, make current, not doing this quest, point the arrow here, or copy a `/way` line.
 - Right-click the arrow for skip, hide until the next step, clear a picked spot, smart arrow, lock, size, opacity, click-through and arrival sound (off). The mouse wheel changes its size. Alt+drag moves it while it is locked.
@@ -202,15 +202,15 @@ If v0.1 gave a character the guide for another start area (for example a gnome o
 
 ### Minimap button
 
-A button on the minimap. Drag it around the minimap. It follows square and other minimap shapes from minimap addons. Left-click shows or hides the guide, right-click opens the main window. `/aog minimap` shows or hides the button. With a minimap button-bar addon (one that collects the buttons of other addons), the guide's button goes into that bar. Without one, the button stays on the minimap with its own name, so bars that collect named minimap buttons can take it. If another addon already provides a data-broker display, the guide shows up there too.
+A button on the minimap. Drag it around the minimap. It follows square and other minimap shapes from minimap addons. Left-click shows or hides the guide, right-click opens the guide menu. `/aog minimap` shows or hides the button. With a minimap button-bar addon (one that collects the buttons of other addons), the guide's button goes into that bar. Without one, the button stays on the minimap with its own name, so bars that collect named minimap buttons can take it. If another addon already provides a data-broker display, the guide shows up there too.
 
 ### Look of the windows
 
-The main window, dialogs, copy box and menus are almost solid, so they are easy to read over a bright world. The main window opens on top of the game's Options window.
+The guide menu, dialogs, copy box and menus are almost solid, so they are easy to read over a bright world. The guide menu opens on top of the game's Options window.
 
 ### Settings
 
-`/aog config` opens the Settings pages in the main window: General, Guide window, Arrow, Map pins, Steps and Advanced. Each setting has a tooltip with its default. Sliders take the mouse wheel only after you click them once (until then the wheel scrolls the page). "Reset this page" resets only that page. Among them: language, use the guide on this character, hide it in battlegrounds and raids, First Aid steps, which chat window gets messages, window size, steps shown, text size (-4 to +4, default +2; the window keeps its top-left corner while you drag it), high contrast, colour-blind colours and the smart arrow.
+`/aog config` opens the Settings pages in the guide menu: General, Guide window, Arrow, Map pins, Steps and Advanced. Each setting has a tooltip with its default. Sliders take the mouse wheel only after you click them once (until then the wheel scrolls the page). "Reset this page" resets only that page. Among them: language, use the guide on this character, hide it in battlegrounds and raids, First Aid steps, which chat window gets messages, window size, steps shown, text size (-4 to +4, default +2; the window keeps its top-left corner while you drag it), high contrast, colour-blind colours and the smart arrow.
 
 ### Language
 
@@ -222,7 +222,7 @@ Under "All-in-One Guide" in the game's key binding page: show or hide, next, pre
 
 ### Other addons
 
-If you also run Questie, TomTom, Guidelime or Mapster, one quiet hint says so, once. If Questie draws its own pins, the hint has a button to hide ours. If the Gear Set addon is installed, the title menu has "Link with Gear Set" (on by default). Other addons can read the current step through the read-only `AllinOneGuide.API` (version 1) and can point the arrow with it.
+If you also run Questie, TomTom, Guidelime or Mapster, one quiet hint says so, once. If Questie draws its own pins, the hint has a button to hide ours. If the Gear Set addon is installed, the options menu has "Link with Gear Set" (on by default). Other addons can read the current step through the read-only `AllinOneGuide.API` (version 1) and can point the arrow with it.
 
 `/way 45.2 61.8` (or `/way <map id> x y name`, `/way clear`) points the arrow. If another addon already has `/way`, ours stays off and `/aog way` works instead.
 
@@ -230,16 +230,16 @@ If you also run Questie, TomTom, Guidelime or Mapster, one quiet hint says so, o
 
 | Command | What it does |
 |---|---|
-| `/aog` | Open the main window |
+| `/aog` | Open the guide menu |
 | `/aog show` | Show or hide the guide window |
-| `/aog guides` | Open the guide list in the main window |
+| `/aog guides` | Open the guide list in the guide menu |
 | `/aog help` | Show the main commands (`/aog help all` shows every one) |
 | `/aog guide` | List the guides. `/aog guide elwynn` or `/aog guide durotar` opens one |
 | `/aog skip` | Skip the current step (it is remembered) |
 | `/aog undo` | Take back your last skips |
 | `/aog back` | Go back one step |
 | `/aog way 45.2 61.8` | Point the arrow at a spot (same as `/way`) |
-| `/aog hub` | Open the main window (same as `/aog`) |
+| `/aog hub` | Open the guide menu (same as `/aog`) |
 | `/aog report` | Open Report a mistake |
 | `/aog config` | Open the settings |
 | `/aog minimap` | Show or hide the minimap button |
@@ -255,7 +255,7 @@ If you also run Questie, TomTom, Guidelime or Mapster, one quiet hint says so, o
 
 ## Report a mistake
 
-1. Open the Report page (`/aog report`, or "Report a mistake" in the title menu).
+1. Open the Report page (`/aog report`, or "Report a mistake" in the options menu).
 2. Pick what is wrong ("Wrong place on the map", "Wrong order", "Quest isn't there", "Step doesn't tick", "Text is wrong", "Dangerous spot" or "Something else") and which step (the current one or one of the last three). Add a note if you like. You can add the NPC you target. `/aog where` helps.
 3. Press **Send**. The report is saved, and the Addon Manager (v0.21.0 or newer) sends it the next time the game is closed. It becomes a public GitHub issue. You can turn this off in the Addon Manager's settings ("Send guide reports").
 

@@ -264,9 +264,12 @@ local function TitleBar(f)
         ns.Settings.Set("small", not UI.Small())
     end)
     tb.small:SetPoint("RIGHT", tb.lock, "LEFT", -3, 0)
-    tb.menu = K.GlyphButton(tb, "btn.menu", s, function() return L().TIP_MENU end, function(self)
-        if ns.Menu.IsOpen() then ns.Menu.Close() else ns.Menu.Open(self, UI.MenuItems(), { right = true }) end
-    end)
+    -- beta.11 (the user): left-click opens the guide menu (the main window) directly, right-click the drop-down
+    -- (the drop-down on both clicks when the guide menu can't be used: safe mode, feature off)
+    tb.menu = K.GlyphButton(tb, "btn.menu", s, function()
+        if ns.Hub and ns.Hub.Available() then return L().TIP_MENU, { L().TIP_MENU_LEFT, L().TIP_MENU_RIGHT } end
+        return L().TIP_MENU
+    end, function(self, button) UI.MenuClick(self, button) end)
     tb.menu:SetPoint("RIGHT", tb.small, "LEFT", -3, 0)
     for _, b in ipairs({ tb.menu, tb.small, tb.lock, tb.close }) do K.SoftSquare(b) end
     tb.title:ClearAllPoints()
@@ -862,14 +865,17 @@ function UI.Model()
         if not gl.done and not gl.more then focus = i break end
     end
     -- beta.9 item pictures: the icon before the item's first mention, item icons on goal lines
+    -- beta.11: also items the step only names (route item names) and the note line under the step
     local II = ns.ItemIcons
+    local note = UI.NoteText(cur)
     if II and II.On() then
-        text = II.Decorate(cur, text)
+        text = II.Decorate(cur, text, top)
+        if note then note = II.Decorate(cur, note, top, "note") end
         for _, gl in ipairs(goals) do gl.item = II.GoalItem(cur, gl) end
     end
     m.rows = { { step = cur, number = m.index, badge = K.BadgeKind(cur), tile = kind, text = text, state = "current",
         right = not coord and UI.DistText(cur) or nil, goals = goals, sub = UI.SubLines(top, cur, coord), focus = focus,
-        note = UI.NoteText(cur) } }
+        note = note } }
     -- (every next row is one line: as many as the lines setting, one spare; perf: no rows that never show)
     for _, s in ipairs(Upcoming(top, cur, UI.Lines() + 1)) do
         local plain = top:Text(s)
@@ -878,7 +884,7 @@ function UI.Model()
         local where = s.map and s.x and s.y and ("%.0f, %.0f"):format(s.x * 100, s.y * 100) or nil
         m.rows[#m.rows + 1] = { step = s, number = numbers[s.index], badge = K.BadgeKind(s), tile = k, text = t,
             tag = tag, target = target, state = "upcoming", right = UI.UnderLevelText(top, s) or where,
-            icon = II and II.NextIcon(s) or nil }
+            icon = II and II.NextIcon(s, top, plain) or nil }
     end
     m.done = math.max(0, m.index - 1)
     return m
@@ -1452,11 +1458,17 @@ end
 function UI.StepTip(row)
     local step = row.step
     local g = ns.Engine.Focused()
-    local title = g and g:Top():Text(step) or step.id
+    -- item pictures (beta.11: every shown step, the tooltip too): icons only, no links in a tooltip
+    local II = ns.ItemIcons
+    local function Pic(s, t, field)
+        if II and II.On() and g then return II.Decorate(s, t, g:Top(), field) end
+        return t
+    end
+    local title = g and Pic(step, g:Top():Text(step), "tip") or step.id
     local lines = UI.StepLines(step, row.rightText)
     -- the note line was cut ("..."): its full text here (beta.8 step notes)
     if row.current and row.noteCut and type(step.why) == "string" then
-        lines[#lines + 1] = Th.Wrap("note", step.why)
+        lines[#lines + 1] = Th.Wrap("note", Pic(step, step.why, "tipnote"))
     end
     -- the current step: its "on the way" goals by name (the window shows at most UI.SIDE_MAX lines)
     if row.current and g then
@@ -1464,7 +1476,7 @@ function UI.StepTip(row)
         for _, b in ipairs(top:Background()) do
             if b ~= step and not b.flags.optional then
                 if not head then lines[#lines + 1] = L().ONWAY_TIP head = true end
-                lines[#lines + 1] = "- " .. top:Text(b)
+                lines[#lines + 1] = "- " .. Pic(b, top:Text(b), "tip")
             end
         end
     end
@@ -1538,6 +1550,18 @@ local function TailRows(items)
     end
     local gs = ns.GearSet and ns.GearSet.MenuItem()
     if gs then items[#items + 1] = gs end
+end
+
+-- The title bar's menu button: left = the guide menu (main window) open / closed, right = the drop-down (beta.11).
+-- Without the guide menu: the drop-down on either click.
+function UI.MenuClick(btn, button)
+    if button ~= "RightButton" and ns.Hub and ns.Hub.Available() then
+        if ns.Menu.IsOpen() then ns.Menu.Close() end
+        ns.Hub.Toggle()
+        return "hub"
+    end
+    if ns.Menu.IsOpen() then ns.Menu.Close() else ns.Menu.Open(btn, UI.MenuItems(), { right = true }) end
+    return "menu"
 end
 
 -- The title menu (2026-11-25, main window plan): with the main window, a short list (the window has every
@@ -1646,8 +1670,10 @@ end
 ns.Bus.On("SettingsChanged", UI, OnSettings, "ui", 70)
 ns.Bus.On("StepChanged", UI, function() UI.Refresh() end, "ui", 70)
 ns.Bus.On("NoticeChanged", UI, function() UI.Refresh() end, "ui", 70)
-ns.Bus.On("QuestsChanged", UI, function() UI.Refresh() end, "ui", 70)
-ns.Bus.On("ItemsChanged", UI, function() UI.Refresh() end, "ui", 70)
+-- (perf: a StepChanged already waiting in this bus chain refreshes the window right after; no second redraw)
+local function RefreshUnlessStep() if not ns.Bus.Pending("StepChanged") then UI.Refresh() end end
+ns.Bus.On("QuestsChanged", UI, RefreshUnlessStep, "ui", 70)
+ns.Bus.On("ItemsChanged", UI, RefreshUnlessStep, "ui", 70)
 ns.Bus.On("NameReady", UI, function() UI.Refresh() end, "ui", 70)
 -- combat changes nothing in the window's look: every step stays shown, no fade (v0.2 fix, the user's wish)
 ns.Bus.On("CombatStarted", UI, function()

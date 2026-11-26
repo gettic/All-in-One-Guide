@@ -142,9 +142,34 @@ ns.ApiList = {
     { id = "MerchantNum", path = "GetMerchantNumItems", kind = "function", src = "xml MerchantFrame.lua:253" },
     { id = "MerchantItemID", path = "GetMerchantItemID", kind = "function", src = "xml MerchantFrame.lua:261" },
     { id = "MerchantInfo", path = "GetMerchantItemInfo", kind = "function", src = "xml MerchantFrame.lua:200 (name, texture, price, stackCount, numAvailable)" },
-    -- v0.3 rev 5 page header: screen size, the UTC day (date as in GameTimeUtil.lua:78)
-    { id = "ScreenSize", path = "GetPhysicalScreenSize", kind = "function", src = "doc ScreenDocumentation" },
+    -- v0.3 rev 5 page header: the UTC day (date as in GameTimeUtil.lua:78)
     { id = "Date", path = "date", kind = "function", src = "xml Blizzard_FrameXMLUtil\\GameTimeUtil.lua:78" },
+    -- v0.3 rev 6: rested XP, hostile target (death spots), quest greeting titles (when no quest id)
+    { id = "XPRested", path = "GetXPExhaustion", kind = "function", src = "doc PlayerScriptDocumentation (ExpBar.lua:128)" },
+    { id = "CanAttack", path = "UnitCanAttack", kind = "function", src = "doc UnitDocumentation" },
+    { id = "AvailTitle", path = "GetAvailableTitle", kind = "function", src = "xml Blizzard_UIPanels_Game\\Mainline\\QuestFrame.lua:396" },
+    -- v0.3 rev 6 (Data\GatherMore.lua; all read out of combat or plain flags, never health / power: tos R1)
+    { id = "SubZone", path = "GetSubZoneText", kind = "function", src = "doc ZoneScriptDocumentation" },
+    { id = "TapDenied", path = "UnitIsTapDenied", kind = "function", src = "doc UnitDocumentation" },
+    { id = "Mounted", path = "IsMounted", kind = "function", src = "doc PlayerScriptDocumentation" },
+    { id = "Swimming", path = "IsSwimming", kind = "function", src = "doc UnitDocumentation" },
+    { id = "CreatureType", path = "UnitCreatureType", kind = "function", src = "doc UnitDocumentation" },
+    { id = "CreatureFamily", path = "UnitCreatureFamily", kind = "function", src = "doc UnitDocumentation" },
+    { id = "NumChoices", path = "GetNumQuestChoices", kind = "function", src = "xml Blizzard_BoostTutorial\\Blizzard_TutorialLogic.lua:1972" },
+    { id = "QuestItemLink", path = "GetQuestItemLink", kind = "function", src = "xml Blizzard_UIPanels_Game\\Mainline\\QuestInfo.lua:526" },
+    { id = "InvItemID", path = "GetInventoryItemID", kind = "function", src = "xml Blizzard_ActionBar\\WoWLabs\\ActionButtonOverrides.lua:470" },
+    { id = "Durability", path = "GetInventoryItemDurability", kind = "function", src = "xml Blizzard_FrameXML\\Mainline\\EquipmentManager.lua:234" },
+    { id = "InvCount", path = "GetInventoryItemCount", kind = "function", src = "xml Blizzard_FrameXML\\Mainline\\EquipmentManager.lua:233" },
+    { id = "FreeSlots", path = "C_Container.GetContainerNumFreeSlots", kind = "function", src = "doc ContainerDocumentation" },
+    { id = "PlayerAura", path = "C_UnitAuras.GetPlayerAuraBySpellID", kind = "function", src = "doc UnitAuraDocumentation" },
+    { id = "ItemLevel", path = "C_Item.GetDetailedItemLevelInfo", kind = "function", src = "doc ItemDocumentation" },
+    { id = "UnitStat", path = "UnitStat", kind = "function", src = "doc UnitDocumentation" },
+    { id = "UnitArmor", path = "UnitArmor", kind = "function", src = "doc UnitDocumentation" },
+    { id = "UnitAP", path = "UnitAttackPower", kind = "function", src = "doc UnitDocumentation" },
+    { id = "Crit", path = "GetCritChance", kind = "function", src = "doc PlayerScriptDocumentation" },
+    { id = "SpellCrit", path = "GetSpellCritChance", kind = "function", src = "doc PlayerScriptDocumentation" },
+    { id = "SpellDmg", path = "GetSpellBonusDamage", kind = "function", src = "doc PlayerScriptDocumentation" },
+    { id = "ManaRegen", path = "GetManaRegen", kind = "function", src = "doc PlayerScriptDocumentation" },
 
     -- NPC talk helper (plans\npc-talk-helper\plan.md): read only; hooked with hooksecurefunc / HookScript, never
     -- clicked. A missing frame = that window gets no marks; a missing quest-id read = the helper is off.

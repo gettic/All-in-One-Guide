@@ -58,10 +58,51 @@ function GD.Diff(gather, facts, opts)
         elseif (r.k == "merchant" or r.k == "trainer" or r.k == "inn" or r.k == "fm") and r.npc and npcs[r.npc]
             and not Near(npcs[r.npc].spawns, r.m, r.x, r.y, far) then
             Say("NPC %d (%s): seen at %d %.2f,%.2f, far from every known spawn", r.npc, r.k, r.m, r.x, r.y)
+        else
+            GD.Rev6(r, facts, Say, opts)
         end
     end
     table.sort(out)
     return out
+end
+
+-- rev 6 kinds: what each one reports (thresholds in opts or GD.MIN: enough samples before a line is worth reading)
+GD.MIN = { n = 5, rate = 0.3 }
+function GD.Rev6(r, facts, Say, opts)
+    local min, rate = (opts and opts.minN) or GD.MIN.n, (opts and opts.rate) or GD.MIN.rate
+    local quests, items = facts.quests or {}, facts.items or {}
+    local n = r.n or 0
+    local k = r.k
+    if k == "miss" then
+        Say("NPC %d offers %s (level %s) that the guide %s doesn't use", r.npc or 0, r.q and ("quest " .. r.q) or ("'" .. tostring(r.tt) .. "'"),
+            tostring(r.ql or "?"), tostring(r.pk or "?"))
+    elseif k == "pmiss" then
+        Say("quest %d: the guide expects it at NPC %d, not offered there (level %s, %d pages): a missing prerequisite?",
+            r.q, r.npc or 0, tostring(r.pl or "?"), r.batches or 0)
+    elseif k == "chain" then
+        local q = quests[r.q]
+        Say("quest %d hand-in at NPC %d opens %s%s", r.q, r.npc or 0, tostring(r.nq), q and q.next and (" (facts: next " .. tostring(q.next) .. ")") or "")
+    elseif k == "qstart" then
+        local it = items[r.it]
+        if not (it and it.startsQuest == r.q) then Say("item %d starts quest %d (dropped by %s %d)", r.it, r.q, r.npc and "NPC" or "object", r.npc or r.obj or 0) end
+    elseif k == "ostk" and n >= min then
+        Say("step %s %s: objective of quest %d without progress for 10+ min, %d times", tostring(r.pk), tostring(r.s), r.q, n)
+    elseif k == "sact" and n >= min and ((r.skp or 0) + (r.nd or 0)) / n >= rate then
+        Say("step %s %s: skipped %d / not doing %d of %d", tostring(r.pk), tostring(r.s), r.skp or 0, r.nd or 0, n)
+    elseif k == "step" and n >= min and (r.st or 0) / n >= rate then
+        Say("step %s %s: stuck %d of %d times (expected %ss)", tostring(r.pk), tostring(r.s), r.st or 0, n, tostring(r.e or "?"))
+    elseif k == "death" and n >= min then
+        Say("deaths: %d at map %d square %s (level %s, NPC %s)", n, r.m or 0, tostring(r.c), tostring(r.pl or "?"), tostring(r.npc or "?"))
+    elseif (k == "abandon" or k == "qfail") and n >= min then
+        Say("quest %d: %s %d times%s", r.q, k == "abandon" and "abandoned" or "failed", n, r.why and (" (" .. r.why .. ")") or "")
+    elseif (k == "pull" or k == "tap") and n >= min then
+        Say("NPC %d on map %d: %s %d times", r.npc or 0, r.m or 0, k == "pull" and "pulled while on another step" or "tagged by others", n)
+    elseif k == "err" then
+        Say("addon error x%d: %s at %s (%s)", n, tostring(r.msg), tostring(r.at), tostring(r.stk or ""))
+    elseif k == "leg" and (r.sec or 0) > 0 then
+        Say("stretch %s from %s: %d XP per hour over %d steps (levels %s-%s)", tostring(r.pk), tostring(r.s),
+            r.xph or math.floor((r.xp or 0) / r.sec * 3600), r.ns or 0, tostring(r.lo), tostring(r.hi))
+    end
 end
 
 local function Load(path)

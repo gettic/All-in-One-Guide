@@ -93,6 +93,22 @@ local function TagShown(row, on)
 end
 
 -- Cuts a one-line text with "..." until it fits w (the font string shows it as is). Returns the shown text.
+-- A cut text never ends inside an icon "|T..|t" or an item link "|H..|h..|h" (beta.11 item pictures in the note):
+-- it is cut back to before that escape (a half escape would show as raw text).
+function R.Whole(s)
+    local t = s:match("^(.*)|T[^|]*$") or s:match("^(.*)|T[^|]*|$")
+    if t then s = t end
+    local opens = select(2, s:gsub("|H", ""))
+    local marks = select(2, s:gsub("|h", ""))
+    if marks < opens * 2 then
+        local last
+        for p in s:gmatch("()|H") do last = p end
+        if last then s = s:sub(1, last - 1) end
+    end
+    if s:sub(-1) == "|" then s = s:sub(1, -2) end
+    return s
+end
+
 local function Cut(fs, text, w)
     fs:SetText(text)
     if w <= 0 or (fs:GetStringWidth() or 0) <= w then return text end
@@ -103,6 +119,7 @@ local function Cut(fs, text, w)
         -- (never cut inside a UTF-8 letter)
         while #s > 0 and s:byte(#s) >= 0x80 and s:byte(#s) < 0xC0 do s = s:sub(1, #s - 1) end
         while #s > 0 and s:byte(#s) >= 0xC0 do s = s:sub(1, #s - 1) end
+        s = R.Whole(s)
         fs:SetText(s:gsub("%s+$", "") .. "...")
         if (fs:GetStringWidth() or 0) <= w then best = fs:GetText() lo = mid + 1 else hi = mid - 1 end
     end
@@ -256,8 +273,10 @@ end
 function R.NoteLines(fs, text, w)
     fs:SetText(text)
     if w <= 0 or (fs:GetStringWidth() or 0) <= w then return text, nil, false end
+    -- (an item link is one word: never split between the two lines)
     local words = {}
-    for word in text:gmatch("%S+") do words[#words + 1] = word end
+    local kept = text:gsub("|H.-|h.-|h", function(l) return (l:gsub(" ", "\1")) end)
+    for word in kept:gmatch("%S+") do words[#words + 1] = (word:gsub("\1", " ")) end
     local line1, k = "", 0
     for i, word in ipairs(words) do
         local try = line1 == "" and word or (line1 .. " " .. word)

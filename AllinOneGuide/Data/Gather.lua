@@ -29,8 +29,9 @@ ns.Gather = G
 G.EVENTS = { "QUEST_DETAIL", "QUEST_PROGRESS", "QUEST_COMPLETE", "GOSSIP_SHOW", "QUEST_ACCEPTED", "QUEST_TURNED_IN",
     "QUEST_REMOVED", "LOOT_OPENED", "LOOT_CLOSED", "MERCHANT_SHOW", "TRAINER_SHOW", "CONFIRM_BINDER", "TAXIMAP_OPENED",
     "PLAYER_CONTROL_GAINED", "LOADING_SCREEN_ENABLED", "PLAYER_ENTERING_WORLD", "PLAYER_TARGET_CHANGED", "UPDATE_FACTION",
-    "CHAT_MSG_COMBAT_FACTION_CHANGE", "PLAYER_LOGOUT" }
-G.RUN_EVENTS = { "PLAYER_XP_UPDATE", "ENCOUNTER_END", "BOSS_KILL", "PLAYER_REGEN_DISABLED", "PLAYER_DEAD" }
+    "CHAT_MSG_COMBAT_FACTION_CHANGE", "PLAYER_LOGOUT", "QUEST_GREETING", "PLAYER_DEAD", "PLAYER_REGEN_DISABLED",
+    "PLAYER_REGEN_ENABLED" }
+G.RUN_EVENTS = { "PLAYER_XP_UPDATE", "ENCOUNTER_END", "BOSS_KILL" }
 -- gathering spells -> skill line (Herbalism 182, Mining 186, Skinning 393; the classic spell ids, not checked on Forever)
 G.GATHER = { [2366] = 182, [2368] = 182, [3570] = 182, [11993] = 182, [2575] = 186, [2576] = 186, [3564] = 186,
     [10248] = 186, [8613] = 393, [8617] = 393, [8618] = 393, [10768] = 393 }
@@ -57,8 +58,32 @@ G.Store = Store
 
 function G.Count() return G.db and #G.db.live.order or 0 end
 
+-- rev 6: the more kinds (Data\GatherMore.lua) hang on these points: G.On_(name, fn) adds, Fire calls them in order.
+-- Points: loot(slots, npcs, objs, m, x, y), lootClosed(win), accept(q), turnin(q, xp, money), talk(event),
+-- target(id, kind), spell(spell), takeTaxi(slot), taxiOpen(), dead(), combat(on), logout(), start(), stop()
+G.hooks = {}
+function G.On_(name, fn)
+    G.hooks[name] = G.hooks[name] or {}
+    table.insert(G.hooks[name], fn)
+end
+local function Fire(name, ...)
+    local list = G.hooks[name]
+    if not list then return end
+    for _, fn in ipairs(list) do fn(...) end
+end
+G.Fire = Fire
+-- bus events while recording: name -> handler(_, ...) (StepTimed here; GatherMore adds its own)
+G.BUS = {}
+
 -- ------------------------------------------------------------------ where
 local function Coord(v) return math.floor(v * 10000 + 0.5) / 100 end
+-- the subzone text (game text, never the player's) that goes with every spot (rev 6); nil when unknown
+function G.Sub()
+    local f = Co.fn.SubZone
+    local s = f and f()
+    if type(s) ~= "string" or Co.IsSecret(s) or s == "" then return nil end
+    return (s:gsub("[%c=;|]", " "):sub(1, 40))
+end
 -- map, x, y (0-100) of the player now; nil when unknown or secret
 function G.Where()
     local map = Co.PlayerMap()
@@ -93,6 +118,7 @@ function G.Add(key, f, pos)
     end
     r.n = r.n + 1
     if pos and pos[1] then
+        if not r.sz then r.sz = G.Sub() end
         r.pos = r.pos or {}
         if #r.pos < G.POS then r.pos[#r.pos + 1] = { pos[1], pos[2] } end
     end
@@ -100,6 +126,7 @@ function G.Add(key, f, pos)
 end
 
 local function Bump(r, field, by) if r then r[field] = (r[field] or 0) + (by or 1) end end
+G.Bump, G.Cell = Bump, Cell
 
 -- ------------------------------------------------------------------ talk, quests
 local function Talk(startItem)
@@ -116,6 +143,7 @@ local function Giver()
 end
 
 local function Level() local p = Co.Player() return Co.Num(p.level) end
+G.Level = Level
 
 local function QuestSpot(kind, q)
     local f = Giver()
@@ -139,6 +167,7 @@ local function OnAccept(_, q)
     if not q then return end
     G.qlevel[q] = Co.QuestLevel(q) or G.qlevel[q]
     QuestSpot("accept", q)
+    Fire("accept", q)
 end
 
 local function OnTurnIn(_, q, xp, money)
@@ -158,6 +187,7 @@ local function OnTurnIn(_, q, xp, money)
         if #qs < 200 then run.qs = qs end
         G.Act()
     end
+    Fire("turnin", q, xp, money)
     G.drops = {}   -- a quest left the log: drop counting starts again at the next drop (quest items stop dropping)
 end
 
@@ -204,14 +234,14 @@ local function OnLoot(_, _, fromItem)
     local cell = Cell(x, y, G.CELL)
     local farm
     if m and cell and #npcs > 0 then
-        farm = G.Add("farm:" .. m .. ":" .. cell, { k = "farm", m = m, c = cell })
+        farm = G.Add("farm:" .. npcs[1] .. ":" .. m, { k = "farm", npc = npcs[1], m = m, c = cell })
         Bump(farm, "loot")
     end
     local value = 0
     for _, e in ipairs(slots) do value = value + ItemFacts(e, farm) end
     for _, id in ipairs(npcs) do
         G.Add("coin:" .. id, { k = "coin", npc = id })      -- the loot counter (n) of this NPC; coin comes at LOOT_CLOSED
-        if m and cell then G.Add(table.concat({ "camp", id, m, cell }, ":"), { k = "camp", npc = id, m = m, c = cell }) end
+        if m and cell then G.Add("camp:" .. id .. ":" .. m, { k = "camp", npc = id, m = m, c = cell }, { x, y }) end
     end
     -- quest item drops: per NPC and item, loots (since the first drop this session) and drops
     for _, e in ipairs(slots) do
@@ -242,6 +272,7 @@ local function OnLoot(_, _, fromItem)
     G.win = { npcs = npcs, money = Co.Money(), cu = 0, value = value, farm = farm }
     if G.win.money then ns.Events.On("PLAYER_MONEY", G, G.OnMoney, "gather") end
     G.lastLoot = { npc = npcs[1], t = Co.Now() }
+    Fire("loot", slots, npcs, objs, m, x, y)
     G.FarmTouch(value)
     G.Act()
 end
@@ -259,6 +290,7 @@ local function OnLootClosed()
     G.win = nil
     ns.Events.Off("PLAYER_MONEY", G)                  -- tos T5: only inside the loot window
     if not w then return end
+    Fire("lootClosed", w)
     if w.money then
         local now = Co.Money()
         if now and now > w.money then w.cu = w.cu + (now - w.money) end
@@ -334,12 +366,14 @@ local function OnTaxiOpen()
         end
     end
     if G.origin then NpcSpot("fm", { fn = G.origin }) end
+    Fire("taxiOpen")
 end
 
 function G.OnTakeTaxi(slot)
     if not G.on or type(slot) ~= "number" or Co.IsSecret(slot) then return end
     local to = G.slots and G.slots[slot]
     if G.origin and to and to ~= G.origin then G.flight = { fn = G.origin, tn = to, t = Co.Now() } end
+    Fire("takeTaxi", slot)
 end
 
 local function OnControl()
@@ -356,6 +390,7 @@ end
 local function OnTarget()
     local id, kind = Co.UnitNpcId("target")
     if not (id and kind == "npc") then return end
+    Fire("target", id, kind)
     local lvl = Co.UnitLevelOf("target")
     local m, x, y = G.Where()
     local cell = Cell(x, y, G.CELL)
@@ -425,9 +460,11 @@ local function CheckSkill(p)
 end
 
 function G.OnSpell(unit, _, spell)
-    if not G.on or unit ~= "player" or Co.InCombat() then return end
+    if not G.on or unit ~= "player" then return end
     spell = Co.Num(spell)
     if not spell then return end
+    Fire("spell", spell)
+    if Co.InCombat() then return end
     local sk = G.GATHER[spell]
     local p
     if sk then
@@ -535,15 +572,6 @@ G.RUN_HANDLERS = {
         if Co.Num(success) == 1 then G.Boss(enc) end
     end,
     BOSS_KILL = function(_, enc) G.Boss(enc) end,
-    PLAYER_REGEN_DISABLED = function()
-        G.Act()
-        local run, gs = G.db and G.db.run, Co.GroupSize()
-        if run and gs and gs > (run.gx or 0) then run.gx = gs end
-    end,
-    PLAYER_DEAD = function()
-        local run = G.db and G.db.run
-        if run then run.dd = (run.dd or 0) + 1 end
-    end,
 }
 
 function G.Boss(enc)
@@ -599,9 +627,25 @@ end
 -- ------------------------------------------------------------------ handlers, start / stop
 local HANDLERS = {
     QUEST_DETAIL = OnDetail,
-    QUEST_PROGRESS = function() Talk() end,
-    QUEST_COMPLETE = function() Talk() end,
-    GOSSIP_SHOW = function() Talk() end,
+    QUEST_PROGRESS = function() Talk() Fire("talk", "QUEST_PROGRESS") end,
+    QUEST_COMPLETE = function() Talk() Fire("talk", "QUEST_COMPLETE") end,
+    GOSSIP_SHOW = function() Talk() Fire("talk", "GOSSIP_SHOW") end,
+    QUEST_GREETING = function() Talk() Fire("talk", "QUEST_GREETING") end,
+    -- in a dungeon run: deaths, the biggest group (both events stay on all the time for rev 6's kinds)
+    PLAYER_DEAD = function()
+        local run = G.db and G.db.run
+        if run and not run.left then run.dd = (run.dd or 0) + 1 end
+        Fire("dead")
+    end,
+    PLAYER_REGEN_DISABLED = function()
+        local run, gs = G.db and G.db.run, Co.GroupSize()
+        if run and not run.left then
+            G.Act()
+            if gs and gs > (run.gx or 0) then run.gx = gs end
+        end
+        Fire("combat", true)
+    end,
+    PLAYER_REGEN_ENABLED = function() Fire("combat", false) end,
     QUEST_ACCEPTED = OnAccept,
     QUEST_TURNED_IN = OnTurnIn,
     QUEST_REMOVED = function() G.drops = {} end,
@@ -623,7 +667,10 @@ local HANDLERS = {
     CHAT_MSG_COMBAT_FACTION_CHANGE = OnRep,
     -- logout / reload: seal only a worthwhile batch (G.SEAL_MIN), so reloads don't fill the ring with tiny pages;
     -- a smaller live part simply carries on next time
-    PLAYER_LOGOUT = function() if G.Count() >= G.SEAL_MIN then G.Seal() end end,
+    PLAYER_LOGOUT = function()
+        Fire("logout")
+        if G.Count() >= G.SEAL_MIN then G.Seal() end
+    end,
 }
 G.HANDLERS = HANDLERS
 
@@ -650,7 +697,8 @@ function G.Start()
     G.on = true
     G.talk, G.drops, G.sell, G.qlevel, G.known = nil, {}, {}, {}, {}
     for _, ev in ipairs(G.EVENTS) do ns.Events.On(ev, G, HANDLERS[ev], "gather") end
-    ns.Bus.On("StepTimed", G, OnStepTimed, "gather")
+    G.BUS.StepTimed = G.BUS.StepTimed or OnStepTimed
+    for name, fn in pairs(G.BUS) do ns.Bus.On(name, G.BUS, fn, "gather") end   -- own owner: the switch listener stays
     SpellEvents(true)
     -- tos T4: hooked only if it exists, never called; once (a hook can't be removed: it checks G.on)
     if not G.hooked and type(rawget(_G, "TakeTaxiNode")) == "function" and type(rawget(_G, "hooksecurefunc")) == "function" then
@@ -675,6 +723,7 @@ function G.Start()
             run.left = Co.Now()
         end
     end
+    Fire("start")
     return true
 end
 
@@ -683,7 +732,8 @@ function G.Stop()
     for _, ev in ipairs(G.EVENTS) do ns.Events.Off(ev, G) end
     ns.Events.Off("PLAYER_MONEY", G)
     RunOn(false)
-    ns.Bus.Off("StepTimed", G)
+    for name in pairs(G.BUS) do ns.Bus.Off(name, G.BUS) end
+    Fire("stop")
     SpellEvents(false)
     G.talk, G.win, G.rep, G.flight, G.pendGather, G.farm = nil, nil, nil, nil, nil, nil
 end
@@ -720,7 +770,11 @@ function G.Line(r)
         local v = r[k]
         if v ~= nil and k ~= "rid" and k ~= "h" and k ~= "ck" and (type(v) == "number" or type(v) == "string") then f[k] = v end
     end
-    if type(r.pos) == "table" then f.x, f.y = Median(r.pos, 1), Median(r.pos, 2) end
+    -- rev 6: every spot rounded down to whole map percent (coarse squares)
+    if type(r.pos) == "table" then
+        local x, y = Median(r.pos, 1), Median(r.pos, 2)
+        f.x, f.y = x and math.floor(x), y and math.floor(y)
+    end
     local ok, line = pcall(ns.Serializer.Build, "D1", f)
     return ok and line or nil
 end
@@ -739,12 +793,11 @@ local function Header(cnt)
     local version, build = Co.Build()
     local fac = p.faction == "Alliance" and "A" or (p.faction == "Horde" and "H" or nil)
     local function Plain(v) return type(v) == "string" and not Co.IsSecret(v) and v ~= "" and v or nil end
-    -- rev 5 (the user's OK, 2026-11-26): race, realm, client language, the UTC day, screen size, UI scale.
+    -- rev 5 (the user's OK, 2026-11-26): race, realm, client language, the UTC day (rev 6: no screen size, no UI scale).
     -- Never the character name, account, BattleTag or guild.
     local realm = Co.fn.RealmName and Plain(Co.fn.RealmName()) or nil
     return ns.Serializer.Build("D1", { rid = RandomId(), h = 1, v = ns.version, b = version .. "." .. build, fac = fac,
-        cls = Plain(p.class), race = Plain(p.race), realm = realm, loc = Plain(Co.Locale()), day = Co.UTCDay(),
-        scr = Co.ScreenSize(), ui = Co.UIScale(), cnt = cnt })
+        cls = Plain(p.class), race = Plain(p.race), realm = realm, loc = Plain(Co.Locale()), day = Co.UTCDay(), cnt = cnt })
 end
 
 local function Finish(lines)

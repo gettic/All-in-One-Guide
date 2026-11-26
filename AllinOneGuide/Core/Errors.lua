@@ -43,6 +43,8 @@ function E.Record(feature, msg)
     if #E.list < MAX_KEPT then E.list[#E.list + 1] = { feature = feature, msg = text } end
     E.last = { feature = feature, msg = text }
     E.Debug("error in %s: %s", feature, text)
+    -- v0.3 game data recording (Data\GatherMore.lua): our own errors only (this path; never the global handler)
+    if E.onRecord then pcall(E.onRecord, feature, text) end
     if not E.shown[feature] then
         E.shown[feature] = true
         local L = ns.L

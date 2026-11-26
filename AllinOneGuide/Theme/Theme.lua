@@ -42,7 +42,7 @@ end
 function Th.Use(name)
     if not Th.themes[name] then name = "Dark" end
     Th.name = name
-    Th.cache = {}
+    Th.cache, Th.num = {}, {}
     if ns.Bus then ns.Bus.Fire("ThemeChanged", name) end
 end
 
@@ -90,9 +90,15 @@ function Th.Wrap(key, text) return "|c" .. Th.Hex(key) .. tostring(text) .. "|r"
 
 function Th.Has(key) return Th.Raw(key) ~= nil end
 
+-- Th.num: sizes and line heights already looked up (perf: hundreds per window refresh); cleared with the colour
+-- cache (Use, SetOverlays). Missing keys are never kept, so they are still reported every time.
+Th.num = {}
 function Th.Size(key)
+    local c = Th.num[key]
+    if c then return c end
     local v = Th.Raw("size." .. key)
     if type(v) ~= "number" then Missing("size." .. key) return 0 end
+    Th.num[key] = v
     return v
 end
 
@@ -141,12 +147,20 @@ end
 function Th.SetOverlays(list, fontDelta)
     Th.overlays = list or {}
     Th.fontDelta = fontDelta or 0
-    Th.cache = {}
+    Th.cache, Th.num = {}, {}
 end
 
 -- Row height from the font size x line spacing (whole units), so bigger text never clips.
+-- (kept in Th.num under "\1lh.<key>", only when the font key exists)
+local LH_KEY = {}
 function Th.LineHeight(key)
-    return math.ceil(Th.FontSize(key) * (Th.Raw("lineSpacing") or 1.35))
+    local k = LH_KEY[key]
+    if not k then k = "\1lh." .. tostring(key) LH_KEY[key] = k end
+    local c = Th.num[k]
+    if c then return c end
+    c = math.ceil(Th.FontSize(key) * (Th.Raw("lineSpacing") or 1.35))
+    if type(Th.Raw("font." .. tostring(key))) == "table" then Th.num[k] = c end
+    return c
 end
 
 -- Sets a font string's font from a theme font key. shadow = true forces a drop shadow

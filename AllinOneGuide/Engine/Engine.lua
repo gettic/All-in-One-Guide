@@ -527,7 +527,7 @@ local function UndoNotice(kind)
     local L = ns.L
     Nt.Push({ id = "undo", kind = "tip", priority = 60, icon = "notice.tip",
         text = kind == "NotDoing" and L.UNDO_NOTDOING or L.UNDO_SKIPPED,
-        button = { text = L.UNDO, fn = function() E.Undo() end } })
+        button = { text = L.UNDO, fn = function() E.Undo() end } }, true)   -- quiet: Act's StepChanged redraws it
     Co.After(E.UNDO_SECONDS, function()
         if token == undoToken and ns.Notice then ns.Notice.Remove("undo") end
     end)
@@ -552,6 +552,14 @@ local function Act(method, ...)
         end
         E.RefreshAll()
         ns.Bus.Fire("StepChanged", g)
+        -- v0.3 game data recording (Data\Gather.lua): what the player did on which step (the guide + step id only)
+        -- (a Next on a step that isn't done counts as a skip; NotDoing with on = false is taking it back)
+        if cur then
+            local what = method
+            if method == "Next" and not wasDone and not ST.Get(cur.type).manualDone then what = "Skip" end
+            if method == "NotDoing" and select(2, ...) == false then what = "Doing" end
+            ns.Bus.Fire("StepAction", what, top.key, cur.id)
+        end
     end
     return ok
 end
@@ -571,6 +579,8 @@ function E.Undo()
     E.RefreshAll()
     local g = E.Focused()
     if g then ns.Bus.Fire("StepChanged", g) end
+    local s = u.guide:Current()
+    if s then ns.Bus.Fire("StepAction", "Undo", u.guide.key, s.id) end
     return true
 end
 

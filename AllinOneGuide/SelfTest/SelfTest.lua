@@ -566,6 +566,9 @@ local function CheckPerf()
     end
     -- save sizes (the alt index lives in the account save)
     local acc, char = Size(ns.DB.account or {}), Size(ns.DB.char or {})
+    -- v0.3 game data recording: its own capped part (Data\Gather.lua, up to ~115 KB) is not counted in the budget
+    local mods = ns.DB.account and ns.DB.account.modules
+    if type(mods) == "table" and type(mods.gather) == "table" then acc = acc - Size(mods.gather) end
     Info(("saves %.1f/%.1f KB"):format(acc / 1024, char / 1024))
     Count()
     if acc > BUDGET.accKB * 1024 * SLACK then Problem("PERF", "account save", ("%d KB"):format(math.floor(acc / 1024))) end

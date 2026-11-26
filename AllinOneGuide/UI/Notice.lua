@@ -44,15 +44,20 @@ end
 
 local function Changed() ns.Bus.Fire("NoticeChanged") end
 
-function N.Push(n)
+-- quiet = true: no NoticeChanged (perf: the caller fires StepChanged right after, and that redraw shows it)
+function N.Push(n, quiet)
     if type(n) ~= "table" or type(n.id) ~= "string" or type(n.text) ~= "string" then return false end
     n.kind = n.kind or "tip"
     n.priority = n.priority or (n.kind == DANGER and 100 or 10)
     for i, old in ipairs(N.list) do
-        if old.id == n.id then N.list[i] = n Changed() return true end
+        if old.id == n.id then
+            N.list[i] = n
+            if not quiet then Changed() end
+            return true
+        end
     end
     N.list[#N.list + 1] = n
-    Changed()
+    if not quiet then Changed() end
     return true
 end
 

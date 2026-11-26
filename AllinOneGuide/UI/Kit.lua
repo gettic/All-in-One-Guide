@@ -365,8 +365,10 @@ function K.GlyphButton(parent, slotKey, size, tipText, onClick)
     b:SetScript("OnEnter", function(self)
         self.hover:Show()
         self.icon:SetVertexColor(Th.Color("buttonHover"))
-        local t = type(tipText) == "function" and tipText() or tipText
-        if t then K.Tooltip(self, t) end
+        -- (a tipText function may also return the tooltip's lines)
+        local t, lines
+        if type(tipText) == "function" then t, lines = tipText() else t = tipText end
+        if t then K.Tooltip(self, t, lines) end
     end)
     b:SetScript("OnLeave", function(self)
         self.hover:Hide()

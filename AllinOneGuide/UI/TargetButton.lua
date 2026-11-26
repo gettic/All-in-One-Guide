@@ -68,7 +68,7 @@ local function Build()
     local b = CreateFrame("Button", TB.NAME, Co.fn.UIParent, "SecureActionButtonTemplate")
     b:SetSize(size, size)
     b:SetClampedToScreen(true)
-    b:RegisterForClicks("AnyUp")
+    SB.Clicks(b)   -- up and down (beta.11 fix: ActionButtonUseKeyDown acts on the down click; see StepButton.CLICKS)
     b:SetAttribute("type", "macro")
     b:Hide()
     b.bg = K.Fill(b, "BACKGROUND", "targetBg")
@@ -134,6 +134,7 @@ local function Apply(name)
         b:SetAttribute("macrotext", macro)
         local x, y, s = ns.StepButton.Spot(TB.Spot())
         b:SetScale(s)
+        ns.StepButton.Raise(b)
         b:ClearAllPoints()
         if x then
             b:SetPoint("TOPLEFT", Co.fn.UIParent, "BOTTOMLEFT", x, y)
@@ -190,6 +191,8 @@ function TB.Problem()
         if TB.want and TB.want ~= TB.name then return "holds another mob than the step" end
         local bad = ns.StepButton.MisplacedAt(b, TB.Spot())
         if bad then return bad end
+        local nope = b:IsShown() and ns.StepButton.Unclickable(b, "macro", "macrotext")
+        if nope then return "can't be clicked: " .. nope end
     end
     return nil
 end

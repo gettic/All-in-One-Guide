@@ -64,9 +64,23 @@ function Bus.Fire(name, ...)
     local i = 1
     while i <= #Bus.queue do
         local q = Bus.queue[i]
+        Bus.at = i
         Dispatch(q[1], q[2], unpack(q, 3, 2 + q[2]))
         i = i + 1
     end
+    Bus.at = 0
     if i > 1 then Bus.queue = {} end
     Bus.firing = false
+end
+
+-- Is a fire of `name` still waiting in the queue (it runs later in this same chain)? Listeners that would redraw
+-- the same thing again on that fire skip their own redraw (perf: one window refresh per quest event, not two).
+Bus.at = 0
+function Bus.Pending(name)
+    if not Bus.firing then return false end
+    local q = Bus.queue
+    for j = Bus.at + 1, #q do
+        if q[j][1] == name then return true end
+    end
+    return false
 end

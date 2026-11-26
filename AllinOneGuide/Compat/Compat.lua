@@ -105,20 +105,7 @@ function Co.Locale()
     return f and f() or "enUS"
 end
 
--- v0.3 page header (rev 5): "2560x1440" (nil when unknown), the UI scale rounded to 0.05, the UTC day "2026-11-26".
-function Co.ScreenSize()
-    local f = F.ScreenSize
-    if not f then return nil end
-    local w, h = f()
-    if Secret(w) or Secret(h) or type(w) ~= "number" or type(h) ~= "number" or w <= 0 or h <= 0 then return nil end
-    return ("%dx%d"):format(math.floor(w + 0.5), math.floor(h + 0.5))
-end
-function Co.UIScale()
-    local ui = rawget(_G, "UIParent")
-    local s = ui and ui.GetEffectiveScale and ui:GetEffectiveScale()
-    if Secret(s) or type(s) ~= "number" or s <= 0 then return nil end
-    return math.floor(s * 20 + 0.5) / 20
-end
+-- v0.3 page header (rev 5): the UTC day "2026-11-26" (rev 6: no screen size or UI scale).
 function Co.UTCDay()
     local f = F.Date
     local d = f and f("!%Y-%m-%d")
@@ -389,16 +376,75 @@ function Co.LootSlots()
     local info = F.LootSlotInfo
     for slot, e in ipairs(list) do
         if info then
-            local ok, _, _, qty, _, quality, _, quest, _, _, coin = pcall(info, slot)
+            local ok, _, _, qty, _, quality, _, quest, qid, _, coin = pcall(info, slot)
             if ok then
                 e.qty = Co.Num(qty)
                 e.quality = Co.Num(quality)
                 e.quest = Co.IsTrue(quest)
                 e.coin = Co.IsTrue(coin)
+                qid = Co.Num(qid)
+                e.starts = qid and qid > 0 and qid or nil      -- the quest this item starts (LootFrame.lua:228)
             end
         end
     end
     return list
+end
+
+-- v0.3 rev 6: the quests the open NPC window offers (available only): { { q = id or nil, lvl = level or nil,
+-- t = title when there is no id } }, at most `cap`; nil when the API is missing or secret.
+function Co.OfferedQuests(kind, cap)
+    local out = {}
+    cap = cap or 20
+    if kind == "gossip" then
+        local f = F.GossipAvail
+        if not f then return nil end
+        local list = f()
+        if Secret(list) or type(list) ~= "table" then return nil end
+        for _, info in ipairs(list) do
+            if #out >= cap then break end
+            if type(info) == "table" then
+                local q, lvl, t = Co.Num(info.questID), Co.Num(info.questLevel), Plain(info.title)
+                if q and q > 0 then out[#out + 1] = { q = q, lvl = lvl and lvl > 0 and lvl or nil }
+                elseif type(t) == "string" and t ~= "" then out[#out + 1] = { t = t:sub(1, 60), lvl = lvl } end
+            end
+        end
+        return out
+    elseif kind == "greeting" then
+        local fn, fi, ft = F.GreetNumAvail, F.AvailQuestInfo, F.AvailTitle
+        if not fn then return nil end
+        local n = Co.Num(fn())
+        if not n or n < 0 or n > 40 then return nil end
+        for i = 1, math.min(n, cap) do
+            local q = fi and Co.Num(select(5, fi(i)))
+            if q and q > 0 then out[#out + 1] = { q = q }
+            else
+                local t = ft and Plain(ft(i))
+                if type(t) == "string" and t ~= "" then out[#out + 1] = { t = t:sub(1, 60) } end
+            end
+        end
+        return out
+    end
+    return nil
+end
+
+-- Rested XP as a % of this level's bar, rounded to 5 (0 = none, capped at 150); nil when unknown.
+function Co.RestedPct()
+    local f = F.XPRested
+    local _, max = Co.XP()
+    if not (f and max and max > 0) then return nil end
+    local r = f()
+    if Secret(r) then return nil end
+    r = type(r) == "number" and r or 0
+    return math.min(150, math.floor(r / max * 20 + 0.5) * 5)
+end
+
+-- Can the player attack this unit (true / false; false when unknown).
+function Co.CanAttack(unit)
+    local f = F.CanAttack
+    if not f then return false end
+    local v = f("player", unit)
+    if Secret(v) then return false end
+    return v == true
 end
 
 -- The player's money (copper) right now, only for a difference inside one loot window (never saved).

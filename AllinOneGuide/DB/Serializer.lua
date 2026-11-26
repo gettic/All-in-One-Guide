@@ -23,10 +23,14 @@ Ser.kinds = {
     -- v0.3 game data pages "AOGD1 ..." (Data\Gather.lua; the Addon Manager and tools\recmerge.lua read them).
     -- Header: page id (random, new per page), h=1, addon version, client build, faction A / H, class token, record
     -- count. Records: ids, map / x / y / cell, counts, XP / money gains, levels, seconds, lists of ids. Never a name.
-    D1 = { "rid", "h", "v", "b", "fac", "cls", "race", "realm", "loc", "day", "scr", "ui", "cnt", "k", "q", "npc", "obj", "ins", "from", "m", "x", "y", "c", "n",
+    D1 = { "rid", "h", "v", "b", "fac", "cls", "race", "realm", "loc", "day", "cnt", "k", "q", "npc", "obj", "ins", "from", "m", "x", "y", "c", "n",
         "xp", "mo", "pl", "ql", "it", "loot", "got", "cu", "sh", "gray", "cloth", "herb", "ore", "pk", "s", "t", "fn", "tn",
         "sec", "lo", "hi", "cl", "fa", "gain", "sp", "sk", "lv", "dif", "tries", "ups", "sv", "rc", "sup", "min", "boss", "qs",
-        "pz", "pn", "dd", "gs", "gx", "rt", "gph", "ck" },
+        "pz", "pn", "dd", "gs", "gx", "rt", "gph",
+        -- rev 6 (Data\GatherMore.lua)
+        "e", "st", "skp", "und", "nd", "bk", "spc", "ns", "hs", "fl", "wk", "hr", "mt", "sw", "ft", "dev", "pct", "rd", "kv",
+        "ms", "rf", "uk", "on", "fe", "msg", "at", "stk", "tt", "nq", "oi", "why", "ch", "sz", "ct", "cf", "ml", "hc", "cn", "cb",
+        "eq", "stt", "am", "qcu", "vcu", "dcu", "mcu", "gv", "sks", "ck" },
 }
 -- kinds whose values are escaped strictly: every byte outside a small plain set becomes %XX (non-ASCII,
 -- line breaks, separators), so the string survives any paste
