@@ -498,7 +498,8 @@ function SB.Update(replace)
         SB.Look()
         return
     end
-    if id == SB.item and (not id or (SB.frame and SB.frame:IsShown())) then
+    -- (messy-play fix: a change queued in combat for another item must be replaced, so only skip when none waits)
+    if id == SB.item and not CQ.Pending("stepbutton") and (not id or (SB.frame and SB.frame:IsShown())) then
         SB.Look()
         return
     end

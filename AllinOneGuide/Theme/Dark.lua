@@ -151,6 +151,7 @@ ns.Theme.Register("Dark", {
     ["color.target"] = { "#FF8C7A", 1 },      -- its crosshair
     ["color.sub"] = "=text.dim",              -- "for <quest>" / place line under the step text
     ["color.note"] = "=text.dim",             -- beta.8 step note line (the step's `why`) under the goals
+    ["color.itemLink"] = { "#9CC8F0", 1 },    -- beta.12 item pictures: an item's name in the current step (hover = tooltip)
     ["size.noteGap"] = 3,                     -- its gap above
     -- verbs (coloured first word of a step) and tiles (base tint / symbol tint)
     ["color.verb.accept"] = { "#F4C542", 1 },
@@ -179,16 +180,16 @@ ns.Theme.Register("Dark", {
     ["color.tile.open"] = { "#8A8F98", 1 },
     ["color.tileDark"] = { "#2A1F00", 1 },    -- symbol on the light (yellow / orange) tiles
 
-    -- fonts (Blizzard's narrow font file on Western clients)
-    fontFile = "Fonts\\ARIALN.TTF",
+    -- fonts: sizes in Arial Narrow points (the text font setting scales them, Theme\Media.lua Md.FONTS);
+    -- numbers = true: outlined number texts (Easy-read draws them with Open Sans)
     lineSpacing = 1.35,
     ["font.title"] = { size = 12, shadow = true },
     ["font.header"] = { size = 12, shadow = true },
     ["font.step"] = { size = 12, shadow = true },
     ["font.goal"] = { size = 11, shadow = true },
     ["font.small"] = { size = 10 },
-    ["font.arrow"] = { size = 15, flags = "OUTLINE" },
-    ["font.buttonText"] = { size = 10, flags = "OUTLINE" },  -- count / key on the step button (busy icons)
+    ["font.arrow"] = { size = 15, flags = "OUTLINE", numbers = true },
+    ["font.buttonText"] = { size = 10, flags = "OUTLINE", numbers = true },  -- count / key on the step button (busy icons)
     ["font.sectionHead"] = { size = 10, shadow = true },     -- the "NOW" / "NEXT" headers
 
     -- sizes (UI units)

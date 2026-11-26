@@ -473,7 +473,8 @@ local function CheckTheme()
             if Md.Get(Th.Raw(key)) == nil then bad = "no media slot" end
         elseif kind == "font" then
             local s = Th.FontSize(rest)
-            if s < Th.MIN_FONT or s % 1 ~= 0 then bad = "font size " .. tostring(s) end
+            -- the text font's scale gives tenths (Open Sans x0.9): only the floor is checked
+            if s < Th.MIN_FONT or math.abs(s * 10 - math.floor(s * 10 + 0.5)) > 1e-6 then bad = "font size " .. tostring(s) end
         elseif kind == "size" then
             if type(Th.Raw(key)) ~= "number" then bad = "not a number" end
         elseif kind == "alpha" then
@@ -591,10 +592,10 @@ local function CheckLetters()
     if not w then return Skip("letters", "(no window)") end
     if not ST.probe then
         ST.probe = w:CreateFontString(nil, "OVERLAY")
-        ns.Theme.Font(ST.probe, "step")
         ST.probe:Hide()
     end
     local fs = ST.probe
+    ns.Theme.Font(fs, "step")   -- every run: the text font setting may have changed since the last one
     Count()
     fs:SetText("æøåæøåÆØÅ")
     local s1, w1 = Read(fs, "GetStringWidth")

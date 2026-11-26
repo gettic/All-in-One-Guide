@@ -584,6 +584,33 @@ function E.Undo()
     return true
 end
 
+-- Self-test line (beta.11 bug: later steps' "Optional:" lines after going back): how many optional lines the
+-- current step shows and where they come from: "behind" (steps before it, the normal case), "group" (its any-order
+-- group), "ahead" (a step after it: a bug), "waiting" (riding along unseen until their quest is in the log).
+ns.SelfChecks[#ns.SelfChecks + 1] = { label = "optional", fn = function(h)
+    h.Count()
+    local g = E.Focused()
+    local top = g and g:Top()
+    local cur = top and top:Current()
+    if not cur then h.Info("optional: no current step") return end
+    local shown, behind, group, ahead, waiting = 0, 0, 0, {}, 0
+    for _, s in ipairs(top:Background()) do
+        if s.flags.optional then
+            shown = shown + 1
+            if s.index < cur.index then behind = behind + 1
+            elseif s.anyOrder and s.anyOrder == cur.anyOrder then group = group + 1
+            else ahead[#ahead + 1] = s.id end
+        end
+    end
+    for _, b in ipairs(top.bg) do
+        local s = top:Step(b)
+        if s and s.flags.optional and top:WaitsForQuest(s) then waiting = waiting + 1 end
+    end
+    h.Info(("optional: %d lines at %s (behind %d, group %d, ahead %d, waiting %d)"):format(shown, tostring(cur.id),
+        behind, group, #ahead, waiting))
+    if #ahead > 0 then h.Problem("optional: lines from later steps: " .. table.concat(ahead, ",", 1, math.min(#ahead, 3))) end
+end }
+
 -- Detours: a module registers how to rebuild a kind's steps (so an active detour survives /reload).
 function E.RegisterDetour(kind, fn) E.detourSources[kind] = fn end
 

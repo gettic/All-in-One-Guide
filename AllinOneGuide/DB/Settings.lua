@@ -75,6 +75,11 @@ S.schema = {
         page = "window" },
     { key = "modelHideCombat", scope = "account", kind = "bool", default = true, export = true, page = "window" },
     { key = "fontSize", scope = "account", kind = "number", default = 2, min = -4, max = 4, step = 1, export = true, page = "window" },  -- min -4 (was -2; font size fix 2026-11-25): 8 pt step text; default +2 (was 0; the user, 2026-11-25)
+    -- text font (Theme\Media.lua Md.FONTS; the user, 2026-11-26: Open Sans by default, Easy-read and Classic as
+    -- choices); a save without it or with an unknown value reads as Open Sans (the save is kept as is)
+    { key = "font", scope = "account", kind = "choice", default = "opensans", choices = { "opensans", "dyslexic", "classic" },
+        export = true, page = "window", choiceLabels = { opensans = "CHOICE_FONT_OPENSANS", dyslexic = "CHOICE_FONT_DYSLEXIC",
+        classic = "CHOICE_FONT_CLASSIC" } },
     { key = "highContrast", scope = "account", kind = "bool", default = false, export = true, page = "window" },
     { key = "colorBlind", scope = "account", kind = "bool", default = false, export = true, page = "window" },
     -- the old NOW window (before the one window, 2026-11-26): no meaning any more; kept (no page, no texts) so old

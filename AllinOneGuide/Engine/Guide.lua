@@ -201,8 +201,10 @@ function Guide:Snapshot()
 end
 
 function Guide:Restore(snap)
+    local from = self.pos
     self.pos, self.pinned, self.pinDone = snap.pos, snap.pinned, snap.pinDone
     self.save.skips, self.save.notDoing, self.save.done = snap.skips, snap.notDoing, snap.done
+    self:Rewind(from)   -- an Undo back to an earlier step: the goals of that step (beta.11 fix)
     self:Store()
 end
 
@@ -474,14 +476,75 @@ function Guide:CurrentId()
     return s and s.id or nil
 end
 
+-- A background goal at index b is ahead of the position: at or after it, outside its any-order group. Such a goal
+-- was picked up further ahead and never rides along (beta.11 fix: after going back, later steps' optional lines showed).
+function Guide:Ahead(b)
+    if b < self.pos then return false end
+    local s, p = self:Step(b), self:Step(self.pos)
+    return not (s and p and s.anyOrder and s.anyOrder == p.anyOrder)
+end
+
 -- Background goals shown next to the current step.
 function Guide:Background()
     local out = {}
     for _, b in ipairs(self.bg) do
         local s = self:Step(b)
-        if s and self:IsStop(s, b) and not self:HandedOver(s) and not self:WaitsForQuest(s) then out[#out + 1] = s end
+        if s and not self:Ahead(b) and self:IsStop(s, b) and not self:HandedOver(s) and not self:WaitsForQuest(s) then
+            out[#out + 1] = s
+        end
     end
     return out
+end
+
+-- The goals a walk to step i leaves behind (Load after a /reload, Rewind after going back): background goals whose
+-- target is still ahead, optional steps not done from the last 15 steps, item and level waits.
+function Guide:ScanBehind(i)
+    for j = 1, i - 1 do
+        local s = self:Step(j)
+        local u = s and s.whileUntil and self:IndexOf(s.whileUntil)
+        if u and u >= i and self:IsStop(s, j) and not self:HandedOver(s) then AddBg(self, j) end
+        -- optional steps not done yet, from the last 15 steps
+        if s and s.flags.optional and j >= i - 15 and self:IsStop(s, j) then AddOptional(self, j) end
+        if s and s.flags.optional and j >= i - Guide.ITEM_BACK and s.condAst and next(Cd.Items(s.condAst))
+            and not self:Applicable(s) then
+            self.itemWait = self.itemWait or {}
+            self.itemWait[j] = true
+        end
+        -- steps passed over for their level
+        if s and s.minLevel and not self:Applicable(s) then
+            self.levelWait = self.levelWait or {}
+            self.levelWait[j] = true
+        end
+    end
+end
+
+-- Going back (Back, picking an earlier step, Undo, an abandoned quest's accept step): the guide shows itself as it
+-- would be at the new position. Goals picked up at or after it drop out and the ones a walk there leaves behind come
+-- back. unskip: the steps this session's Next / Skip passed over from the new position up to the old one (from) are
+-- un-skipped, so Next walks through them again; skips from earlier sessions and "not doing" stay.
+function Guide:Rewind(from, unskip)
+    local i = self.pos
+    if type(from) ~= "number" or i >= from then return end
+    for k = #self.bg, 1, -1 do
+        if self:Ahead(self.bg[k]) then table.remove(self.bg, k) end
+    end
+    if unskip and self.passed then
+        for j = i, math.min(from - 1, self:Count()) do
+            local s = self:Step(j)
+            if s and self.passed[s.id] then
+                self.passed[s.id] = nil
+                self.save.skips[s.id] = nil
+                if self.save.done then self.save.done[s.id] = nil end
+            end
+        end
+    end
+    self:ScanBehind(i)
+end
+
+-- Next / Skip passed over step s this session (Rewind may un-skip it).
+local function Passed(self, s)
+    self.passed = self.passed or {}
+    self.passed[s.id] = true
 end
 
 function Guide:Store()
@@ -509,23 +572,11 @@ function Guide:Load()
             self.pinDone = self:Done(self:Step(i))
         end
         -- background goals left behind before the saved position
-        for j = 1, i - 1 do
-            local s = self:Step(j)
-            local u = s and s.whileUntil and self:IndexOf(s.whileUntil)
-            if u and u >= i and self:IsStop(s, j) and not self:HandedOver(s) then AddBg(self, j) end
-            -- optional steps not done yet, from the last 15 steps
-            if s and s.flags.optional and j >= i - 15 and self:IsStop(s, j) then AddOptional(self, j) end
-            if s and s.flags.optional and j >= i - Guide.ITEM_BACK and s.condAst and next(Cd.Items(s.condAst))
-                and not self:Applicable(s) then
-                self.itemWait = self.itemWait or {}
-                self.itemWait[j] = true
-            end
-            -- steps passed over for their level
-            if s and s.minLevel and not self:Applicable(s) then
-                self.levelWait = self.levelWait or {}
-                self.levelWait[j] = true
-            end
-        end
+        self:ScanBehind(i)
+    elseif self.save.finished then
+        -- (messy-play fix) a finished route stays finished after /reload, also when it was finished by picking the
+        -- last step and pressing Next (no current step is saved then)
+        self.pos = self:Count() + 1
     else
         self.pos = 1
     end
@@ -545,7 +596,9 @@ function Guide:CheckQuest()
             if j < s.index then
                 local a = self:Step(j)
                 if a and self:Applicable(a) and not self:Skipped(a) then
+                    local from = self.pos
                     self.pos, self.pinned = j, false
+                    self:Rewind(from)
                     return
                 end
             end
@@ -639,6 +692,7 @@ function Guide:Skip(id)
     end
     if not s then return false end
     self.save.skips[s.id] = true
+    Passed(self, s)
     if self.pinned and s.index == self.pos then self.pinned = false end
     self:Advance()
     self:Store()
@@ -651,7 +705,9 @@ function Guide:SetCurrent(id)
     local s = self:Step(i)
     self.save.skips[s.id] = nil
     if self.save.done then self.save.done[s.id] = nil end
+    local from = self.pos
     self.pos, self.pinned, self.pinDone = i, true, self:Done(s)
+    self:Rewind(from, true)   -- picked (or Back to) an earlier step: the guide as it is there (beta.11 fix)
     self:Store()
     return true
 end
@@ -679,6 +735,7 @@ function Guide:Next()
         else
             self.save.skips[cur.id] = true
         end
+        Passed(self, cur)
     end
     if cur.index == self.pos then self.pos = self.pos + 1 end
     self.pinned = false

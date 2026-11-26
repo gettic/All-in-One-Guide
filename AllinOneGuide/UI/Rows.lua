@@ -128,6 +128,7 @@ local function Cut(fs, text, w)
     return best
 end
 R.Cut = Cut
+R.TARGET_MIN = 60   -- a next line's target text never gets less room than this (its right-hand text is cut first)
 
 local function Faded(fs, key, a)
     local r, g, b, al = Th.Color(key)
@@ -198,6 +199,42 @@ local function Line(row, i)
 end
 
 -- The item icon of a goal line (created on first use), over its tile, edge trimmed.
+-- beta.12 (the user: the icon "to the left side of the text like the little X we have for kills"): an item tile at
+-- a line's left, the goal tile's size and spot; a small mouse holder over it shows the item tooltip, clicks reach
+-- the row. key: "note" / "text". Created on first use; R.ItemTile(row, key, id, x, top, s) / R.HideItemTile.
+function R.ItemTile(row, key, id, x, top, s)
+    row.itemTiles = row.itemTiles or {}
+    local t = row.itemTiles[key]
+    if not t then
+        t = { icon = row:CreateTexture(nil, "ARTWORK", nil, 5), hold = CreateFrame("Frame", nil, row) }
+        t.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        t.hold:SetAllPoints(t.icon)
+        t.hold:EnableMouse(true)
+        t.hold:SetScript("OnEnter", function(self)
+            if t.id and ns.ItemIcons then ns.Errors.Call("itemicons", ns.ItemIcons.ItemTip, self, t.id) end
+        end)
+        t.hold:SetScript("OnLeave", function() K.HideTooltip() end)
+        t.hold:SetScript("OnMouseUp", function(_, button)
+            local f = row:GetScript("OnMouseUp")
+            if f then f(row, button) end
+        end)
+        row.itemTiles[key] = t
+    end
+    t.id = id
+    t.icon:SetTexture(ns.ItemIcons.Icon(id))
+    t.icon:SetSize(s, s)
+    t.icon:ClearAllPoints()
+    t.icon:SetPoint("TOPLEFT", row, "TOPLEFT", x, -top)
+    t.icon:Show()
+    t.hold:Show()
+    return t
+end
+
+function R.HideItemTile(row, key)
+    local t = row.itemTiles and row.itemTiles[key]
+    if t then t.id = nil t.icon:Hide() t.hold:Hide() end
+end
+
 local function ItemTex(row, ln)
     if ln.icon then return ln.icon end
     local ic = row:CreateTexture(nil, "ARTWORK", nil, 5)
@@ -292,8 +329,9 @@ function R.NoteLines(fs, text, w)
 end
 
 -- Lays out the note under the goals from height h; returns the new height. row.noteCut: the text was cut.
-function R.Note(row, text, h, reserve)
+function R.Note(row, text, h, reserve, item)
     local note = row.note
+    if not (text and item) then R.HideItemTile(row, "note") end
     if not text then
         row.noteCut = nil
         if note then note[1]:Hide() note[2]:Hide() end
@@ -308,11 +346,16 @@ function R.Note(row, text, h, reserve)
         row.note = note
     end
     local LG = Th.LineHeight("goal")
-    local x = GoalX(row) + Th.Size("foldIndent")
+    -- with an item: its tile where a goal line's tile sits, the text where a goal line's text starts
+    local x = GoalX(row) + (item and Th.Size("tile") + 5 or Th.Size("foldIndent"))
     local w = (row:GetWidth() or 0) - x - Pad() - (reserve or 0)
     local l1, l2, cut = R.NoteLines(note[1], text, w)
     row.noteCut = cut or nil
     h = h + Th.Size("noteGap")
+    if item then
+        local s = TileS(LG)   -- (the goal tile's size helper: always the same as the kill X)
+        R.ItemTile(row, "note", item, GoalX(row), h + (LG - s) / 2, s)
+    end
     for i, t in ipairs({ l1, l2 or false }) do
         local fs = note[i]
         if t then
@@ -375,7 +418,18 @@ function R.Set(row, d)
     local inset = state == "done" and Pad() + math.max(44, Th.Size("badge") + 6) + reserve or RightInset(row.right, 6, reserve)
     if current and (row.right:GetText() or "") == "" then inset = Pad() + reserve end
     row.text:ClearAllPoints()
-    row.text:SetPoint("TOPLEFT", row, "TOPLEFT", TextX(row), -1)
+    -- beta.12: the current step's first item as a tile at the text's left, only when the line has no step tile
+    -- (next to the 3D view); otherwise the step tile stays and the item is just the hover link in the text
+    local textX = TextX(row)
+    local textItem = current and lean and d.textItem or nil
+    if textItem then
+        local s = TileS(LH)
+        R.ItemTile(row, "text", textItem, textX, math.max(0, (LH - s) / 2), s)
+        textX = textX + Th.Size("tile") + 5
+    else
+        R.HideItemTile(row, "text")
+    end
+    row.text:SetPoint("TOPLEFT", row, "TOPLEFT", textX, -1)
     row.text:SetPoint("TOPRIGHT", row, "TOPRIGHT", -inset, -1)
     -- main line height: measured with room for all its lines (a set height can cut the measure), then the text
     -- gets exactly its line(s). The caller anchors the row first, so the width is known (v0.2 fix).
@@ -423,7 +477,7 @@ function R.Set(row, d)
         if d.coord then lines[#lines + 1] = { kind = "coord", c = d.coord } end
     end
     local gx = GoalX(row)
-    local tsg = math.max(8, math.min(Th.Size("tile"), LG - 2))
+    local tsg = TileS(LG)
     local focus = d.focus
     row.onFold = d.onFold
     for _, l in ipairs(lines) do
@@ -516,7 +570,7 @@ function R.Set(row, d)
     end
     for i = n + 1, #row.lines do ShowLine(row.lines[i], false) end
     -- beta.8 step note (the step's `why`): dim, under the goals, full width, at most 2 lines ("..." + tooltip)
-    h = R.Note(row, current and d.note or nil, h, reserve)
+    h = R.Note(row, current and d.note or nil, h, reserve, current and d.noteItem or nil)
     -- 4h: a next step is one line: framed verb tag + target (cut with "..." before the coords), fading
     local tagged = state == "upcoming" and d.tag ~= nil
     row.tagged = tagged
@@ -547,28 +601,16 @@ function R.Set(row, d)
         e[4]:SetPoint("TOPRIGHT", tg.text, "TOPRIGHT") e[4]:SetPoint("BOTTOMRIGHT", tg.text, "BOTTOMRIGHT") e[4]:SetWidth(hair)
         -- the target: after the tag, ends a gap before the coords; cut with "..." when too long
         local tx = x + tw + 6
-        -- beta.9 item pictures: a 12 px item icon between the tag and the target (a texture, never in the cut text)
-        if d.icon then
-            local ti = row.tagIcon
-            if not ti then
-                ti = row:CreateTexture(nil, "ARTWORK")
-                ti:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-                row.tagIcon = ti
-            end
-            local s = ns.ItemIcons and ns.ItemIcons.NEXT or 12
-            ti:SetTexture(d.icon)
-            ti:SetSize(s, s)
-            ti:ClearAllPoints()
-            ti:SetPoint("TOPLEFT", row, "TOPLEFT", tx, -math.max(0, (LH - s) / 2))
-            ti:SetVertexColor(1, 1, 1, tonumber(d.fade) or 1)   -- fades with the line (no SetAlpha: ui lint)
-            ti:Show()
-            tx = tx + s + 2
-        elseif row.tagIcon then
-            row.tagIcon:Hide()
-        end
+        -- (beta.12: no item picture on next lines, the user: "only show icons for active steps")
         local rw = (row.right:GetText() or "") ~= "" and math.ceil(row.right:GetStringWidth() or 0) or 0
         local gap = 8
-        local avail = (row:GetWidth() or 0) - tx - Pad() - reserve - (rw > 0 and rw + gap or 0)
+        -- (messy-play fix) the target keeps at least R.TARGET_MIN; a too-long right-hand text is cut first
+        local room = (row:GetWidth() or 0) - tx - Pad() - reserve
+        if rw > 0 and room - rw - gap < R.TARGET_MIN then
+            Cut(row.right, row.right:GetText(), math.max(1, room - gap - R.TARGET_MIN))
+            rw = math.ceil(row.right:GetStringWidth() or 0)
+        end
+        local avail = room - (rw > 0 and rw + gap or 0)
         row.text:ClearAllPoints()
         row.text:SetPoint("TOPLEFT", row, "TOPLEFT", tx, -1)
         row.text:SetPoint("TOPRIGHT", row, "TOPRIGHT", -(Pad() + reserve + (rw > 0 and rw + gap or 0)), -1)
@@ -581,7 +623,6 @@ function R.Set(row, d)
         h = LH
     else
         TagShown(row, false)
-        if row.tagIcon then row.tagIcon:Hide() end
     end
     row:SetHeight(h)
     return h

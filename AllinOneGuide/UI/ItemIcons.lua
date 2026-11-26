@@ -1,23 +1,28 @@
 -- SPDX-License-Identifier: GPL-3.0-or-later
 -- Copyright (C) 2026 gettic
 -- Item pictures (plans\item-icons\plan.md, option C; tos plans\item-icons\tos.md): the item's own game icon
---   * inline before the item's name in the current step's text (first mention per item), as an item link
---     "|Hitem:<id>|h<icon><no-break space><name>|h" built only from our pack ids, so hovering it shows the game's
---     item tooltip (OnHyperlinkEnter on the row; other link types are ignored; a click does nothing);
---   * on goal rows instead of the goal tile (hover: the item tooltip), and 12 px on next-step lines;
---   * beta.11: also in the current step's note line, the step tooltip (icons only), and for items a step only
---     mentions by name (any item the route names: II.Index, built once per route from the raw rows);
+--   * the item's name in the current step's text and note line (first mention per item) is an item link
+--     "|Hitem:<id>|h<coloured name>|h" built only from our pack ids, so hovering it shows the game's item tooltip
+--     (OnHyperlinkEnter on the row; other link types are ignored; a click does nothing);
+--   * beta.12 (the user: "a ICON nibble" is weird): never an icon inside the text; the line's first item gets a
+--     tile at the line's left (the note line; the step text only when it has no step tile, i.e. next to the 3D
+--     view), hover = the item tooltip (UI\Rows.lua);
+--   * on goal rows instead of the goal tile (hover: the item tooltip);
+--   * items a step only mentions by name count too (any item the route names: II.Index, built once per route);
+--   * the current step only (the user: "only show icons for active steps"), with its goals riding along; next-step
+--     lines and tooltips never get one;
 --   * ids from the step's `item` / `useItem` / cond item=, `{item:<id>}` tokens, and Data\QuestItems.lua for goals;
 --     names from the game, else Data\ItemNames.lua (CMaNGOS, GPL);
 --   * an icon the game hasn't loaded: the theme's file.itemUnknown, and GET_ITEM_INFO_RECEIVED is registered only
 --     while one waits (one window refresh per frame at most);
 --   * nothing at login: everything is built on the first draw of a step and cached per step.
 -- Setting itemIcons (on by default). Display only: never uses, links into chat or clicks anything.
---   ns.ItemIcons.On(), .Ids(step), .Icon(id), .Name(id), .Link(id, name), .Decorate(step, text), .GoalItem(step, g),
---   .NextIcon(step), .LinkEnter(row, link), .LinkLeave(row), .Reset(), .Problem(text)
+--   ns.ItemIcons.On(), .Ids(step), .Icon(id), .Name(id), .Names(id), .Index(top), .Link(id, name),
+--   .Decorate(step, text, top, field), .FirstIn(text), .GoalItem(step, g), .LinkEnter(row, link), .LinkLeave(row), .Reset(),
+--   .Problem(text), .State(), .NextWithPicture()
 local _, ns = ...
 local Th, Co = ns.Theme, ns.Compat
-local II = { NBSP = "\194\160", CROP = ":0:0:0:0:64:64:5:59:5:59|t", NEXT = 12, calls = 0,
+local II = { calls = 0,
     pending = nil, queued = false, cache = setmetatable({}, { __mode = "k" }), byQuest = nil }
 ns.ItemIcons = II
 
@@ -111,15 +116,11 @@ function II.Name(id)
     return n
 end
 
-function II.Escape(id)
-    return "|T" .. tostring(II.Icon(id)) .. II.CROP
-end
-
--- An item link from our own id only: icon + no-break space + name, one hover target.
+-- An item link from our own id only: the name in the item colour, one hover target (no icon inside: beta.12).
 function II.Link(id, name)
     id = tonumber(id)
     if not id then return name end
-    return "|Hitem:" .. id .. "|h" .. II.Escape(id) .. II.NBSP .. tostring(name or "") .. "|h"
+    return "|Hitem:" .. id .. "|h" .. Th.Wrap("itemLink", tostring(name or "")) .. "|h"
 end
 
 -- ------------------------------------------------------------------ the step text
@@ -193,15 +194,13 @@ function II.Index(top)
     return list
 end
 
--- text with the item picture before the first mention of each item: the step's own items first (by id), then any
--- other item of the route it names. link = true: "|Hitem:..|h<icon> name|h" (the window's rows, hover tooltip);
--- false: just the icon before the name (tooltips: no links there).
-local function Mark(text, step, top, link)
+-- text with the first mention of each item as a coloured hover link: the step's own items first (by id), then any
+-- other item of the route it names. Never an icon inside the text (beta.12, the user: "a ICON nibble" is weird);
+-- the line's first item gets a tile at its left instead (II.FirstIn + Rows).
+local function Mark(text, step, top)
     local out, done = text, {}
     local function Put(id, a, b)
-        local name = out:sub(a, b)
-        local mark = link and II.Link(id, name) or (II.Escape(id) .. II.NBSP .. name)
-        out = out:sub(1, a - 1) .. mark .. out:sub(b + 1)
+        out = out:sub(1, a - 1) .. II.Link(id, out:sub(a, b)) .. out:sub(b + 1)
         done[id] = true
     end
     for _, id in ipairs(II.Ids(step)) do
@@ -218,14 +217,14 @@ local function Mark(text, step, top, link)
     for _, e in ipairs(II.Index(top)) do
         if not done[e.id] and low:find(e.low, 1, true) then
             local a, b = Find(out, e.name)
-            if a and not out:sub(1, a - 1):find("|T[^|]*$") then Put(e.id, a, b) end
+            if a then Put(e.id, a, b) end
         end
     end
     return out
 end
 
--- The step text (field "text"), its note ("note") or a tooltip line ("tip..", icons only) with the item pictures;
--- cached per step and field. top: the step's guide (for the route's item names), may be nil.
+-- The current step's text (field "text") or its note ("note") with its items as hover links; cached per step and
+-- field. top: the step's guide (for the route's item names), may be nil.
 function II.Decorate(step, text, top, field)
     if type(text) ~= "string" or not II.On() or type(step) ~= "table" then return text end
     field = field or "text"
@@ -233,34 +232,14 @@ function II.Decorate(step, text, top, field)
     if not c then c = {} II.cache[step] = c end
     local e = c[field]
     if e and e.text == text then return e.out end
-    local out = Mark(text, step, top, field:sub(1, 3) ~= "tip")
+    local out = Mark(text, step, top)
     c[field] = { text = text, out = out }
     return out
 end
 
--- The first item a step names or mentions (for its 12 px icon on a next line): its own ids, a {item:} token, else
--- the first route item named in its plain text.
-function II.FirstItem(step, top, plain)
-    local id = II.Ids(step)[1]
-    if id then return id end
-    local t = step.text
-    id = type(t) == "string" and tonumber(t:match("{item:(%d+)}")) or nil
-    if id or type(plain) ~= "string" then return id end
-    -- (perf: the name search once per step and text, cached like Decorate)
-    local c = II.cache[step]
-    if not c then c = {} II.cache[step] = c end
-    local e = c.first
-    if e and e.text == plain then return e.id end
-    local best, at
-    local low = plain:lower()
-    for _, x in ipairs(II.Index(top)) do
-        if low:find(x.low, 1, true) then
-            local a = Find(plain, x.name)
-            if a and (not at or a < at) then best, at = x.id, a end
-        end
-    end
-    c.first = { text = plain, id = best }
-    return best
+-- The first item linked in a decorated text (the one whose tile stands at the line's left), or nil.
+function II.FirstIn(text)
+    return type(text) == "string" and tonumber(text:match("|Hitem:(%d+)|h")) or nil
 end
 
 -- {item:<id>} tokens (Engine\Guide.lua Guide:Text): the name, or with wrap the window's link.
@@ -287,13 +266,6 @@ function II.GoalItem(step, g)
         end
     end
     return nil
-end
-
--- The 12 px icon of a next-step line: the step's first item (a token in its text counts too), or nil.
-function II.NextIcon(step, top, plain)
-    if not II.On() or type(step) ~= "table" then return nil end
-    local id = II.FirstItem(step, top, plain)
-    return id and II.Icon(id) or nil, id
 end
 
 -- ------------------------------------------------------------------ hover
@@ -354,7 +326,20 @@ ns.SelfChecks[#ns.SelfChecks + 1] = { label = "itemicons", fn = function(h)
         h.Problem("itemicons: item links shown with the setting off")
     end
     h.Info(II.State())
+    if II.NextWithPicture() > 0 then h.Problem("itemicons: a next-step line shows an item picture (current step only)") end
+    -- beta.12: never an icon inside the current step's text or note (the icon is a tile at the line's left)
+    local texts = { t }
+    for _, fs in ipairs(r and r.note or {}) do if fs:IsShown() then texts[#texts + 1] = fs:GetText() end end
+    for _, s in ipairs(texts) do
+        if type(s) == "string" and s:find("|T", 1, true) then h.Problem("itemicons: an icon inside the step text or note") break end
+    end
 end }
+
+-- The item a row's left tile shows (key "text" / "note"), or nil when it's hidden.
+function II.TileOf(r, key)
+    local t = r and r.itemTiles and r.itemTiles[key]
+    return t and t.icon:IsShown() and t.id or nil
+end
 
 -- One line for /aog selftest: the item-picture state of the steps shown now (beta.11 "i dont see the icon").
 function II.State()
@@ -368,20 +353,24 @@ function II.State()
     for _, fs in ipairs(r.note or {}) do if fs:IsShown() then noteN = noteN + Count(fs:GetText()) end end
     local goalN = 0
     for _, ln in ipairs(r.lines or {}) do if ln.item and ln.icon and ln.icon:IsShown() then goalN = goalN + 1 end end
-    local nextN, nextAll = 0, 0
-    for i = 2, #rows do
-        local o = rows[i]
-        if o:IsShown() then
-            nextAll = nextAll + 1
-            if o.tagIcon and o.tagIcon:IsShown() then nextN = nextN + 1 end
-        end
-    end
     local ids = II.Ids(r.step)
     local waiting = 0
     for _ in pairs(II.pending or {}) do waiting = waiting + 1 end
-    return ("itemicons: on; step %s: own items %s, route items %d; icons: text %d, note %d, goals %d, next lines %d/%d; waiting for %d"):format(
+    return ("itemicons: on, current step only; step %s: own items %s, route items %d; links: text %d, note %d; tiles: text %s, note %s, goals %d; next lines with a picture: %d (should be 0); waiting for %d"):format(
         tostring(r.step.id), #ids > 0 and table.concat(ids, ",") or "none", #II.Index(g and g:Top()), Count(r.text and r.text:GetText()),
-        noteN, goalN, nextN, nextAll, waiting)
+        noteN, tostring(II.TileOf(r, "text") or "-"), tostring(II.TileOf(r, "note") or "-"), goalN, II.NextWithPicture(), waiting)
+end
+
+-- How many shown next-step lines carry an item picture (beta.12: must be 0; current step only).
+function II.NextWithPicture()
+    local rows = ns.UI and ns.UI.rows or {}
+    local n = 0
+    for i = 2, #rows do
+        local o = rows[i]
+        local t = o:IsShown() and o.text and o.text:GetText()
+        if type(t) == "string" and (t:find("|T", 1, true) or t:find("|H", 1, true)) then n = n + 1 end
+    end
+    return n
 end
 
 ns.Bus.On("SettingsChanged", II, function(_, key) if key == "itemIcons" then II.Reset() end end, "itemicons", 60)

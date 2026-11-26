@@ -5,13 +5,16 @@
 --   ns.Theme.Color(key) -> r, g, b, a      ns.Theme.Hex(key) -> "ffrrggbb" (for |c codes)
 --   ns.Theme.Font(fs, key [, shadow])      ns.Theme.LineHeight(key)   ns.Theme.Size(key)
 --   ns.Theme.Glyph(tex, key [, flip])      (slot key -> media through Theme\Media.lua)
--- Fonts: Blizzard's own font files only (SetFont on our font strings; nothing copied, no new globals).
+-- Fonts: the text font setting picks one of Theme\Media.lua's Md.FONTS (our OFL fonts in media\fonts\ or a
+-- built-in game font) with its own size scale; non-Western clients keep the game's own font.
 local _, ns = ...
 -- overlays (v0.2 M4, Theme\Overlay.lua): tables laid over any theme (high contrast, colour-blind), last
 -- one wins; fontDelta: points added to every font size (font size setting, large text).
 -- MIN_FONT 8 (was 9; font size fix 2026-11-25, the user: "cant go low enough"): the smallest setting -4 gives
 -- 8 pt step text, and the small texts stop at 8 pt too.
-local Th = { themes = {}, name = nil, cache = {}, MIN_FONT = 8, MAX_FONT = 24, overlays = {}, fontDelta = 0 }
+-- face: the text font id (setting "font", Md.FONTS key; set by Overlay.Apply through SetOverlays).
+local Th = { themes = {}, name = nil, cache = {}, MIN_FONT = 8, MAX_FONT = 24, overlays = {}, fontDelta = 0,
+    face = "opensans" }
 ns.Theme = Th
 
 function Th.Register(name, t)
@@ -116,19 +119,6 @@ function Th.File(key)
     return v
 end
 
--- The font file for this client: a narrow Western font, or the client's own font for other alphabets.
-local WESTERN = { enUS = true, enGB = true, deDE = true, frFR = true, esES = true, esMX = true, ptBR = true, itIT = true }
-function Th.FontFile()
-    local file = Th.Raw("fontFile")
-    if WESTERN[ns.Compat.Locale()] and file then return file end
-    local base = rawget(_G, "GameFontNormal")
-    if base and base.GetFont then
-        local f = base:GetFont()
-        if f then return f end
-    end
-    return file or "Fonts\\FRIZQT__.TTF"
-end
-
 local function FontSpec(key)
     local f = Th.Raw("font." .. key)
     if type(f) ~= "table" then
@@ -138,15 +128,55 @@ local function FontSpec(key)
     return f
 end
 
-function Th.FontSize(key)
-    local size = math.floor((FontSpec(key).size or 12) + (Th.fontDelta or 0))
-    return math.min(Th.MAX_FONT, math.max(Th.MIN_FONT, size))
+-- The font in use for a font key: file path and its Md.FONTS entry, or (game font file, nil) on a client
+-- whose alphabet our fonts don't have. A key with `numbers = true` (arrow distance, button counts) uses the
+-- face's `numbers` font when it names one (Easy-read: Open Sans for outlined digits).
+local WESTERN = { enUS = true, enGB = true, deDE = true, frFR = true, esES = true, esMX = true, ptBR = true, itIT = true }
+Th.WESTERN = WESTERN
+-- (kept in Th.num until the next Use / SetOverlays: every Font / FontSize call asks)
+function Th.Western()
+    local w = Th.num["\1western"]
+    if w == nil then
+        w = WESTERN[ns.Compat.Locale()] and true or false
+        Th.num["\1western"] = w
+    end
+    return w
+end
+function Th.Face(key)
+    local Md = ns.Media
+    local id = Md.FONTS[Th.face] and Th.face or Md.FONT_DEFAULT
+    if key and Md.FONTS[id].numbers and FontSpec(key).numbers then id = Md.FONTS[id].numbers end
+    return id, Md.FONTS[id]
+end
+function Th.FontFile(key)
+    if Th.Western() then
+        local _, d = Th.Face(key)
+        return ns.Media.FontPath(d), d
+    end
+    local base = rawget(_G, "GameFontNormal")
+    if base and base.GetFont then
+        local f = base:GetFont()
+        if f then return f end
+    end
+    return "Fonts\\FRIZQT__.TTF"
 end
 
--- Sets the overlays and the font delta (Theme\Overlay.lua); colours are parsed again.
-function Th.SetOverlays(list, fontDelta)
+-- Size: the theme's size + the font size setting (whole points, MIN_FONT..MAX_FONT), times the font's scale
+-- (one decimal), never under MIN_FONT.
+function Th.FontSize(key)
+    local size = math.floor((FontSpec(key).size or 12) + (Th.fontDelta or 0))
+    size = math.min(Th.MAX_FONT, math.max(Th.MIN_FONT, size))
+    local _, d = Th.FontFile(key)
+    local scale = d and d.scale or 1
+    if scale ~= 1 then size = math.max(Th.MIN_FONT, math.floor(size * scale * 10 + 0.5) / 10) end
+    return size
+end
+
+-- Sets the overlays, the font delta and the text font (Theme\Overlay.lua); colours are parsed again.
+function Th.SetOverlays(list, fontDelta, face)
     Th.overlays = list or {}
     Th.fontDelta = fontDelta or 0
+    if face then Th.face = face end
     Th.cache, Th.num = {}, {}
 end
 
@@ -158,7 +188,8 @@ function Th.LineHeight(key)
     if not k then k = "\1lh." .. tostring(key) LH_KEY[key] = k end
     local c = Th.num[k]
     if c then return c end
-    c = math.ceil(Th.FontSize(key) * (Th.Raw("lineSpacing") or 1.35))
+    local _, d = Th.FontFile(key)
+    c = math.ceil(Th.FontSize(key) * (Th.Raw("lineSpacing") or 1.35) * (d and d.line or 1))
     if type(Th.Raw("font." .. tostring(key))) == "table" then Th.num[k] = c end
     return c
 end
@@ -168,7 +199,7 @@ end
 function Th.Font(fs, key, shadow)
     local spec = FontSpec(key)
     -- a font file that fails to load falls back to the client's own font object (never "font not set")
-    if not fs:SetFont(Th.FontFile(), Th.FontSize(key), spec.flags) then
+    if not fs:SetFont((Th.FontFile(key)), Th.FontSize(key), spec.flags) then
         local base = rawget(_G, "GameFontHighlight")
         if base then fs:SetFontObject(base) end
     end

@@ -865,17 +865,23 @@ function UI.Model()
         if not gl.done and not gl.more then focus = i break end
     end
     -- beta.9 item pictures: the icon before the item's first mention, item icons on goal lines
-    -- beta.11: also items the step only names (route item names) and the note line under the step
+    -- beta.11: also items the step only names (route item names) and the note line under the step; beta.12: the
+    -- names are hover links, and the line's first item is a tile at its left (textItem / noteItem), never inline
     local II = ns.ItemIcons
     local note = UI.NoteText(cur)
+    local textItem, noteItem
     if II and II.On() then
         text = II.Decorate(cur, text, top)
-        if note then note = II.Decorate(cur, note, top, "note") end
+        textItem = II.FirstIn(text)
+        if note then
+            note = II.Decorate(cur, note, top, "note")
+            noteItem = II.FirstIn(note)
+        end
         for _, gl in ipairs(goals) do gl.item = II.GoalItem(cur, gl) end
     end
     m.rows = { { step = cur, number = m.index, badge = K.BadgeKind(cur), tile = kind, text = text, state = "current",
         right = not coord and UI.DistText(cur) or nil, goals = goals, sub = UI.SubLines(top, cur, coord), focus = focus,
-        note = note } }
+        note = note, textItem = textItem, noteItem = noteItem } }
     -- (every next row is one line: as many as the lines setting, one spare; perf: no rows that never show)
     for _, s in ipairs(Upcoming(top, cur, UI.Lines() + 1)) do
         local plain = top:Text(s)
@@ -883,8 +889,7 @@ function UI.Model()
         local tag, target = UI.NextTag(s, plain)
         local where = s.map and s.x and s.y and ("%.0f, %.0f"):format(s.x * 100, s.y * 100) or nil
         m.rows[#m.rows + 1] = { step = s, number = numbers[s.index], badge = K.BadgeKind(s), tile = k, text = t,
-            tag = tag, target = target, state = "upcoming", right = UI.UnderLevelText(top, s) or where,
-            icon = II and II.NextIcon(s, top, plain) or nil }
+            tag = tag, target = target, state = "upcoming", right = UI.UnderLevelText(top, s) or where }
     end
     m.done = math.max(0, m.index - 1)
     return m
@@ -1102,6 +1107,7 @@ local function DrawState(state)
     for _, c in ipairs(UI.chips.list) do c:Hide() end
     UI.SetProgress(0)
     UI.footer.text:SetText("")
+    UI.footer.text:Hide()   -- (messy-play fix: an empty shown text was a 0x0 frame in the self-test)
     -- nothing to step through without a guide: no back / next
     UI.footer.prev:Hide()
     UI.footer.next:Hide()
@@ -1302,6 +1308,7 @@ function UI.Refresh()
     UI.stateText:Hide()
     UI.footer.prev:Show()
     UI.footer.next:Show()
+    UI.footer.text:Show()
     UI.title.title:SetText(m.zone or m.title or L().TITLE)
     local noticeShown = DrawNotice()
     -- the notice takes the last line (full mode) / the "Next:" line (small mode)
@@ -1458,17 +1465,12 @@ end
 function UI.StepTip(row)
     local step = row.step
     local g = ns.Engine.Focused()
-    -- item pictures (beta.11: every shown step, the tooltip too): icons only, no links in a tooltip
-    local II = ns.ItemIcons
-    local function Pic(s, t, field)
-        if II and II.On() and g then return II.Decorate(s, t, g:Top(), field) end
-        return t
-    end
-    local title = g and Pic(step, g:Top():Text(step), "tip") or step.id
+    -- (beta.12: no item pictures in tooltips; the user wants no icons inside text)
+    local title = g and g:Top():Text(step) or step.id
     local lines = UI.StepLines(step, row.rightText)
     -- the note line was cut ("..."): its full text here (beta.8 step notes)
     if row.current and row.noteCut and type(step.why) == "string" then
-        lines[#lines + 1] = Th.Wrap("note", Pic(step, step.why, "tipnote"))
+        lines[#lines + 1] = Th.Wrap("note", step.why)
     end
     -- the current step: its "on the way" goals by name (the window shows at most UI.SIDE_MAX lines)
     if row.current and g then
@@ -1476,7 +1478,7 @@ function UI.StepTip(row)
         for _, b in ipairs(top:Background()) do
             if b ~= step and not b.flags.optional then
                 if not head then lines[#lines + 1] = L().ONWAY_TIP head = true end
-                lines[#lines + 1] = "- " .. Pic(b, top:Text(b), "tip")
+                lines[#lines + 1] = "- " .. top:Text(b)
             end
         end
     end
@@ -1675,6 +1677,18 @@ local function RefreshUnlessStep() if not ns.Bus.Pending("StepChanged") then UI.
 ns.Bus.On("QuestsChanged", UI, RefreshUnlessStep, "ui", 70)
 ns.Bus.On("ItemsChanged", UI, RefreshUnlessStep, "ui", 70)
 ns.Bus.On("NameReady", UI, function() UI.Refresh() end, "ui", 70)
+-- level-up / XP (messy-play fix: "in 3 levels" and XP goals stayed old): one refresh per frame at most, and none
+-- when a StepChanged in this chain redraws anyway (XP comes often while killing: perf)
+function UI.RefreshSoon()
+    if UI.soonQueued or not UI.frame then return end
+    UI.soonQueued = true
+    Co.After(0, function()
+        UI.soonQueued = false
+        if not ns.Bus.Pending("StepChanged") then ns.Errors.Call("ui", UI.Refresh) end
+    end)
+end
+ns.Bus.On("LevelChanged", UI, function() UI.RefreshSoon() end, "ui", 70)
+ns.Bus.On("XPChanged", UI, function() UI.RefreshSoon() end, "ui", 70)
 -- combat changes nothing in the window's look: every step stays shown, no fade (v0.2 fix, the user's wish)
 ns.Bus.On("CombatStarted", UI, function()
     UI.inCombat = true
@@ -1853,7 +1867,10 @@ ns.SelfChecks[#ns.SelfChecks + 1] = { label = "side goals", fn = function(h)
             n = n + 1
             if type(g.text) ~= "string" or g.text == "" then h.Problem("side goals: line " .. i .. " has no text") end
             local ln = row.lines and row.lines[i]
-            if ln and g.kind and not g.done and not ln.pin:IsShown() then h.Problem("side goals: line " .. i .. " has no icon") end
+            -- (the kind tile, or the item's picture in its place: messy-play fix)
+            if ln and g.kind and not g.done and not ln.pin:IsShown() and not (ln.icon and ln.icon:IsShown()) then
+                h.Problem("side goals: line " .. i .. " has no icon")
+            end
         end
         if g.more and n ~= UI.SIDE_MAX then h.Problem("side goals: \"more\" line after " .. n .. " lines") end
     end

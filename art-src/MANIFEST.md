@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 # Art manifest
 
-All art in `AllinOneGuide/media/` is our own, drawn in code by the scripts in this folder (GPL-3.0-or-later). Rebuild with plain Python 3 from the repository root (`python -B art-src/<script>.py`; `-B` keeps `__pycache__` out). The scripts are deterministic: same bytes every run. `aog_art.py` holds the shared drawing helpers.
+All art in `AllinOneGuide/media/` is our own (the OFL fonts in `media/fonts/` are not art and not ours: see "Fonts"), drawn in code by the scripts in this folder (GPL-3.0-or-later). Rebuild with plain Python 3 from the repository root (`python -B art-src/<script>.py`; `-B` keeps `__pycache__` out). The scripts are deterministic: same bytes every run. `aog_art.py` holds the shared drawing helpers.
 
 All files: TGA, 32-bit BGRA, straight alpha, uncompressed (type 2), bottom-left origin, power-of-two sizes. In-game path: `Interface\AddOns\AllinOneGuide\media\<name>` (no extension).
 
@@ -20,6 +20,14 @@ All files: TGA, 32-bit BGRA, straight alpha, uncompressed (type 2), bottom-left 
 **Total raw texture memory: 660 KB** (old budget 600 KB: `round.tga` (64 KB, asked for by the guide-window-look build plan) goes 60 KB over it; zipped it adds only ~6 KB).
 
 Note for the `.toc`: the build plan says `IconTexture: ...\media\logo`, but the file is `logo_64` (no `logo.tga` exists). Point `IconTexture` at `Interface\AddOns\AllinOneGuide\media\logo_64`.
+
+## Fonts (`AllinOneGuide/media/fonts/`, not our art)
+
+The text fonts are not drawn by us: they are subsets of two SIL Open Font License 1.1 fonts (they stay under the OFL; licence and copyright notices in `media/fonts/OFL.txt`), built by `tools/build_fonts.py` (`python -B tools/build_fonts.py --opensans <ttf> --opensans-ofl <OFL.txt> --dyslexic <otf> --dyslexic-ofl <OFL.txt> --out AllinOneGuide/media/fonts`; same bytes every run; `--check <dir>` is run by the release zip check). Used through `Theme/Media.lua` `Md.FONTS` (text font setting).
+
+- `OpenSans.ttf` (38,896 bytes): Open Sans SemiBold, static, hinted. Source: https://github.com/googlefonts/opensans `fonts/ttf/OpenSans-SemiBold.ttf` and `OFL.txt`, commit `bd7e37632246368c60fdcbd374dbf9bad11969b6` (2023-11-16); source file SHA-256 `4A413711684A9DD564EF0F1C10CB62B5D9F7EB6DF2CFF962F5341A6ECD5F64AE`. No Reserved Font Name.
+- `AOGReadable.ttf` (45,964 bytes): OpenDyslexic Regular, CFF outlines turned into TrueType outlines (no hinting), renamed "AOG Readable" because "OpenDyslexic" is the font's OFL Reserved Font Name. Source: https://github.com/antijingoist/opendyslexic `compiled/OpenDyslexic-Regular.otf`, commit `77bda89f3f2069c78d81d33de43b461c2de6c48e` (2025-04-10), and `OFL.txt` (commit `681cad29afcaf1f11b4952b07c7a0fbb776d6f9c`); source file SHA-256 `32F5840FB2BF844BDABAFE372591DDFB9286E98117F5B21950AAF54EA856919A`.
+- Both keep U+0020-007E, U+00A0-017F, dashes, quotes, bullet, ellipsis, euro, TM and arrows where the font has them.
 
 ## Logo
 

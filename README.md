@@ -28,7 +28,7 @@ This is a beta. It has two demo routes:
 | Skips | Skip a step, or say you're not doing a quest (its follow-ups drop out too). The Undo button or `/aog undo` takes back your last skips. |
 | Item button | Above the window, to the right of the target button (on the left when it is the only one). It holds the quest item the step needs, or your hearthstone. It also shows an item that starts a quest (like the Nibbled-On Book) as soon as it is in your bags, with a yellow "!". It is offered on the steps before the step that uses it and shortly after, not only on that step. Click it to open the quest (you still press Accept); a plain mouse click works, also with the game's "cast on key down" option on. While you farm for such an item, it shows "Farming for: {item}". You click it; the addon never uses anything by itself. In combat it stays as it is and catches up right after. Setting: Guide window > "Item button" (on by default). `/aog selftest` says why the button is hidden. |
 | Step notes | A short dim line under the current step's goals says why the guide does it. At most two lines; a longer note ends in "..." and the whole text is in the step's tooltip. When the window can't grow (in combat, at the top of the screen), the note waits. Setting: Steps > "Step notes" (on by default). |
-| Item pictures | The guide window shows an item's own game icon before its name on every step in view: the step text, the note under the step, goal lines (instead of the small square), the next-step lines and the step tooltip. Items a step only names in its text (like the Nibbled-On Book) get their picture too, and so do items new in WoW Forever. Point at the name, icon or goal line to see the game's item tooltip (clicking does nothing). Setting: Steps > "Item pictures" (on by default). Item names come from the game, or from CMaNGOS (GPL) data before the game has loaded the item. |
+| Item pictures | The guide window shows an item's own game icon on the current step only, never on the next-step lines or in step tooltips. The icon is a small tile at the left of the note line under the step (like the kill X on goal lines), and at the left of the step text only when that line has no step icon (next to the 3D view). Goal lines show the item icon instead of the small square. The item's name in the step text and the note is a coloured name: hover it to see the game's item tooltip (clicking does nothing). Items a step only names in its text (like the Nibbled-On Book) get their picture too, and so do items new in WoW Forever. Setting: Steps > "Item pictures" (on by default). Item names come from the game, or from CMaNGOS (GPL) data before the game has loaded the item. |
 | "Use it now" reminders | The step button glows (and gently pulses) when the target is in range, when you are at the spot, or right after you loot the item. In the menu: off, glow, glow and text, or glow, text and sound (sound is off unless you pick it). |
 | Hints | Hearthstone (ready now or in N minutes; a warning if it is set to another inn than the route expects) and flight paths (new one here, one you lack, which place to pick on the flight map). Known flight paths are remembered per character. |
 | Arrow | One arrow for everything: your corpse after you release, then a spot another addon asks for, then a spot you picked, then the step. It turns green when you face it, yellow to the side and red behind, and shows distance as walk time or yards. |
@@ -210,7 +210,19 @@ The guide menu, dialogs, copy box and menus are almost solid, so they are easy t
 
 ### Settings
 
-`/aog config` opens the Settings pages in the guide menu: General, Guide window, Arrow, Map pins, Steps and Advanced. Each setting has a tooltip with its default. Sliders take the mouse wheel only after you click them once (until then the wheel scrolls the page). "Reset this page" resets only that page. Among them: language, use the guide on this character, hide it in battlegrounds and raids, First Aid steps, which chat window gets messages, window size, steps shown, text size (-4 to +4, default +2; the window keeps its top-left corner while you drag it), high contrast, colour-blind colours and the smart arrow.
+`/aog config` opens the Settings pages in the guide menu: General, Guide window, Arrow, Map pins, Steps and Advanced. Each setting has a tooltip with its default. Sliders take the mouse wheel only after you click them once (until then the wheel scrolls the page). "Reset this page" resets only that page. Among them: language, use the guide on this character, hide it in battlegrounds and raids, First Aid steps, which chat window gets messages, window size, steps shown, text size (-4 to +4, default +2; the window keeps its top-left corner while you drag it), text font (see [Text font](#text-font)), high contrast, colour-blind colours and the smart arrow.
+
+### Text font
+
+Settings > Guide window > "Text font" sets the guide's font:
+
+| Choice | What it is |
+|---|---|
+| Open Sans (default) | A clean, modern font. |
+| Easy-read (dyslexia) | A font made to be easier to read with dyslexia. It is wider, so long steps are cut sooner. |
+| Classic | WoW's own Friz Quadrata. |
+
+Game languages with other alphabets (Russian, Korean, Chinese) keep the game's own font.
 
 ### Language
 
@@ -300,6 +312,8 @@ Quest facts (ids, coordinates, levels) in the demo routes come from the [Warcraf
 [CMaNGOS classic-db](https://github.com/cmangos/classic-db), GPL-3.0: some NPC positions, quest giver and turn-in ids, creature spawn areas (grid-snapped), city gate object positions (smart arrow), quest item ids and loot / vendor sources, and model display ids were checked against or derived from this database. Game facts in it come from World of Warcraft, (c) Blizzard Entertainment; they are not covered by our GPL licence and are used only as reference facts in a free, non-commercial addon. Not affiliated with or endorsed by CMaNGOS or Blizzard.
 
 [ForeverDB](https://foreverdb.net/): some quest ids, levels, XP, prerequisites, NPC ids and quest item ids for quests only on WoW Forever, used as reference facts. ForeverDB states no licence for its data; no texts were copied. Not affiliated with ForeverDB or Blizzard.
+
+Fonts: [Open Sans](https://github.com/googlefonts/opensans) (Copyright 2020 The Open Sans Project Authors) and a renamed copy of [OpenDyslexic](https://github.com/antijingoist/opendyslexic) by Abbie Gonzalez (shown as "Easy-read"; the original name is reserved, so our copy has its own). Both are under the SIL Open Font License 1.1; the notices are in `AllinOneGuide\media\fonts\OFL.txt`.
 
 World of Warcraft and its content are trademarks and copyrights of Blizzard Entertainment. This addon is not made or endorsed by Blizzard Entertainment.
 

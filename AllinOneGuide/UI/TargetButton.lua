@@ -156,11 +156,13 @@ end
 function TB.Update(replace)
     local name = TB.Wanted()
     TB.want = name
-    if not replace and name == TB.name and (not name or (TB.frame and TB.frame:IsShown())) then
+    -- (messy-play fix: a change queued in combat for another mob must be replaced, so only skip when none waits)
+    if not replace and name == TB.name and not CQ.Pending("targetbutton") and (not name or (TB.frame and TB.frame:IsShown())) then
         TB.Look()
         return
     end
-    if not name and not TB.frame then return end
+    -- (nothing to hide when never built, unless a change for a mob waits: that one must be replaced)
+    if not name and not TB.frame and not CQ.Pending("targetbutton") then return end
     CQ.Run("targetbutton", Apply, name)
     TB.Look()
 end

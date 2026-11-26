@@ -6,6 +6,7 @@
 --                  green -> yellow -> red; done / danger colours follow (blue / orange), badges keep their
 --                  own shapes
 --   font size:     points on every font (setting fontSize, -4 .. +4; never under Theme.MIN_FONT)
+--   text font:     setting font (Theme\Media.lua Md.FONTS: Open Sans, Easy-read, Classic)
 -- and the window scale: own scale per window (setting scale) on top of the UI scale, or the same size
 -- whatever the UI scale is (followUIScale off). UI_SCALE_CHANGED / DISPLAY_SIZE_CHANGED re-apply the
 -- scale and put the window back on screen.
@@ -50,7 +51,7 @@ Ov.CB = {
     ["color.stepFrameMissing"] = { "#FF9F1C", 1 },
 }
 
-local LOOK_KEYS = { highContrast = true, colorBlind = true, fontSize = true }
+local LOOK_KEYS = { highContrast = true, colorBlind = true, fontSize = true, font = true }
 local SCALE_KEYS = { scale = true, followUIScale = true }
 
 -- Overlays and font size from the settings into the theme.
@@ -59,7 +60,7 @@ function Ov.Apply()
     local list = {}
     if S.Get("highContrast") then list[#list + 1] = Ov.HC end
     if S.Get("colorBlind") then list[#list + 1] = Ov.CB end
-    Th.SetOverlays(list, S.Get("fontSize"))
+    Th.SetOverlays(list, S.Get("fontSize"), S.Get("font"))
 end
 
 -- The panel alpha: opaque with high contrast (the combat fade still applies on top).
@@ -145,6 +146,17 @@ ns.SelfChecks[#ns.SelfChecks + 1] = { label = "overlay", fn = function(h)
     local S = ns.Settings
     h.Info(("look: contrast %s, colour-blind %s, text %+d, scale %d%%"):format(S.Get("highContrast") and "on" or "off",
         S.Get("colorBlind") and "on" or "off", S.Get("fontSize"), math.floor(Ov.WindowScale() * 100 + 0.5)))
+    -- the text font: which one, and whether it really loaded (a shipped file that fails = the game font shows)
+    h.Count()
+    if Th.Western() then
+        local id, d = Th.Face()
+        local ok, why = ns.Media.FontLoaded(d)
+        h.Info(("font: %s (%s, x%s) %s"):format(id, d.file and "shipped" or "game font", tostring(d.scale),
+            ok and "loaded" or ("NOT loaded: " .. tostring(why))))
+        if not ok then h.Problem("font: " .. id .. " did not load (" .. tostring(why) .. ")") end
+    else
+        h.Info("font: the game's own font (client language " .. tostring(ns.Compat.Locale()) .. ")")
+    end
 end }
 
 local function OnScreenChange()

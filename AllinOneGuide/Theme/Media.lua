@@ -138,6 +138,71 @@ ns.SelfChecks[#ns.SelfChecks + 1] = { label = "media keys", fn = function(h)
     if #list > 0 then h.Problem("media: no art for " .. table.concat(list, ", ", 1, math.min(#list, 4))) end
 end }
 
+-- Text fonts (setting "font"; plans\font\plan.md). file = ours in media\fonts\ (SIL OFL 1.1, built by
+-- tools\build_fonts.py, see media\fonts\OFL.txt), game = a built-in game font. scale: on every font size (same
+-- look size as the old Arial Narrow), line: on the line height, numbers: the font for outlined number texts.
+Md.FONTS = {
+    opensans = { file = "fonts\\OpenSans.ttf", scale = 0.9, line = 1 },
+    dyslexic = { file = "fonts\\AOGReadable.ttf", scale = 0.75, line = 1.15, numbers = "opensans" },
+    classic = { game = "Fonts\\FRIZQT__.TTF", scale = 0.93, line = 1 },
+}
+Md.FONT_ORDER = { "opensans", "dyslexic", "classic" }
+Md.FONT_DEFAULT = "opensans"
+
+-- The game path of a Md.FONTS entry.
+function Md.FontPath(d)
+    d = d or Md.FONTS[Md.FONT_DEFAULT]
+    if d.file then return Md.PATH .. d.file end
+    return d.game
+end
+
+-- An addon font can draw blank the first time it is used: one hidden font string per shipped font loads each
+-- file while the addon loads (UIKit refreshes the texts once more at the first PLAYER_ENTERING_WORLD).
+function Md.PreloadFonts()
+    if Md.preload then return end
+    local CF = rawget(_G, "CreateFrame")
+    if not CF then return end
+    local f = CF("Frame")
+    f:Hide()
+    Md.preload = {}
+    for _, id in ipairs(Md.FONT_ORDER) do
+        local d = Md.FONTS[id]
+        if d.file then
+            local fs = f:CreateFontString(nil, "BACKGROUND")
+            Md.preload[id] = fs:SetFont(Md.FontPath(d), 12, "") and true or false
+            fs:SetText("Wa")
+        end
+    end
+end
+Md.PreloadFonts()
+-- once more at login: texts made before the file was ready get their font again (blank first draws)
+if ns.Bus then   -- (check-zip loads this file alone)
+    ns.Bus.On("Login", Md, function()
+        local _, d = ns.Theme.FontFile()
+        if d and d.file and ns.UIKit then ns.UIKit.RefreshFonts() end
+    end, "ui", 50)
+end
+
+-- Self-test: does font entry d load? true, or false + why. A hidden probe of our own (text cleared after).
+function Md.FontLoaded(d)
+    local CF = rawget(_G, "CreateFrame")
+    if not CF then return false, "no CreateFrame" end
+    if not Md.probe then
+        local f = CF("Frame")
+        f:Hide()
+        Md.probe = f:CreateFontString(nil, "BACKGROUND")
+    end
+    local fs, path = Md.probe, Md.FontPath(d)
+    if not fs:SetFont(path, 12, "") then return false, "SetFont failed" end
+    local got = fs:GetFont()
+    if type(got) ~= "string" or got:lower() ~= path:lower() then return false, "font is " .. tostring(got) end
+    fs:SetText("Wa")
+    local w = fs:GetStringWidth()
+    fs:SetText("")
+    if type(w) ~= "number" or w <= 0 then return false, "draws nothing" end
+    return true
+end
+
 -- Raw texture memory of the shipped art in bytes (32-bit: 4 bytes per pixel).
 function Md.RawBytes()
     local n = 0

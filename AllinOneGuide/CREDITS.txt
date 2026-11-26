@@ -25,6 +25,15 @@ https://github.com/gettic/All-in-One-Guide
 Third-party content
 -------------------
 
+Fonts (media\fonts\, SIL Open Font License 1.1; the licence and the
+copyright notices are in media\fonts\OFL.txt; the fonts stay under the OFL):
+- OpenSans.ttf: a subset of Open Sans SemiBold, Copyright 2020 The Open Sans
+  Project Authors (https://github.com/googlefonts/opensans).
+- AOGReadable.ttf ("Easy-read"): a renamed subset of OpenDyslexic Regular by
+  Abbie Gonzalez (https://github.com/antijingoist/opendyslexic). OpenDyslexic
+  is a Reserved Font Name, so our changed copy has its own name.
+Both are built by tools\build_fonts.py (in the source repository).
+
 Warcraft Wiki (https://warcraft.wiki.gg), by the Warcraft Wiki contributors.
 Text licensed under CC BY-SA 4.0
 (https://creativecommons.org/licenses/by-sa/4.0/).
