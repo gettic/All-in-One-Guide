@@ -41,6 +41,8 @@ S.schema = {
     { key = "questGiverCheck", scope = "account", kind = "bool", default = true, export = true, page = "steps" },
     -- beta.8 step notes (plans\note-line\plan.md): the current step's `why` as a dim line under its goals
     { key = "noteLine", scope = "char", kind = "bool", default = true, export = true, page = "steps" },
+    -- beta.9 item pictures (UI\ItemIcons.lua): item icons in the step text, goal lines and next lines
+    { key = "itemIcons", scope = "char", kind = "bool", default = true, export = true, page = "steps" },
 
     { key = "locked", scope = "char", kind = "bool", default = false, export = true, page = "window" },
     { key = "small", scope = "char", kind = "bool", default = false, export = true, page = "window" },

@@ -407,18 +407,27 @@ function PL.PlaceMini(mm, pm, px, py, radius, w, h, facing, rotate)
     end
     local holder = MiniHolder(mm)
     local corpse = ns.Arrow and ns.Arrow.source == "corpse"
-    if not LoopShown(t) then
+    local loop = LoopShown(t)
+    if not loop then
         local lines = PlaceLines(mm, holder, xs, ys, #pts, w, h, corpse)
         if lines then
             Clear(set)
             return lines
         end
     end
-    ClearLines()
+    -- hunting: the way from you to the loop's current point is a go-to too, so a solid line; only the loop itself is
+    -- dots (beta.9 report: "no line for the first go to, and the dots are flickering"). The player's leg as dots
+    -- changed its dot count with every step, which moved every loop dot to another slot (colour / sublevel swaps).
+    local first = 1
+    if loop and PlaceLines(mm, holder, xs, ys, 1, w, h, corpse) then
+        first = 2
+    else
+        ClearLines()
+    end
     local quarters = Quarters()
     local gap = math.max(1, Th.Size("pathMiniGap"))
     local n, nEnds = 0, 0
-    for k = 1, #pts do
+    for k = first, #pts do
         local ax, ay, bx, by = xs[k], ys[k], xs[k + 1], ys[k + 1]
         if not (ax and bx) then break end   -- another continent from here on: nothing more to draw
         local t0, t1 = ClipBox(ax, ay, bx, by, -hw, -hh, hw, hh)
@@ -443,7 +452,7 @@ function PL.PlaceMini(mm, pm, px, py, radius, w, h, facing, rotate)
                 d:SetSize(size, size)
                 d:SetVertexColor(cr, cg, cb, ca)
                 -- fixed draw order: the leg you walk now on top (same layer + sublevel = no fixed order)
-                local sub = k == 1 and 2 or 1
+                local sub = k == first and 2 or 1
                 if set.sub[n] ~= sub then
                     set.sub[n] = sub
                     d:SetDrawLayer("OVERLAY", sub)

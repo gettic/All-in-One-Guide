@@ -35,7 +35,8 @@ local function Fields(s)
     return table.concat(t, ",")
 end
 
-local function Bare(s) return (tostring(s):gsub("{[%w_]+}", "")) end
+-- {placeholders} count as nothing; an {item:<id>} token (item pictures) counts as a 12-character item name
+local function Bare(s) return (tostring(s):gsub("{item:%d+}", ("x"):rep(12)):gsub("{[%w_]+}", "")) end
 
 function TL.CapFor(rules, key, lang)
     for _, l in ipairs(rules.lengths) do
@@ -155,6 +156,10 @@ function TL.LintStepText(rules, text, lang, extraWords, kind)
             end
         end
     end
+    for tok in text:gmatch("{item[^}]*}?") do
+        if not tok:match("^{item:%d+}$") then out[#out + 1] = "bad item token " .. tok .. " (use {item:<id>})" end
+    end
+    text = text:gsub("{item:%d+}", "item")   -- the word checks see a plain word, not the id
     for _, m in ipairs(TL.Words(rules, text, lang, extraWords)) do out[#out + 1] = m end
     local c = rules.copied
     for _, p in ipairs(c.tokens) do

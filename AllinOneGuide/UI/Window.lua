@@ -798,8 +798,10 @@ function UI.DistText(step)
     return ns.U.Fill(L().YARDS, { n = math.floor(d + 0.5) })
 end
 
-local function Wrap(field, v)
+local function Wrap(field, v, id)
     if field == "quest" and v then return Th.Wrap("quest", v) end
+    -- an {item:<id>} token: its icon + item link (item pictures on), else the plain name
+    if field == "item" and v and id and ns.ItemIcons and ns.ItemIcons.On() then return ns.ItemIcons.Link(id, v) end
     return v
 end
 
@@ -859,6 +861,12 @@ function UI.Model()
     for i, gl in ipairs(goals) do
         if not gl.done and not gl.more then focus = i break end
     end
+    -- beta.9 item pictures: the icon before the item's first mention, item icons on goal lines
+    local II = ns.ItemIcons
+    if II and II.On() then
+        text = II.Decorate(cur, text)
+        for _, gl in ipairs(goals) do gl.item = II.GoalItem(cur, gl) end
+    end
     m.rows = { { step = cur, number = m.index, badge = K.BadgeKind(cur), tile = kind, text = text, state = "current",
         right = not coord and UI.DistText(cur) or nil, goals = goals, sub = UI.SubLines(top, cur, coord), focus = focus,
         note = UI.NoteText(cur) } }
@@ -869,7 +877,8 @@ function UI.Model()
         local tag, target = UI.NextTag(s, plain)
         local where = s.map and s.x and s.y and ("%.0f, %.0f"):format(s.x * 100, s.y * 100) or nil
         m.rows[#m.rows + 1] = { step = s, number = numbers[s.index], badge = K.BadgeKind(s), tile = k, text = t,
-            tag = tag, target = target, state = "upcoming", right = UI.UnderLevelText(top, s) or where }
+            tag = tag, target = target, state = "upcoming", right = UI.UnderLevelText(top, s) or where,
+            icon = II and II.NextIcon(s) or nil }
     end
     m.done = math.max(0, m.index - 1)
     return m
@@ -1061,6 +1070,12 @@ local function Row(i)
         end)
         r:SetScript("OnEnter", function(self) if self.step then ns.Errors.Call("ui", UI.StepTip, self) end end)
         r:SetScript("OnLeave", K.HideTooltip)
+        -- beta.9 item pictures: hovering an item's name / icon in the step text shows the game's item tooltip
+        -- (our own item:<number> links only); a click on it does nothing (tos: no chat links, no item use)
+        if r.SetHyperlinksEnabled then r:SetHyperlinksEnabled(true) end
+        r:SetScript("OnHyperlinkEnter", function(self, link) ns.Errors.Call("itemicons", ns.ItemIcons.LinkEnter, self, link) end)
+        r:SetScript("OnHyperlinkLeave", function(self) ns.Errors.Call("itemicons", ns.ItemIcons.LinkLeave, self) end)
+        r:SetScript("OnHyperlinkClick", function() end)
     end
     return r
 end
@@ -1624,7 +1639,7 @@ local function OnSettings(_, key)
         if (key == "lines" or key == "small") and not Co.InCombat() and ns.Overlay.KeepOnScreen(UI.frame) then UI.SavePos() end
     elseif key == "opacity" then
         UI.ApplyOpacity()
-    elseif key == "reducedMotion" or key == "quiet" or key == "noteLine" then
+    elseif key == "reducedMotion" or key == "quiet" or key == "noteLine" or key == "itemIcons" then
         UI.Refresh()
     end
 end

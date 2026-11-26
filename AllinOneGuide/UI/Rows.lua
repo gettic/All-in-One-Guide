@@ -166,10 +166,28 @@ local function Line(row, i)
     ln.caret = K.Glyph(row, "btn.caret", math.max(8, Th.Size("tile") - 2), "goalDone", "ARTWORK")
     ln.caret:Hide()
     ln.holder:SetScript("OnMouseUp", function(_, button)
-        if button == "LeftButton" and ln.fold and row.onFold then row.onFold() end
+        if button == "LeftButton" and ln.fold and row.onFold then row.onFold() return end
+        -- an item goal line takes the mouse (its tooltip): clicks still reach the row (step menu, click)
+        local f = not ln.fold and row:GetScript("OnMouseUp")
+        if f then f(row, button) end
     end)
+    -- beta.9 item pictures: hovering an item goal line shows the game's item tooltip
+    ln.holder:SetScript("OnEnter", function(self)
+        if ln.item and ns.ItemIcons then ns.Errors.Call("itemicons", ns.ItemIcons.ItemTip, self, ln.item) end
+    end)
+    ln.holder:SetScript("OnLeave", function() K.HideTooltip() end)
     row.lines[i] = ln
     return ln
+end
+
+-- The item icon of a goal line (created on first use), over its tile, edge trimmed.
+local function ItemTex(row, ln)
+    if ln.icon then return ln.icon end
+    local ic = row:CreateTexture(nil, "ARTWORK", nil, 5)
+    ic:SetAllPoints(ln.pin)
+    ic:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    ln.icon = ic
+    return ic
 end
 
 local function LineBg(ln, key)
@@ -187,7 +205,8 @@ local function ShowLine(ln, shown)
     ln.holder:SetShown(shown)
     if not shown then
         ln.caret:Hide()
-        ln.fold = nil
+        ln.fold, ln.item = nil, nil
+        if ln.icon then ln.icon:Hide() end
         ln.holder:EnableMouse(false)
         K.TileShown(ln.tile, false)
         K.TileShown(ln.open, false)
@@ -414,6 +433,18 @@ function R.Set(row, d)
             K.TileShown(ln.tile, kindTile and true or false)
             K.TileShown(ln.done, g.done and true or false)
             K.TileShown(ln.open, not kindTile and not g.done and not g.more)
+            -- beta.9 item pictures: an open goal about an item shows the item's icon instead of its tile
+            local itemIcon = g.item and not g.done and not g.more and not g.fold and ns.ItemIcons
+            if itemIcon then
+                local ic = ItemTex(row, ln)
+                ic:SetTexture(ns.ItemIcons.Icon(g.item))
+                ic:Show()
+                K.TileShown(ln.tile, false)
+                K.TileShown(ln.open, false)
+            elseif ln.icon then
+                ln.icon:Hide()
+            end
+            ln.item = itemIcon and g.item or nil
             ln.text:SetText(g.text or "")
             if ln.text.SetWordWrap then ln.text:SetWordWrap(false) end
             local doneKey = g.indent and "goalDoneDim" or "goalDone"
@@ -434,7 +465,7 @@ function R.Set(row, d)
             ln.edge:SetShown(isFocus)
             -- the fold line: clickable, caret right of its text (pointing right = closed, down = open)
             ln.fold = g.fold and true or nil
-            ln.holder:EnableMouse(g.fold and true or false)
+            ln.holder:EnableMouse((g.fold or ln.item) and true or false)
             ln.caret:SetShown(g.fold and true or false)
             if g.fold then
                 Th.Glyph(ln.caret, "btn.caret", g.open and "cw" or nil)
@@ -443,7 +474,8 @@ function R.Set(row, d)
                 ln.caret:SetPoint("LEFT", row, "TOPLEFT", gx + Th.Size("tile") + 5 + tw + 4, -(h + LG / 2))
             end
         else
-            ln.fold, ln.indent = nil, 0
+            ln.fold, ln.indent, ln.item = nil, 0, nil
+            if ln.icon then ln.icon:Hide() end
             ln.caret:Hide()
             ln.holder:EnableMouse(false)
             K.TileShown(ln.tile, true)
@@ -496,6 +528,25 @@ function R.Set(row, d)
         e[4]:SetPoint("TOPRIGHT", tg.text, "TOPRIGHT") e[4]:SetPoint("BOTTOMRIGHT", tg.text, "BOTTOMRIGHT") e[4]:SetWidth(hair)
         -- the target: after the tag, ends a gap before the coords; cut with "..." when too long
         local tx = x + tw + 6
+        -- beta.9 item pictures: a 12 px item icon between the tag and the target (a texture, never in the cut text)
+        if d.icon then
+            local ti = row.tagIcon
+            if not ti then
+                ti = row:CreateTexture(nil, "ARTWORK")
+                ti:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                row.tagIcon = ti
+            end
+            local s = ns.ItemIcons and ns.ItemIcons.NEXT or 12
+            ti:SetTexture(d.icon)
+            ti:SetSize(s, s)
+            ti:ClearAllPoints()
+            ti:SetPoint("TOPLEFT", row, "TOPLEFT", tx, -math.max(0, (LH - s) / 2))
+            ti:SetVertexColor(1, 1, 1, tonumber(d.fade) or 1)   -- fades with the line (no SetAlpha: ui lint)
+            ti:Show()
+            tx = tx + s + 2
+        elseif row.tagIcon then
+            row.tagIcon:Hide()
+        end
         local rw = (row.right:GetText() or "") ~= "" and math.ceil(row.right:GetStringWidth() or 0) or 0
         local gap = 8
         local avail = (row:GetWidth() or 0) - tx - Pad() - reserve - (rw > 0 and rw + gap or 0)
@@ -511,6 +562,7 @@ function R.Set(row, d)
         h = LH
     else
         TagShown(row, false)
+        if row.tagIcon then row.tagIcon:Hide() end
     end
     row:SetHeight(h)
     return h

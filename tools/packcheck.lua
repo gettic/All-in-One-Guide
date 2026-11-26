@@ -65,8 +65,36 @@ local function Placeholders(s)
     for k in (s or ""):gmatch("{([%w_]+)}") do
         if not t[k] then t[k] = true list[#list + 1] = k end
     end
+    -- beta.9 item pictures: {item:<id>} tokens count too (Danish must name the same items)
+    for k in (s or ""):gmatch("{(item:%d+)}") do
+        if not t[k] then t[k] = true list[#list + 1] = k end
+    end
     table.sort(list)
     return table.concat(list, ",")
+end
+
+-- {item:<id>} tokens (packs-src\FORMAT.md "Item tokens"): problems, or nil. Every "{item" must be {item:<id>}, id > 0.
+local function ItemTokenProblem(s)
+    for tok in (s or ""):gmatch("{item[^}]*}?") do
+        local id = tonumber(tok:match("^{item:(%d+)}$"))
+        if not id or id <= 0 then return "bad item token " .. tok .. " (use {item:<id>})" end
+    end
+    return nil
+end
+
+-- The 90-character rule counts a token as the item's name (Data\ItemNames.lua when found, else 12 characters).
+local itemNames
+local function TokenText(s)
+    if not s:find("{item:", 1, true) then return s end
+    if itemNames == nil then
+        itemNames = false
+        local f = loadfile("AllinOneGuide/Data/ItemNames.lua")
+        if f then
+            local fake = {}
+            if pcall(f, "AllinOneGuide", fake) and type(fake.ItemNames) == "table" then itemNames = fake.ItemNames end
+        end
+    end
+    return (s:gsub("{item:(%d+)}", function(id) return (itemNames and itemNames[tonumber(id)]) or ("x"):rep(12) end))
 end
 
 local function Decimals(n)
@@ -205,7 +233,9 @@ function PC.Check(pack, opts)
                     if type(v) ~= "string" then Err(where, k .. " must be text")
                     else
                         if v:find("[|\r\n]") then Err(where, "'|' or a line break in " .. k) end
-                        if Utf8Len(v) > 90 then report.long = report.long + 1 end
+                        local bad = ItemTokenProblem(v)
+                        if bad then Err(where, bad .. " in " .. k) end
+                        if Utf8Len(TokenText(v)) > 90 then report.long = report.long + 1 end
                     end
                 end
             end

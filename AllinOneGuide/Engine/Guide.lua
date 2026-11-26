@@ -755,6 +755,16 @@ function Guide:Text(step, wrap)
             for k, v in pairs(fields) do fields[k] = wrap(k, v) end
         end
         text = ns.U.Fill(text, fields)
+        -- {item:<id>} (beta.9 item pictures): the item's name; the window's wrap turns it into its icon + link
+        if text:find("{item:", 1, true) then
+            text = text:gsub("{item:(%d+)}", function(id)
+                id = tonumber(id)
+                local II = ns.ItemIcons
+                local name = II and II.Token(id) or ns.L.ITEM_FALLBACK
+                if wrap then return wrap("item", name, id) or name end
+                return name
+            end)
+        end
     end
     return text
 end

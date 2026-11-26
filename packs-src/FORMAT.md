@@ -59,7 +59,7 @@ return {
 | `npc` | NPC id (who to talk to / what to kill); names are never stored, the step text says it in our words |
 | `map`, `x`, `y` | `uiMapId` and coordinates in percent (0-100, at most 2 decimals). Optional on `accept`, `turnin`, `objective` and `level` steps: a step without them simply has no arrow (the text says where, e.g. "wolves around the valley"); it still ticks by itself. Required on `goto`. |
 | `r` | radius in yards for `goto` / `leaveArea` (empty = 10). `r = 0` on a `goto` means no arrow and no auto-complete (the player moves on by hand); not needed on steps that have no spot. |
-| `text`, `da` | short step text in our own words (verb + target + count + place), English and Danish. `{quest}` is replaced by the quest name from the game (fallback: `qname`). No `|`, no line breaks. |
+| `text`, `da` | short step text in our own words (verb + target + count + place), English and Danish. `{quest}` is replaced by the quest name from the game (fallback: `qname`). `{item:<id>}` is replaced by the item's name with its icon in front (see "Item tokens"). No `|`, no line breaks. |
 | `flags` | list of words: `elite`, `group`, `deadly`, `ahStep`, `tradeStep`, `extra`, `future`, `noAutoAccept`, `walk`, `leaveArea`, `grind` |
 | `cond` | when the step applies (grammar, section 5). Checked while playing, so ids stay the same for every character. |
 | `src` | where the facts come from: `own, rec, lookup, wiki, client, questie, forevdb, codex, cmangos, lpdb, att, legacy`. Steps with no looked-up fact (e.g. `level` steps, our own route choices) use `own` and need no `seen`. |
@@ -129,6 +129,21 @@ checker and bug reports; the addon ignores it).
 
 The header `conditions` apply to the whole pack: they are not copied into each row's `cond`. The addon checks them
 when it picks or lists packs for the character (v0.1: the faction-picked demo route).
+
+### Item tokens (beta.9, item pictures)
+
+The addon puts the item's own game icon before the item's name in the current step's text by itself when the step
+names the item in a field (`item`, `useItem`, a `useitem` step's `item`, `item=<id>` in `cond`) and the text uses the
+item's real English name (`Data\ItemNames.lua`, or the game's name). Write a token only where that isn't so: the text
+names an item that has no field, or calls it something else than its real name.
+
+- Form: `{item:<id>}` with a number above 0, e.g. `text = "Use the {item:247834} to start {quest}"`. It becomes the
+  item's name (the game's, else `Data\ItemNames.lua`, else "item") with its icon; hovering shows the item's tooltip.
+- In `text` and `da` (the same tokens in both); not in `why`, `qname` or other fields.
+- Checks: packcheck errors on a malformed token (`{item}`, `{item:abc}`, `{item:0}`) and on `da` with other tokens
+  than `text`; the 90-character rule and textlint count a token as the item's name (12 characters when unknown).
+- After adding items, run `luajit tools/item_names.lua <ClassicDB.sql>` so `Data\ItemNames.lua` knows their names
+  (Forever-only items aren't in CMaNGOS: the game's name is used).
 
 ## 3. Compiled file (`AllinOneGuide\Routes\<file>.lua`)
 
