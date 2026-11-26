@@ -85,6 +85,38 @@ local function Tag(row)
     return tg
 end
 
+-- beta.13 equal tags (plans\tag-width\, the user: "make all boxes for the next step the same size"): every verb
+-- up to R.TAG_STD_LEN letters ("GO BACK") gets one box width, the widest of them MEASURED in the tag's own font and
+-- size (so it follows the Text font and size settings); longer phrases ("SPEAK TO", "SET YOUR HEARTHSTONE") keep
+-- their own wider box. Cached per font file + size + flags + verb list; a new font or size measures again.
+R.TAG_STD_LEN = 7
+R.TAG_PAD = 8
+R.TAG_GAP = 6    -- clear room between a tag box's right border and the target text
+R.TAG_VGAP = 4   -- a tag box is the line height minus this (centred: this much between two lines' boxes)
+R.TAG_MIN_H = 6  -- (the smallest text size: the 4 px gap wins over a taller box)
+local tagStd = {}
+function R.TagWidth(fs)
+    local file, size, flags = fs:GetFont()
+    local UI = ns.UI
+    local list = UI and UI.VerbList and UI.VerbList() or {}
+    local key = tostring(file) .. "\1" .. tostring(size) .. "\1" .. tostring(flags) .. "\1" .. tostring(list)
+    if tagStd.key == key then return tagStd.w end
+    local keep = fs:GetText()
+    local w, words = 0, { tostring(ns.L and ns.L.TAG_NOTE or "") }
+    for _, v in ipairs(list) do words[#words + 1] = v[1] end
+    for _, word in ipairs(words) do
+        word = word:upper()
+        if word ~= "" and #word <= R.TAG_STD_LEN then
+            fs:SetText(word)
+            w = math.max(w, math.ceil(fs:GetStringWidth() or 0))
+        end
+    end
+    fs:SetText(keep)
+    tagStd.key, tagStd.w = key, w + R.TAG_PAD
+    R.tagMeasures = (R.tagMeasures or 0) + 1
+    return tagStd.w
+end
+
 local function TagShown(row, on)
     local tg = row.tag
     if not tg then return end
@@ -347,15 +379,19 @@ function R.Note(row, text, h, reserve, item)
     end
     local LG = Th.LineHeight("goal")
     -- with an item: its tile where a goal line's tile sits, the text where a goal line's text starts
-    local x = GoalX(row) + (item and Th.Size("tile") + 5 or Th.Size("foldIndent"))
+    -- (beta.13, the user: "Line up the grey note with the text"): next to the 3D view (lean) the note starts in the
+    -- step text's column (its tile there too, like the step text's own tile); without the view as before
+    local x0 = row.lean and TextX(row) or GoalX(row)
+    local x = x0 + (item and Th.Size("tile") + 5 or (row.lean and 0 or Th.Size("foldIndent")))
     local w = (row:GetWidth() or 0) - x - Pad() - (reserve or 0)
     local l1, l2, cut = R.NoteLines(note[1], text, w)
     row.noteCut = cut or nil
     h = h + Th.Size("noteGap")
     if item then
         local s = TileS(LG)   -- (the goal tile's size helper: always the same as the kill X)
-        R.ItemTile(row, "note", item, GoalX(row), h + (LG - s) / 2, s)
+        R.ItemTile(row, "note", item, x0, h + (LG - s) / 2, s)
     end
+    row.noteX = x
     for i, t in ipairs({ l1, l2 or false }) do
         local fs = note[i]
         if t then
@@ -578,18 +614,23 @@ function R.Set(row, d)
     if tagged then
         local a = tonumber(d.fade) or 1
         local key = "verb." .. tostring(d.tag.kind)
+        -- (beta.13, the user: "Lighter blue and red text"): a theme may give next lines their own, lighter verb
+        -- colour (color.next.<kind>), readable after the row fade; else the verb's own colour
+        if Th.Has("color.next." .. tostring(d.tag.kind)) then key = "next." .. tostring(d.tag.kind) end
         if not Th.Has("color." .. key) then key = "upcoming" end
         local tg = Tag(row)
         TagShown(row, true)
         K.TileShown(tile, false)
         row.num:Hide()
+        local std = R.TagWidth(tg.text)   -- (beta.13: one box width for every short verb, word centred)
         tg.text:SetText(d.tag.word or "")
         Faded(tg.text, key, a)
-        local tw = math.ceil(tg.text:GetStringWidth() or 20) + 8
-        local th = math.max(8, LH - 4)
+        local tw = math.max(std, math.ceil(tg.text:GetStringWidth() or 20) + R.TAG_PAD)
+        -- (ui look check: LH - 4 tall and centred in the LH-high line, so 4 px between the boxes of two lines)
+        local th = math.max(R.TAG_MIN_H, LH - R.TAG_VGAP)
         local x = Pad()
         tg.text:ClearAllPoints()
-        tg.text:SetPoint("TOPLEFT", row, "TOPLEFT", x, -2)
+        tg.text:SetPoint("TOPLEFT", row, "TOPLEFT", x, -math.max(0, (LH - th) / 2))
         tg.text:SetSize(tw, th)
         local r, g, b, al = Th.Color(key)
         local e = tg.edges
@@ -600,7 +641,8 @@ function R.Set(row, d)
         e[3]:SetPoint("TOPLEFT", tg.text, "TOPLEFT") e[3]:SetPoint("BOTTOMLEFT", tg.text, "BOTTOMLEFT") e[3]:SetWidth(hair)
         e[4]:SetPoint("TOPRIGHT", tg.text, "TOPRIGHT") e[4]:SetPoint("BOTTOMRIGHT", tg.text, "BOTTOMRIGHT") e[4]:SetWidth(hair)
         -- the target: after the tag, ends a gap before the coords; cut with "..." when too long
-        local tx = x + tw + 6
+        -- (ui look check: at least R.TAG_GAP clear from the box's right border to the target's first letter)
+        local tx = x + tw + hair + R.TAG_GAP
         -- (beta.12: no item picture on next lines, the user: "only show icons for active steps")
         local rw = (row.right:GetText() or "") ~= "" and math.ceil(row.right:GetStringWidth() or 0) or 0
         local gap = 8

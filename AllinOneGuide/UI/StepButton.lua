@@ -436,6 +436,16 @@ function SB.Spot(i)
     -- the frame art sticks out 8 on each side: the first button's frame lines up with the window's left edge
     local bx = x * k / s + 8 + (i - 1) * (SB.SIZE + 16)
     local by = y * k / s + gap + SB.SIZE
+    -- beta.13 (the window may now touch the screen top): no room above = the row sits under the window's bottom
+    -- instead (frame art included), so the buttons never cover the title bar
+    local ph = p.GetHeight and p:GetHeight()
+    local b = w:GetBottom()
+    if ph and b and by + 8 > ph / s then
+        by = b * k / s - gap
+        SB.below = true
+    else
+        SB.below = false
+    end
     return bx, by, s
 end
 
@@ -571,9 +581,14 @@ function SB.MisplacedAt(b, spot)
     if bt * kb > p2 - 0.5 then return nil end   -- clamped at the screen's top edge
     local x, y = SB.Spot(spot)
     if not x then return nil end
-    if math.abs(bt - y) > 1 then return "not in the row above the window's top" end
+    if math.abs(bt - y) > 1 then return SB.below and "not in the row under the window" or "not in the row above the window's top" end
     if math.abs(bl - x) > 1 then return ("not at spot %d of that row"):format(spot) end
-    -- above the window, never on it
+    -- above (or, at the screen top, under) the window, never on it
+    if SB.below then
+        local wb = w:GetBottom()
+        if wb and bt * kb > wb * kw + 0.5 then return "covers the window's bottom" end
+        return nil
+    end
     local bb = b:GetBottom()
     if bb and bb * kb < wt * kw - 0.5 then return "covers the window's top" end
     return nil

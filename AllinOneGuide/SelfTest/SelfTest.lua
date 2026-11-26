@@ -374,6 +374,10 @@ function ST.ModelParts()
         { name = "model.card", obj = card, opt = true, shownOnly = true },
         { name = "model.card.badge", obj = card and card.badge and card.badge.disc, opt = true, shownOnly = true, artSelf = true },
         { name = "model.card.text", obj = card and card.text, opt = true, shownOnly = true },
+        -- beta.13 the big step picture (a step without a unit): the item's icon or the kind tile
+        { name = "model.picture", obj = f and f.pic, opt = true, shownOnly = true },
+        { name = "model.picture.icon", obj = f and f.pic and f.pic.icon, opt = true, shownOnly = true, artSelf = true },
+        { name = "model.picture.tile", obj = f and f.pic and f.pic.tile.base, opt = true, shownOnly = true, artSelf = true },
     }
 end
 

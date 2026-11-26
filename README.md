@@ -60,13 +60,16 @@ From the top:
 
 - The zone.
 - The current step: the 3D view on its left, the verb in colour, "for <quest>", the place with coords and distance, and its goals underneath. The goal to do now is marked red.
-- The next steps (3 by default; the bottom edge or "Next steps shown" changes it). Each is one line: a framed tag in the step's colour (TURN IN, ACCEPT, KILL, GO TO ...), what it is about, and the coords at the right. A long name is cut with "...". Hover a line for the NPC and the place. Each line is a bit fainter than the one above.
+- The next steps (3 by default; the bottom edge or "Next steps shown" changes it). Each is one line: a framed tag in the step's colour (TURN IN, ACCEPT, KILL, GO TO ...), what it is about, and the coords at the right. The tags are all the same width (it follows your Text font and Text size; a long phrase such as "SET YOUR HEARTHSTONE" keeps a wider tag). A long name is cut with "...", and a long distance text is cut first. The blue GO TO and red KILL tags are a little lighter, so they read as well as the gold ones. Hover a line for the NPC and the place. Each line is a bit fainter than the one above.
 - Info chips: guide, level / XP and time left.
 - Back, a progress bar ("step 14 / 53 · 26 %") and next.
 
 How it behaves:
 
 - A tall step makes the window grow up (its bottom edge stays). It shrinks back on the next step. Changing the window size or "Next steps shown" keeps the top of the window on screen.
+- You can move the window right up against every screen edge. It can't be lost off screen. At the very top, the item and target buttons move under the window.
+- The grey note under a step lines up with the step text. The window redraws at once on a level-up or XP change.
+- A finished route stays finished after `/reload`.
 - Finished goals fold into one "3 done" line (click to open). A goal that just finished flashes green first.
 - Drag the right edge to make it wider or narrower, the bottom edge to show more or fewer coming steps, or the bottom-right corner to change both. Not while locked or in combat, and not in small mode. Size is saved per character.
 - Default background opacity is 90 % (Settings > Guide window: "Background").
@@ -148,8 +151,9 @@ The smart arrow is on by default. Switch it in the arrow's right-click menu or o
 
 ### 3D view
 
-- The NPC or mob of your current step shows as a 3D model, by default inside the guide window: a square at the top left of the current step, with the step text beside it. Steps without a model show a small "No 3D model for this step" card.
-- Drag it to turn the model, use the mouse wheel to zoom, double-click to reset, right-click for options.
+- The NPC or mob of your current step shows as a 3D model, by default inside the guide window: a square at the top left of the current step, with the step text beside it. The model is turned about 45 degrees toward the text.
+- The square stays on every step, so the layout doesn't jump. A step without a model shows a big picture there instead: the item it is about, or else the step's own icon (accept, turn in, go to ...).
+- Drag it to turn the model, use the mouse wheel to zoom, double-click to reset (back to 45 degrees), right-click for options. Each new model starts at 45 degrees.
 - Settings > Guide window: "Show the 3D view", "3D view position" (inside the window, left, right, below or free; Shift+drag it when free), "3D view size" and "Hide the 3D view in combat" (on by default; this applies to the outside positions, inside the window it stays during fights).
 - Switch it on or off with the options menu or `/aog model`.
 

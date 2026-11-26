@@ -131,6 +131,7 @@ function UI.ApplyPos()
     else
         f:SetPoint(DEFAULT_POINT[1], parent, DEFAULT_POINT[2], DEFAULT_POINT[3], DEFAULT_POINT[4])
     end
+    if UI.FitShadow then UI.FitShadow() end
 end
 UI.ApplyGuidePos = UI.ApplyPos
 
@@ -161,7 +162,32 @@ end
 -- buttons follow it, also with a read-only save or in safe mode).
 function UI.SavePos()
     AnchorBottom(true)
+    UI.FitShadow()
     ns.Bus.Fire("WindowMoved")
+end
+
+-- beta.13: the window may sit flush at a screen edge; the soft shadow's pieces that would hang past that edge are
+-- hidden (nothing of them would show there anyway), the others shown. Cheap (8 textures); on every place / layout.
+function UI.FitShadow()
+    local f, p = UI.frame, Co.UIParent()
+    local rp = f and f.round
+    local sh = rp and rp.shadow
+    if not (sh and sh.pieces and p and p.GetEffectiveScale) then return end
+    local ps = p:GetEffectiveScale()
+    local pw, ph = p:GetWidth(), p:GetHeight()
+    if not (ps and ps > 0 and pw and ph) then return end
+    local hidden = 0
+    for _, tex in pairs(sh.pieces) do
+        local l, b, r, t = tex:GetLeft(), tex:GetBottom(), tex:GetRight(), tex:GetTop()
+        local on = sh.shown ~= false
+        if on and l and b and r and t then
+            local k = tex:GetEffectiveScale() / ps
+            on = l * k >= -0.5 and b * k >= -0.5 and r * k <= pw + 0.5 and t * k <= ph + 0.5
+        end
+        tex:SetShown(on)
+        if not on then hidden = hidden + 1 end
+    end
+    UI.shadowHidden = hidden
 end
 
 function UI.ResetPos()
@@ -236,6 +262,7 @@ function UI.Migrate()
     StorePos("BOTTOMLEFT", "BOTTOMLEFT", left, bottom)
     UI.ApplyPos()
     ns.Overlay.KeepOnScreen(f)
+    UI.FitShadow()
     return true
 end
 -- ------------------------------------------------------------------ building
@@ -244,7 +271,7 @@ local function TitleBar(f)
     local tb = K.TitleBar(f, {
         drag = true, round = true,
         canDrag = function() return not ns.Settings.Get("locked") end,
-        dragStop = function() UI.SavePos() end,
+        dragStop = function() ns.Overlay.KeepOnScreen(UI.frame) UI.SavePos() end,   -- (beta.13: room for the button row)
         close = function() UI.Hide() end,
         closeTip = function() return L().TIP_CLOSE end,
     })
@@ -565,11 +592,16 @@ function UI.Build()
     f:SetClampedToScreen(true)
     f:SetMovable(true)
     f:EnableMouse(true)
-    -- Overlay.KeepOnScreen: anchored by the bottom-left, room for the shadow and the button row
+    -- Overlay.KeepOnScreen: anchored by the bottom-left. beta.13 (the user: "remove the small invisible thing around
+    -- the guide so i can move it all the way to the bottom of my screen"): no room kept on any side, the window's
+    -- visible edge may touch every screen edge (the soft shadow just goes off screen; the item / target button row
+    -- moves under the window when there is no room above it, StepButton.Spot). Only a window too tall for the row to
+    -- fit under it keeps the row's room above its top.
     f.keepBottom = true
     f.keepRoom = function()
-        local sh = Th.Size("shadow")
-        return { sh, sh, UI.TopRoom(), sh }
+        local row, b = UI.ButtonRow(), f:GetBottom()
+        if row > 0 and b and b < row then return { 0, 0, row, 0 } end
+        return { 0, 0, 0, 0 }
     end
     UI.panel = K.RoundPanel(f)
     UI.title = TitleBar(f)
@@ -643,14 +675,14 @@ function UI.Layout()
     end
     Th.Glyph(UI.title.small.icon, small and "btn.expand" or "btn.small")
     Th.Glyph(UI.title.lock.icon, ns.Settings.Get("locked") and "btn.lock" or "btn.unlock")
-    -- room above the top for the item / target buttons (positive top = above the frame: warcraft.wiki.gg
-    -- API_Frame_SetClampRectInsets), so the clamp never pushes them off the screen
-    -- (and the soft shadow on every side: left negative / right positive / bottom negative keep a distance)
-    local sh = Th.Size("shadow")
-    if f.SetClampRectInsets then f:SetClampRectInsets(-sh, sh, UI.TopRoom(), -sh) end
+    -- beta.13: the clamp is the window's own edge on all four sides (warcraft.wiki.gg API_Frame_SetClampRectInsets;
+    -- before, the shadow and the button row above it kept the window up to 52 px from the edges). Still clamped,
+    -- so it can never be lost off screen; the button row flips under the window at the screen top (StepButton.Spot).
+    if f.SetClampRectInsets then f:SetClampRectInsets(0, 0, 0, 0) end
     -- the 3D view in the step block follows the window's size
     if ns.ModelView and ns.ModelView.frame then ns.Errors.Call("model", ns.ModelView.Place) end
     -- the item / target buttons re-place themselves (height, width or scale may have moved the window's top-left)
+    UI.FitShadow()
     ns.Bus.Fire("WindowLayout")
 end
 
@@ -878,6 +910,15 @@ function UI.Model()
             noteItem = II.FirstIn(note)
         end
         for _, gl in ipairs(goals) do gl.item = II.GoalItem(cur, gl) end
+        -- beta.13 (the user: "Yes, drop the small one"): the 3D view's big picture already shows this item, so the
+        -- text / note gets no small tile for that same item (the name stays a hover link)
+        local MV = ns.ModelView
+        local pt = MV and MV.InsideSlot and MV.InsideSlot(cur) and MV.TargetFor(cur)
+        local big = pt and pt.picture and pt.item
+        if big then
+            if textItem == big then textItem = nil end
+            if noteItem == big then noteItem = nil end
+        end
     end
     m.rows = { { step = cur, number = m.index, badge = K.BadgeKind(cur), tile = kind, text = text, state = "current",
         right = not coord and UI.DistText(cur) or nil, goals = goals, sub = UI.SubLines(top, cur, coord), focus = focus,
@@ -1190,7 +1231,9 @@ local function DrawChips(m)
     end
 end
 
--- The most the window may grow up now: its top stays under the screen top (with the button row).
+-- The most the window may grow up now: its top stays under the screen top with the button row above it (beta.13: a
+-- window the player put closer to the top than that just doesn't grow; its button row sits under it then, so a
+-- taller step never makes the buttons jump from above to under the window).
 function UI.GrowMax()
     local f, p = UI.frame, Co.UIParent()
     local t = f and f:GetTop()
@@ -1844,6 +1887,38 @@ ns.SelfChecks[#ns.SelfChecks + 1] = { label = "stepblock", fn = function(h)
     for name in pairs(Th.themes) do
         local miss = Th.MissingKeys(name)
         if #miss > 0 then h.Problem(("theme %s lacks %s"):format(name, table.concat(miss, ", ", 1, math.min(3, #miss)))) end
+    end
+    -- beta.13 equal tags: every shown next-step tag with a short verb has the common width, the targets one x
+    local R = ns.Rows
+    local std, x0, n = nil, nil, 0
+    for _, row in ipairs(UI.rows or {}) do
+        local tg = row.tag
+        if row:IsShown() and row.tagged and tg and tg.text:IsShown() and #(tg.text:GetText() or "") <= R.TAG_STD_LEN then
+            std = std or R.TagWidth(tg.text)
+            local w = tg.text:GetWidth() or 0
+            local _, _, _, tx = row.text:GetPoint(1)
+            if math.abs(w - std) > 0.5 then h.Problem(("tags: %q is %.1f wide, not %.1f"):format(tg.text:GetText() or "", w, std)) end
+            x0 = x0 or tx
+            if tx and x0 and math.abs(tx - x0) > 0.5 then h.Problem("tags: the targets don't line up") end
+            n = n + 1
+        end
+    end
+    if std then h.Info(("tags: %d next lines, box %d px"):format(n, std)) end
+    -- beta.13 flush window: clamped, no margin, the button row on screen and off the window
+    local f = UI.frame
+    if f then
+        if not f:IsClampedToScreen() then h.Problem("window: not clamped to the screen") end
+        if f.GetClampRectInsets then
+            local l, r, t, b = f:GetClampRectInsets()
+            if (l or 0) ~= 0 or (r or 0) ~= 0 or (t or 0) ~= 0 or (b or 0) ~= 0 then
+                h.Problem(("window: clamp margin %s,%s,%s,%s (should be 0)"):format(tostring(l), tostring(r), tostring(t), tostring(b)))
+            end
+        end
+        local SB = ns.StepButton
+        if f:IsShown() and SB and SB.frame and SB.frame:IsShown() then
+            local off = SB.Misplaced()
+            if off then h.Problem("window: item button " .. off) end
+        end
     end
 end }
 

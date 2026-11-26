@@ -165,6 +165,10 @@ ns.Theme.Register("Dark", {
     ["color.verb.fly"] = { "#3BA9D9", 1 },
     ["color.verb.hearth"] = { "#D8643C", 1 },
     ["color.verb.note"] = { "#A8A2A2", 1 },
+    -- next lines only (beta.13, the user: "Lighter blue and red text"): the same hue mixed toward white, >= 4.5:1 on
+    -- #0A0A0B at the faintest row fade (64 %): go to 4.61:1 (was 3.57), kill 4.51:1 (was 4.08)
+    ["color.next.goto"] = { "#82BFF5", 1 },
+    ["color.next.kill"] = { "#FF9D8E", 1 },
     ["color.tile.accept"] = "=verb.accept",
     ["color.tile.turnin"] = "=verb.turnin",
     ["color.tile.kill"] = "=verb.kill",

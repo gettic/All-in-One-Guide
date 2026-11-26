@@ -21,19 +21,31 @@ local Th, K, Co = ns.Theme, ns.UIKit, ns.Compat
 local MV = {
     NAME = "AllinOneGuideModel", POSITIONS = { "now", "left", "right", "below", "free" },
     ZOOM_MAX = 0.8, ZOOM_STEP = 0.1, TURN = 0.02, CHECK_AFTER = 0.5, CLEAR_AFTER = 30, DOUBLE = 0.35,
-    -- step types that are about someone even without an npc id: they get the card instead of nothing
-    CARD_TYPES = { accept = true, turnin = true, objective = true, useitem = true },
-    facing = 0, zoom = 0, loads = 0, token = 0,
+    -- beta.13 (the user: "rotate the 3d model a little so you dont see it straight on ... more like 45"): every new
+    -- model starts turned FACING radians (45 degrees) toward the window's text; positive = toward the screen's
+    -- right (SetFacing turns counter-clockwise seen from above; facing 0 looks at the camera)
+    FACING = math.pi / 4,
+    zoom = 0, loads = 0, token = 0,
 }
 ns.ModelView = MV
 local TWO_PI = math.pi * 2
+-- The start facing: toward the text, so turned to the left when the view is docked right of the window.
+function MV.DefaultFacing()
+    local pos = ns.Settings and ns.Settings.Get and ns.Settings.Get("modelPos")
+    local a = pos == "right" and -MV.FACING or MV.FACING
+    return a % TWO_PI
+end
+MV.facing = MV.FACING
 
 local function S() return ns.Settings end
 local function L() return ns.L end
 local function PosInt(v) return type(v) == "number" and v > 0 and v == math.floor(v) and v or nil end
 
 -- ------------------------------------------------------------------ what to show
--- { npc, display, key } or nil (nothing to show) or { card = true, key } (someone without a 3D view).
+-- { npc, display, key } or { picture = true, item | kind, key } or nil (no step).
+-- beta.13 (the user: "why are we switching the 3d viewer off? ... it makes the look of the guide jump around", their
+-- pick "Big step picture"): a step without a unit shows a big picture in the same frame instead of hiding it: the
+-- step's own item (II.Ids: item, useItem, cond item=) or else its kind tile (accept, turn in, go to ...).
 function MV.TargetFor(step)
     local h = MV.hunt
     if h then return { npc = h, display = ns.ModelIds and ns.ModelIds[h], key = "n" .. h, source = "hunt" } end
@@ -42,8 +54,21 @@ function MV.TargetFor(step)
     if model then return { display = model, key = "d" .. model, source = "step" } end
     local npc = PosInt(step.targetNpc) or PosInt(step.npc)
     if npc then return { npc = npc, display = ns.ModelIds and ns.ModelIds[npc], key = "n" .. npc, source = "step" } end
-    if MV.CARD_TYPES[step.type] then return { card = true, key = "card", source = "step" } end
-    return nil
+    local II = ns.ItemIcons
+    local item = II and II.Ids and II.Ids(step)[1]
+    if item then return { picture = true, item = item, key = "i" .. item, source = "step" } end
+    local kind = MV.KindOf(step)
+    return { picture = true, kind = kind, key = "k" .. kind, source = "step" }
+end
+
+-- The step's tile kind as its row shows it (the verb at the start of its text, else its type).
+function MV.KindOf(step)
+    local UI, g = ns.UI, ns.Engine.Focused and ns.Engine.Focused()
+    if UI and UI.Verb and g then
+        local ok, _, kind = pcall(UI.Verb, step, g:Top():Text(step))
+        if ok and type(kind) == "string" then return kind end
+    end
+    return K.TileKind(step)
 end
 
 -- The hunt path's contract (plans\model-viewer\plan.md section 8): its current segment's mob from its static
@@ -87,8 +112,8 @@ end
 function MV.InsideSlot(step)
     local size = MV.InsideSize()
     if not size or not step then return nil end
-    local t = MV.TargetFor(step)
-    if not t or t.card then return nil end
+    -- (beta.13: every step has a model or a big picture: the room is always the view's)
+    if not MV.TargetFor(step) then return nil end
     return size
 end
 
@@ -103,11 +128,8 @@ function MV.Why()
     if S().Get("small") then return "small" end
     local inside = MV.InsideMode()
     if not inside and Co.InCombat() and S().Get("modelHideCombat") then return "combat" end
-    local t = MV.TargetFor(ns.Engine.Current())
-    if not t then return "none" end
-    if inside then
-        if t.card then return "none" end
-    end
+    -- (beta.13: no "none" for a step without a unit any more: it shows its big picture)
+    if not MV.TargetFor(ns.Engine.Current()) then return "none" end
     return nil
 end
 
@@ -149,7 +171,8 @@ local function Build()
     m:SetPoint("TOPLEFT", f, "TOPLEFT", inset, -inset)
     m:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -inset, inset)
     m:EnableMouse(false)
-    if m.SetKeepModelOnHide then m:SetKeepModelOnHide(true) end
+    -- (beta.12 bug: no SetKeepModelOnHide; warcraft.wiki.gg API_PlayerModel_SetKeepModelOnHide marks it
+    -- AllowedWhenUntainted, so an addon can't rely on it: MV.Update loads again whenever the view is shown again)
     if m.HasScript and m:HasScript("OnModelLoaded") then
         m:SetScript("OnModelLoaded", function() ns.Errors.Call("model", MV.Check, "loaded") end)
     end
@@ -164,6 +187,16 @@ local function Build()
     card.text:SetText(L().MODEL_NONE)
     card:Hide()
     f.card = card
+    -- beta.13 the big step picture (a step without a unit): the item's icon or the step's kind tile, centred
+    local pic = CreateFrame("Frame", nil, f)
+    pic:SetAllPoints()
+    pic.icon = pic:CreateTexture(nil, "ARTWORK", nil, 1)
+    pic.icon:SetPoint("CENTER")
+    pic.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)   -- (the icon's own border cropped)
+    pic.tile = K.Tile(pic, 32)
+    pic.tile.base:SetPoint("CENTER")
+    pic:Hide()
+    f.pic = pic
     f:SetScript("OnMouseDown", function(self, button) ns.Errors.Call("model", MV.MouseDown, self, button) end)
     f:SetScript("OnMouseUp", function(self, button) ns.Errors.Call("model", MV.MouseUp, self, button) end)
     f:SetScript("OnMouseWheel", function(_, delta) ns.Errors.Call("model", MV.Zoom, delta) end)
@@ -388,11 +421,39 @@ local function ShowCard(on)
     local f = MV.frame
     f.card:SetShown(on)
     f.model:SetShown(not on)
+    f.pic:Hide()
     if on then
         local step = ns.Engine.Current()
         K.SetBadge(f.card.badge, step and K.BadgeKind(step) or "manual")
         f.card.text:SetText(L().MODEL_NONE)
     end
+end
+
+-- beta.13 the big step picture: PIC_SHARE of the frame's smaller side, centred; the item's icon (II.Icon: the
+-- theme's unknown-item file until the game has it, then it is drawn again) or the kind tile. Never with the model.
+MV.PIC_SHARE = 0.65
+function MV.DrawPicture()
+    local f, t = MV.frame, MV.target
+    if not (f and t and t.picture) then return end
+    f.card:Hide()
+    f.model:Hide()
+    f.pic:Show()
+    local w, h = f:GetWidth() or 0, f:GetHeight() or 0
+    local size = math.max(16, math.floor(math.min(w, h) * MV.PIC_SHARE + 0.5))
+    local pic = f.pic
+    if t.item then
+        local II = ns.ItemIcons
+        pic.icon:SetTexture(II and II.Icon(t.item) or Th.File("itemUnknown"))
+        pic.icon:SetSize(size, size)
+        pic.icon:Show()
+        K.TileShown(pic.tile, false)
+    else
+        pic.icon:Hide()
+        pic.tile.base:SetSize(size, size)
+        K.SetTile(pic.tile, t.kind)
+        K.TileShown(pic.tile, true)
+    end
+    MV.picSize = size
 end
 
 local function ApplyView()
@@ -407,6 +468,11 @@ local function Try(stage)
     local m = f.model
     MV.token = MV.token + 1
     MV.stage = stage
+    if stage == "picture" then
+        if m.ClearModel then m:ClearModel() end
+        MV.DrawPicture()
+        return
+    end
     if stage == "npc" then
         ShowCard(false)
         m:SetCreature(t.npc)
@@ -435,7 +501,7 @@ end
 -- Did the model load? why = "loaded" (OnModelLoaded) or "timer". A late model brings the view back.
 function MV.Check(why)
     local f = MV.frame
-    if not (f and MV.target) or MV.stage == nil then return end
+    if not (f and MV.target) or MV.stage == nil or MV.stage == "picture" or MV.target.picture then return end
     -- no way to ask: trust what was asked for (never step down on a guess)
     if not f.model.GetModelFileID then
         if MV.stage ~= "card" then MV.result = MV.stage end
@@ -471,7 +537,12 @@ local function Load(t)
     MV.target = t
     MV.sd = sd
     MV.result = nil
-    if t.card then
+    -- beta.13: every new model starts at the 45-degree default (a drag turn lasts until the next model)
+    MV.facing, MV.turned = MV.DefaultFacing(), nil
+    if t.picture then
+        Try("picture")
+        MV.result = "picture"
+    elseif t.card then
         Try("card")
         MV.result = "none"
     elseif t.npc then
@@ -506,13 +577,30 @@ function MV.Update()
         return
     end
     f = f or Build()
-    if not f:IsShown() then MV.hideSeq = (MV.hideSeq or 0) + 1 end
+    -- beta.12 bug (the user: "go forward some steps and then back to step 10 ... the 3d viewer window is gone"): the
+    -- client drops a PlayerModel's model while it is hidden, so the same target shown again after a hide was an
+    -- empty box (its key hadn't changed: no reload). Shown again = load again, and only once it is shown.
+    local wasHidden = not f:IsShown()
+    if wasHidden then
+        MV.hideSeq = (MV.hideSeq or 0) + 1
+        MV.loadedKey = nil
+        MV.reshows = (MV.reshows or 0) + 1
+    end
     MV.Place()
+    if wasHidden and not Co.InCombat() then f:Show() end
     -- in combat with modelHideCombat off: it stays as it is (no reload until the fight ends); with nothing
     -- loaded (first show or after the unload) the card stands in until then (beta.5 fix: an empty box)
     MV.waiting = nil
     if not Co.InCombat() then
         Load(MV.TargetFor(ns.Engine.Current()))
+        -- beta.13: some clients reset the facing when a model (re)loads: set it again on every update (step
+        -- change, window shown); the default follows the dock side until the player turns the model
+        if not MV.turned then MV.facing = MV.DefaultFacing() end
+        if MV.stage == "picture" then
+            MV.DrawPicture()   -- (again on every update: the item's icon may have come in, the size changed)
+        elseif MV.stage and MV.stage ~= "card" then
+            ApplyView()
+        end
     elseif not MV.loadedKey then
         MV.waiting = true
         MV.stage = "card"
@@ -544,6 +632,7 @@ local function DragUpdate(self)
     local d = MV.dragging
     if math.abs(x - d.x0) > 2 then d.moved = true end
     MV.facing = MV.Wrap(d.f0 + (x - d.x0) * MV.TURN)
+    if x ~= d.x0 then MV.turned = true end
     if self.model.SetFacing then self.model:SetFacing(MV.facing) end
 end
 MV.DragUpdate = DragUpdate
@@ -593,7 +682,7 @@ function MV.Zoom(delta)
 end
 
 function MV.ResetView()
-    MV.facing, MV.zoom = 0, 0
+    MV.facing, MV.zoom, MV.turned = MV.DefaultFacing(), 0, nil   -- (beta.13: back to the 45-degree start)
     if MV.frame then ApplyView() end
 end
 
@@ -602,7 +691,7 @@ function MV.Tip(owner)
     local g = ns.Engine.Focused()
     local title = (step and g and g:Top():Text(step)) or L().MODEL_TITLE
     local lines = {}
-    if MV.stage ~= "card" then
+    if MV.stage ~= "card" and MV.stage ~= "picture" then
         lines[#lines + 1] = L().MODEL_TIP_DRAG
         lines[#lines + 1] = L().MODEL_TIP_WHEEL
         lines[#lines + 1] = L().MODEL_TIP_RESET
@@ -696,7 +785,26 @@ ns.SelfChecks[#ns.SelfChecks + 1] = { label = "model", fn = function(h)
     if bad then h.Problem("model: " .. bad) end
     local t = MV.target
     local res = MV.result == "npc" and "npc ok" or MV.result == "display" and "display fallback"
-        or MV.result == "none" and "none" or "loading"
-    h.Info(("model: %s %s, %s (sd %s, side %s)"):format(t and (t.npc and "npc " .. t.npc or t.display and "display " .. t.display or "card") or "-",
-        t and t.source or "", res, tostring(MV.sd), tostring(MV.side)))
+        or MV.result == "none" and "none" or MV.result == "picture" and "picture" or "loading"
+    -- beta.13: the model and the big picture never show together; a picture target shows the picture
+    if f:IsShown() and f.pic then
+        if f.pic:IsShown() and f.model:IsShown() then h.Problem("model: the model and the picture both show") end
+        if t and t.picture and not f.pic:IsShown() then h.Problem("model: a step without a unit but no picture") end
+        if t and not t.picture and f.pic:IsShown() then h.Problem("model: a picture on a step with a unit") end
+    end
+    h.Info(("model: %s %s, %s (sd %s, side %s, facing %d deg%s)"):format(t and (t.npc and "npc " .. t.npc or t.display and "display " .. t.display
+        or t.item and "picture item " .. t.item or t.kind and "picture " .. t.kind or "card") or "-",
+        t and t.source or "", res, tostring(MV.sd), tostring(MV.side), math.floor(math.deg(MV.facing or 0) + 0.5),
+        MV.turned and ", turned by you" or ""))
+    -- beta.13: an untouched model faces the 45-degree start (the model's own answer when the client has GetFacing)
+    if not MV.turned and math.abs((MV.facing or 0) - MV.DefaultFacing()) > 0.01 then
+        h.Problem(("model: facing %.2f, not the start %.2f"):format(MV.facing or 0, MV.DefaultFacing()))
+    end
+    local m = f.model
+    if not MV.turned and f:IsShown() and MV.stage ~= "card" and MV.stage ~= "picture" and m.GetFacing then
+        local got = m:GetFacing()
+        if type(got) == "number" and math.abs(MV.Wrap(got) - MV.DefaultFacing()) > 0.05 then
+            h.Problem(("model: the model faces %.2f, not %.2f (the client reset it)"):format(got, MV.DefaultFacing()))
+        end
+    end
 end }
