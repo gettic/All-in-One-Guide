@@ -244,6 +244,15 @@ local function Build()
     pic.icon:SetTexCoord(MV.PIC_CROP, 1 - MV.PIC_CROP, MV.PIC_CROP, 1 - MV.PIC_CROP)   -- (again after every SetTexture)
     pic.tile = K.Tile(pic, 32)
     pic.tile.base:SetPoint("CENTER")
+    -- 2026-11-27 crisp kind picture (see MV.DrawPicture): a rounded plate (9-slice, native corners) in the kind's
+    -- colour with the kind's 32 px glyph on top; nil plate = the theme has no slice art (the capped tile stands in)
+    pic.plateFrame = CreateFrame("Frame", nil, pic)
+    pic.plateFrame:SetPoint("CENTER")
+    pic.plateFrame:SetSize(32, 32)
+    pic.plate = K.Slice(pic.plateFrame, "round.s", MV.PLATE_CORNER, "tile.base", { layer = "ARTWORK", sub = 1 })
+    pic.glyph = pic.plateFrame:CreateTexture(nil, "ARTWORK", nil, 3)
+    pic.glyph:SetPoint("CENTER")
+    pic.plateFrame:Hide()
     pic:Hide()
     f.pic = pic
     f:SetScript("OnMouseDown", function(self, button) ns.Errors.Call("model", MV.MouseDown, self, button) end)
@@ -486,6 +495,13 @@ MV.PIC_SHARE = 0.65
 -- size the filtering pulls them in; the crop was also only set once at Build, never after SetTexture. Now 10 %,
 -- set again after every SetTexture (as the step button does).
 MV.PIC_CROP = 0.1
+-- The kind picture (a step without a unit or item): kind -> its 32 x 32 glyph (glyphs.tga), drawn at most
+-- PIC_GLYPH_MAX (its own size: crisp) and PIC_GLYPH_SHARE of the plate; the plate's corners PLATE_CORNER (round.s
+-- has 8 px corners). PIC_TILE_MAX: the 16 px tile's biggest size when there is no plate (twice its art).
+MV.PIC_GLYPH = { accept = "glyph.step.accept", turnin = "glyph.step.turnin", kill = "glyph.step.kill",
+    loot = "glyph.step.collect", use = "glyph.step.useitem", ["goto"] = "glyph.step.goto", train = "glyph.step.train",
+    fly = "glyph.step.fly", hearth = "glyph.step.hearth", note = "glyph.step.note", done = "glyph.step.done" }
+MV.PIC_GLYPH_MAX, MV.PIC_GLYPH_SHARE, MV.PLATE_CORNER, MV.PIC_TILE_MAX = 32, 0.62, 8, 32
 function MV.DrawPicture()
     local f, t = MV.frame, MV.target
     if not (f and t and t.picture) then return end
@@ -502,11 +518,34 @@ function MV.DrawPicture()
         pic.icon:SetSize(size, size)
         pic.icon:Show()
         K.TileShown(pic.tile, false)
+        pic.plateFrame:Hide()
+        MV.picLook = "icon"
     else
         pic.icon:Hide()
-        pic.tile.base:SetSize(size, size)
-        K.SetTile(pic.tile, t.kind)
-        K.TileShown(pic.tile, true)
+        local kt, glyph = K.TILE[t.kind], MV.PIC_GLYPH[t.kind]
+        if pic.plate and kt and glyph then
+            -- bug 2026-11-27 (the user: "for the fist step as unded there is a yellow ! in the 3d viewer, it looks bad
+            -- and pixilated"): the kind tile is 16 x 16 art (round.tga, shown 12-16 px) and was stretched to PIC_SHARE
+            -- of the view (about 52 px inside the window, 98 px docked): blocky. Now a 9-slice plate (its corners stay
+            -- at their native 8 px, only the flat middle stretches) and the kind's 32 x 32 glyph at its own size.
+            K.TileShown(pic.tile, false)
+            pic.plateFrame:SetSize(size, size)
+            K.TintSlice(pic.plate, kt[2])
+            local g = math.min(MV.PIC_GLYPH_MAX, math.floor(size * MV.PIC_GLYPH_SHARE + 0.5))
+            Th.Glyph(pic.glyph, glyph)
+            pic.glyph:SetVertexColor(Th.Color(kt[3]))
+            pic.glyph:SetSize(g, g)
+            pic.plateFrame:Show()
+            MV.picLook, MV.picGlyph = "plate", g
+        else
+            -- no slice art in this theme (or no glyph for the kind): the tile, never past twice its 16 px art
+            pic.plateFrame:Hide()
+            local s = math.min(size, MV.PIC_TILE_MAX)
+            pic.tile.base:SetSize(s, s)
+            K.SetTile(pic.tile, t.kind)
+            K.TileShown(pic.tile, true)
+            MV.picLook, size = "tile", s
+        end
     end
     MV.picSize = size
 end
@@ -544,11 +583,30 @@ end
 -- so the point it looks at (the model's middle, centred at zoom 0) stays in the middle at every zoom and facing.
 -- SetPortraitZoom is held at 0. A client without SetCamDistanceScale doesn't zoom (better than sliding off).
 -- MV.zoomBy says which was used (self-check).
+-- Zoom aims up (bug 2026-11-27, the user: "when i how zoom in on a 3d model in the 3d viwer we zoom in on the
+-- croutch! i dont like that"): the camera looks at the model's middle (hips), so zooming in ended on the crotch.
+-- The view is now shifted down as you zoom (SetViewTranslation, SimpleModelAPIDocumentation.lua:734, Forever; a
+-- 2D shift of the drawn picture in UI units, so it can't slide sideways like SetPortraitZoom did): at zoom 0 no
+-- shift (the whole model, as before), at ZOOM_MAX the point LIFT_AIM of the model's height above its middle (chest
+-- / neck) sits in the view's middle. The fit camera makes every model about FILL of the view's height at zoom 0,
+-- so the shift is in view heights and fits small and tall models alike. Linear in the zoom: no jump.
+MV.LIFT_AIM, MV.FILL = 0.28, 0.9
+-- The view shift (UI units, negative = the picture moves down) for a zoom level and view height.
+function MV.Lift(zoom, h)
+    local z = ns.U.Clamp(zoom or 0, 0, MV.ZOOM_MAX)
+    if z <= 0 or not (h and h > 0) then return 0 end
+    return -(z / MV.ZOOM_MAX) * MV.LIFT_AIM * MV.FILL * h / MV.CamScale(z)
+end
+
 local function Zoomed(m)
     if m.SetCamDistanceScale then
         if m.SetPortraitZoom then m:SetPortraitZoom(0) end
         m:SetCamDistanceScale(MV.CamScale(MV.zoom))
         MV.zoomBy = "distance"
+        if m.SetViewTranslation then
+            MV.lift = MV.Lift(MV.zoom, m:GetHeight())
+            m:SetViewTranslation(0, MV.lift)
+        end
     else
         MV.zoomBy = "none"
     end
@@ -943,6 +1001,13 @@ ns.SelfChecks[#ns.SelfChecks + 1] = { label = "model", fn = function(h)
         local l = f.pic.icon:GetTexCoord()
         if type(l) == "number" and math.abs(l - MV.PIC_CROP) > 0.001 then h.Problem("model: the picture's icon isn't cropped") end
     end
+    -- the kind picture is never small art blown up (2026-11-27 the pixelated "!")
+    if f.pic and f.pic:IsShown() and MV.picLook ~= "icon" then
+        local tw = f.pic.tile.base:IsShown() and f.pic.tile.base:GetWidth()
+        if type(tw) == "number" and tw > MV.PIC_TILE_MAX + 0.5 then h.Problem(("model: the kind tile is stretched to %d px"):format(tw)) end
+        local gw = f.pic.plateFrame:IsShown() and f.pic.glyph:GetWidth()
+        if type(gw) == "number" and gw > MV.PIC_GLYPH_MAX + 0.5 then h.Problem(("model: the kind glyph is stretched to %d px"):format(gw)) end
+    end
     h.Info(("model: %s %s, %s (sd %s, side %s, facing %d deg%s)"):format(t and (t.murloc and not t.picture and "murloc "
         .. ((t.chain[t.i] or {}).name or "?") or t.npc and "npc " .. t.npc or t.display and "display " .. t.display
         or t.item and "picture item " .. t.item or t.kind and "picture " .. t.kind or "card") or "-",
@@ -955,8 +1020,9 @@ ns.SelfChecks[#ns.SelfChecks + 1] = { label = "model", fn = function(h)
     local m = f.model
     if MV.turnBy then h.Info("model turn: " .. (MV.turnBy == "rotation" and "SetRotation" or "SetFacing (no SetRotation)")) end
     if MV.zoomBy then
-        h.Info(("model zoom: %s (zoom %.1f, camera %.2f)"):format(MV.zoomBy == "distance" and "SetCamDistanceScale"
-            or "off (no SetCamDistanceScale)", MV.zoom or 0, MV.CamScale(MV.zoom)))
+        h.Info(("model zoom: %s (zoom %.1f, camera %.2f, aim up %s)"):format(MV.zoomBy == "distance" and "SetCamDistanceScale"
+            or "off (no SetCamDistanceScale)", MV.zoom or 0, MV.CamScale(MV.zoom),
+            MV.lift and ("%.0f"):format(math.abs(MV.lift)) or "off (no SetViewTranslation)"))
     end
     if MV.turnBy == "facing" and not MV.turned and f:IsShown() and MV.stage ~= "card" and MV.stage ~= "picture" and m.GetFacing then
         local got = m:GetFacing()

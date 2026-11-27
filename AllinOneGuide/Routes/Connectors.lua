@@ -75,3 +75,12 @@ R({ area = "stormwind",
         { id = "sw-cathedral", map = 1453, indoor = true, poly = { { 49, 36 }, { 55, 36 }, { 55, 44 }, { 49, 44 } } },
     },
 })
+R({ area = "tirisfal",
+    connectors = {
+        { id = "dkn-crypt-stairs-in", map = 1420, x = 29.919, y = 72.051, r = 3, kind = "stairs", inside = "dkn-crypt", link = { "dkn-crypt-stairs-out" } },
+        { id = "dkn-crypt-stairs-out", map = 1420, x = 29.891, y = 72.141, r = 3, kind = "stairs", link = { "dkn-crypt-stairs-in" } },
+    },
+    rooms = {
+        { id = "dkn-crypt", map = 1420, indoor = true, poly = { { 29.964, 71.516 }, { 30.125, 71.628 }, { 29.97, 72.123 }, { 29.81, 72.011 } } },
+    },
+})

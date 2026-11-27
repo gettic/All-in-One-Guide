@@ -385,6 +385,9 @@ function ST.ModelParts()
         { name = "model.picture", obj = f and f.pic, opt = true, shownOnly = true },
         { name = "model.picture.icon", obj = f and f.pic and f.pic.icon, opt = true, shownOnly = true, artSelf = true },
         { name = "model.picture.tile", obj = f and f.pic and f.pic.tile.base, opt = true, shownOnly = true, artSelf = true },
+        -- 2026-11-27 the crisp kind picture: plate (9-slice) + the kind's glyph at its own size
+        { name = "model.picture.plate", obj = f and f.pic and f.pic.plateFrame, opt = true, shownOnly = true },
+        { name = "model.picture.glyph", obj = f and f.pic and f.pic.glyph, opt = true, shownOnly = true, artSelf = true },
     }
 end
 
