@@ -32,6 +32,9 @@ local MV = {
     -- SetCreature) -> Murky (display MURKY, 1.12 data) -> the go-to picture. A murloc that doesn't load (no model
     -- file after OnModelLoaded / CHECK_AFTER) or has no Walk animation is skipped for the rest of the session.
     AZURKY = 275487, MURKY = 15369, WALK = 4,
+    -- beta.14 zoom drift: the wheel moves the camera straight in (SetCamDistanceScale, 1 at zoom 0 down to CAM_NEAR
+    -- at ZOOM_MAX); SetPortraitZoom stays 0 (see Zoomed)
+    CAM_NEAR = 0.45,
     zoom = 0, loads = 0, token = 0, murlocBad = {},
 }
 ns.ModelView = MV
@@ -526,10 +529,36 @@ local function Turn(m)
 end
 MV.Turn = Turn
 
+-- The camera distance for a zoom level: 1 (whole model) at 0, CAM_NEAR at ZOOM_MAX.
+function MV.CamScale(zoom)
+    local z = ns.U.Clamp(zoom or 0, 0, MV.ZOOM_MAX)
+    return 1 - (1 - MV.CAM_NEAR) * z / MV.ZOOM_MAX
+end
+
+-- Zooms the model. beta.14 bug (the user: "the 3d model still moves over to the rigth on zoom!"): the beta.14 fix
+-- (SetRotation instead of SetFacing) wasn't the cause. SetPortraitZoom doesn't move the camera straight in: it
+-- slides the camera from the whole-model view toward the model's portrait (head) point, and on a turned model that
+-- point sits off to one side (a head ahead of the root, like a kobold's, turned 45 degrees), so the more you zoom
+-- the further the view slides sideways, whichever way the model was turned. SetCamDistanceScale
+-- (FrameAPICharacterModelBaseDocumentation.lua:143, Forever 1.60.1) moves the camera along its own line of sight,
+-- so the point it looks at (the model's middle, centred at zoom 0) stays in the middle at every zoom and facing.
+-- SetPortraitZoom is held at 0. A client without SetCamDistanceScale doesn't zoom (better than sliding off).
+-- MV.zoomBy says which was used (self-check).
+local function Zoomed(m)
+    if m.SetCamDistanceScale then
+        if m.SetPortraitZoom then m:SetPortraitZoom(0) end
+        m:SetCamDistanceScale(MV.CamScale(MV.zoom))
+        MV.zoomBy = "distance"
+    else
+        MV.zoomBy = "none"
+    end
+end
+MV.Zoomed = Zoomed
+
 local function ApplyView()
     local m = MV.frame.model
     Turn(m)
-    if m.SetPortraitZoom then m:SetPortraitZoom(MV.zoom) end
+    Zoomed(m)
     -- the murloc walks on the spot; set again after every load / update (an animation set before the model file
     -- is in is lost: Blizzard sets theirs in OnModelLoaded, Blizzard_ArtifactPerks.lua:153)
     if MV.stage == "murloc" and m.SetAnimation then m:SetAnimation(MV.WALK) end
@@ -782,7 +811,7 @@ end
 function MV.Zoom(delta)
     MV.zoom = ns.U.Clamp(MV.zoom + (delta > 0 and MV.ZOOM_STEP or -MV.ZOOM_STEP), 0, MV.ZOOM_MAX)
     local f = MV.frame
-    if f and f.model.SetPortraitZoom then f.model:SetPortraitZoom(MV.zoom) end
+    if f then Zoomed(f.model) end
 end
 
 function MV.ResetView()
@@ -918,7 +947,11 @@ ns.SelfChecks[#ns.SelfChecks + 1] = { label = "model", fn = function(h)
         h.Problem(("model: facing %.2f, not the start %.2f"):format(MV.facing or 0, MV.DefaultFacing()))
     end
     local m = f.model
-    if MV.turnBy then h.Info("model turn: " .. (MV.turnBy == "rotation" and "SetRotation (zoom stays centred)" or "SetFacing (no SetRotation)")) end
+    if MV.turnBy then h.Info("model turn: " .. (MV.turnBy == "rotation" and "SetRotation" or "SetFacing (no SetRotation)")) end
+    if MV.zoomBy then
+        h.Info(("model zoom: %s (zoom %.1f, camera %.2f)"):format(MV.zoomBy == "distance" and "SetCamDistanceScale"
+            or "off (no SetCamDistanceScale)", MV.zoom or 0, MV.CamScale(MV.zoom)))
+    end
     if MV.turnBy == "facing" and not MV.turned and f:IsShown() and MV.stage ~= "card" and MV.stage ~= "picture" and m.GetFacing then
         local got = m:GetFacing()
         if type(got) == "number" and math.abs(MV.Wrap(got) - MV.DefaultFacing()) > 0.05 then

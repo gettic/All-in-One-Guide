@@ -24,6 +24,7 @@ ns.Theme.Register("Dark", {
     ["color.barTo"] = { "#8E0E22", 1 },
     ["color.barTrack"] = { "#1C1718", 1 },
     ["color.zone"] = { "#F1ECEA", 1 },
+    ["color.titleCoords"] = "=text.dim",      -- beta.14: the step's coordinates + distance in the title bar
     ["color.counter"] = { "#A8A2A2", 1 },
     ["color.quest"] = { "#F3D58C", 1 },
     ["color.npc"] = { "#9FD8FF", 1 },

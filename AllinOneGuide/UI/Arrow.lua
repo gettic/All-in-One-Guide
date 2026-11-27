@@ -474,7 +474,12 @@ function A.OnUpdate(_, elapsed)
             StartRetry()
             return
         end
-        if ns.UI.rows[1] and A.source == "step" then ns.Rows.SetDistance(ns.UI.rows[1], ns.UI.DistText(A.target)) end
+        if ns.UI.rows[1] and A.source == "step" then
+            local dist = ns.UI.DistText(A.target)
+            ns.Rows.SetDistance(ns.UI.rows[1], dist)
+            -- (beta.14: the distance sits in the title bar now)
+            if ns.UI.SetDistance then ns.UI.SetDistance(dist) end
+        end
     end
     if not Draw() then
         SetShown(false)

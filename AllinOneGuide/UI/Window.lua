@@ -302,7 +302,13 @@ local function TitleBar(f)
     tb.title:ClearAllPoints()
     tb.title:SetPoint("LEFT", tb.logo, "RIGHT", 5, 0)
     tb.title:SetPoint("RIGHT", tb.menu, "LEFT", -4, 0)
+    if tb.title.SetWordWrap then tb.title:SetWordWrap(false) end
     K.Color(tb.title, "zone")
+    -- beta.14: the step's distance at the title's right (UI.DrawTitle; the arrow's ticker keeps it fresh)
+    tb.dist = K.Text(tb, "title", "titleCoords", "RIGHT")   -- (the coordinates' font; a fixed width, UI.DrawTitle)
+    tb.dist:SetPoint("RIGHT", tb.menu, "LEFT", -6, 0)
+    if tb.dist.SetWordWrap then tb.dist:SetWordWrap(false) end
+    tb.dist:Hide()
     return tb
 end
 
@@ -920,8 +926,11 @@ function UI.Model()
             if noteItem == big then noteItem = nil end
         end
     end
+    -- beta.14 (the user: "can we mode the "elwynn forest - xx.x, xx.x" up in the title insted? sins it alreaddy says
+    -- "elqynn forest""): the step's coordinates and distance sit in the title bar (UI.DrawTitle), no place line
+    m.place = coord and { zone = cur.map and Co.MapName(cur.map) or nil, coords = coord.text, dist = coord.dist } or nil
     m.rows = { { step = cur, number = m.index, badge = K.BadgeKind(cur), tile = kind, text = text, state = "current",
-        right = not coord and UI.DistText(cur) or nil, goals = goals, sub = UI.SubLines(top, cur, coord), focus = focus,
+        right = not coord and UI.DistText(cur) or nil, goals = goals, sub = UI.SubLines(top, cur), focus = focus,
         note = note, textItem = textItem, noteItem = noteItem } }
     -- (every next row is one line: as many as the lines setting, one spare; perf: no rows that never show)
     for _, s in ipairs(Upcoming(top, cur, UI.Lines() + 1)) do
@@ -1012,9 +1021,9 @@ function UI.NoteText(step)
     return t ~= "" and t or nil
 end
 
--- The lines under the current step's text: "for <quest>" (when the text doesn't name the quest) and the place
--- line ("Northshire Valley · 52.0, 36.0", the distance on its right; the arrow's ticker keeps it fresh).
-function UI.SubLines(top, step, coord)
+-- The lines under the current step's text: "for <quest>" (when the text doesn't name the quest). (beta.14: the
+-- place line "Elwynn Forest · 52.0, 36.0" moved up into the title bar, UI.DrawTitle.)
+function UI.SubLines(top, step)
     local out = {}
     if step.quest and step.type ~= "accept" and step.type ~= "turnin" and ns.Names then
         local name = ns.Names.Quest(step.quest)
@@ -1023,12 +1032,115 @@ function UI.SubLines(top, step, coord)
             out[#out + 1] = { text = ns.U.Fill(L().FOR_QUEST, { quest = Th.Wrap("quest", name) }) }
         end
     end
-    if coord then
-        local zone = step.map and Co.MapName(step.map)
-        out[#out + 1] = { text = zone and ns.U.Fill(L().PLACE_LINE, { zone = zone, coords = coord.text }) or coord.text,
-            right = coord.dist, place = true }
-    end
     return out
+end
+
+-- The title bar's text: the zone, then the step's coordinates in a quieter colour ("Elwynn Forest  42.1, 65.3").
+-- A spot in another zone than the title's shows only the spot's zone ("Westfall  56.3, 47.5"). Fitted to width w (measured in fs): the zone is cut with "..." first, then the coordinates are dropped.
+-- place = { zone, coords } or nil (no coordinates: the zone only).
+UI.TITLE_GAP = "  "
+function UI.TitleText(zone, place, fs, w)
+    zone = zone or ""
+    local coords = place and place.coords
+    if not coords then return zone end
+    -- (the user, 2026-11-27: "Only the spot's zone (Recommended)"): a spot in another zone shows that zone only
+    if place.zone and place.zone ~= "" and place.zone ~= zone then zone = place.zone end
+    local tail = UI.TITLE_GAP .. Th.Wrap("titleCoords", coords)
+    if not (fs and type(w) == "number" and w > 0) then return zone .. tail end
+    fs:SetText(zone .. tail)
+    if (fs:GetStringWidth() or 0) <= w then return zone .. tail end
+    fs:SetText(tail)
+    local tw = fs:GetStringWidth() or 0
+    if zone == "" then return tw <= w and tail or "" end
+    -- the zone needs room for a few letters and the dots, else the coordinates give way
+    local R = ns.Rows
+    if w - tw < 40 then return R.Cut(fs, zone, w) end
+    return R.Cut(fs, zone, w - tw) .. tail
+end
+
+-- Draws the title bar's texts for model m (nil = no guide: the addon's name): zone + coordinates, the distance at
+-- the right (quiet), the zone text ending before it. What gives way on a narrow title, in turn: the distance (the
+-- arrow shows it too), then the zone's end ("..."), then the coordinates. UI.titleDist = the distance is shown.
+-- (ui review of beta.15: the choice is made from a fixed distance width, the widest distance UI.DIST_SAMPLE yards
+-- in the distance's own font, not the live text, so "95 yd" -> "105 yd" never flips it and the zone never jumps;
+-- it is made again only when the zone, the spot, the window width or the font changes: UI.titleKey.)
+UI.DIST_SAMPLE = 9999
+local function AnchorTitle(tb, withDist)
+    tb.dist:SetShown(withDist)
+    tb.title:ClearAllPoints()
+    tb.title:SetPoint("LEFT", tb.logo, "RIGHT", 5, 0)
+    if withDist then
+        tb.title:SetPoint("RIGHT", tb.dist, "LEFT", -6, 0)
+    else
+        tb.title:SetPoint("RIGHT", tb.menu, "LEFT", -4, 0)
+    end
+end
+
+-- The fixed width kept for the distance (the widest one, in tb.dist's font).
+function UI.DistWidth()
+    local tb = UI.title
+    local d = tb.dist
+    local keep = d:GetText()
+    d:SetText(ns.U.Fill(L().YARDS, { n = UI.DIST_SAMPLE }))
+    local w = math.ceil(d:GetStringWidth() or 0)
+    d:SetText(keep)
+    return w
+end
+
+function UI.DrawTitle(m)
+    local tb = UI.title
+    if not tb then return end
+    local p = m and m.place
+    local dist = p and p.dist or ""
+    if not m then
+        tb.dist:SetText("")
+        AnchorTitle(tb, false)
+        tb.title:SetText(L().TITLE)
+        UI.titleText, UI.titleDist, UI.titleKey = L().TITLE, false, nil
+        return
+    end
+    local zone = m.zone or m.title or L().TITLE
+    local fs = tb.title
+    local dw = UI.DistWidth()
+    local key = table.concat({ zone, p and p.coords or "", p and p.zone or "", dist ~= "" and "d" or "",
+        tostring(UI.frame and UI.frame:GetWidth()), dw, tostring(select(2, fs:GetFont())) }, "\1")
+    if key == UI.titleKey then
+        tb.dist:SetText(UI.titleDist and dist or "")
+        return
+    end
+    tb.dist:SetWidth(dw)
+    local withDist = dist ~= ""
+    AnchorTitle(tb, withDist)
+    local w = fs:GetWidth()
+    if withDist and type(w) == "number" and w > 0 then
+        fs:SetText(UI.TitleText(zone, p))
+        if (fs:GetStringWidth() or 0) > w then
+            withDist = false
+            AnchorTitle(tb, false)
+            w = fs:GetWidth()
+        end
+    end
+    local t = UI.TitleText(zone, p, fs, w)
+    fs:SetText(t)
+    tb.dist:SetText(withDist and dist or "")
+    UI.titleText, UI.titleDist, UI.titleKey = t, withDist, key
+end
+
+-- The arrow's ticker: a fresh distance for the current step. Only the distance's text changes (the layout was
+-- decided from the fixed width); a distance that appears or goes (no position before) decides the layout again.
+function UI.SetDistance(text)
+    local m = UI.model
+    local p = m and m.state == "guide" and m.place
+    if not p then return end
+    text = text or ""
+    if (p.dist or "") == text then return end
+    local had = (p.dist or "") ~= ""
+    p.dist = text
+    if had == (text ~= "") then
+        if UI.titleDist then UI.title.dist:SetText(text) end
+        return
+    end
+    UI.DrawTitle(m)
 end
 
 -- Position -> shown number, over the steps that apply to this character; and how many apply.
@@ -1144,7 +1256,7 @@ local function DrawState(state)
     UI.stateIcon:SetVertexColor(Th.Color(state == "finished" and "accentText" or "text.dim"))
     UI.stateText:Show()
     UI.stateText:SetText(L()[STATE_TEXT[state]])
-    UI.title.title:SetText(L().TITLE)
+    UI.DrawTitle(nil)
     for _, c in ipairs(UI.chips.list) do c:Hide() end
     UI.SetProgress(0)
     UI.footer.text:SetText("")
@@ -1352,7 +1464,7 @@ function UI.Refresh()
     UI.footer.prev:Show()
     UI.footer.next:Show()
     UI.footer.text:Show()
-    UI.title.title:SetText(m.zone or m.title or L().TITLE)
+    UI.DrawTitle(m)
     local noticeShown = DrawNotice()
     -- the notice takes the last line (full mode) / the "Next:" line (small mode)
     local reserve = (small or noticeShown) and LH() or 0
@@ -1829,19 +1941,32 @@ function UI.BlockProblem()
         end
     end
     if folds > 1 then return "more than one done line" end
-    -- beta.8 step note: inside the block, under the last goal line, only on the current step
+    -- step note (beta.15: right under the step text, above the goals): inside the block, only on the current step
     local nt = r.note and r.note[1]
+    local noteShown = {}
+    for _, fs in ipairs(r.note or {}) do if fs:IsShown() then noteShown[#noteShown + 1] = fs end end
     if nt and nt:IsShown() then
-        local nb = (r.note[2]:IsShown() and r.note[2] or nt):GetBottom()
+        local nb = noteShown[#noteShown]:GetBottom()
         if type(nb) == "number" and nb < rb - 0.5 then return "the note line runs out of the step block" end
-        local last
-        for _, l in ipairs(r.lines or {}) do if l.text:IsShown() then last = l end end
-        local lb, ntop = last and last.text:GetBottom(), nt:GetTop()
-        if type(lb) == "number" and type(ntop) == "number" and ntop > lb + 0.5 then return "the note line overlaps the goals" end
+        local first = ln and ln.text:IsShown() and ln
+        local gt, tb2 = first and first.text:GetTop(), r.text:GetBottom()
+        if type(gt) == "number" and type(nb) == "number" and nb < gt - 0.5 then return "the note line overlaps the goals" end
+        local ntop = nt:GetTop()
+        if type(tb2) == "number" and type(ntop) == "number" and ntop > tb2 + 0.5 then return "the note line overlaps the step text" end
     end
     for i = 2, #UI.rows do
         local o = UI.rows[i]
         if o and o:IsShown() and o.note and o.note[1]:IsShown() then return "a next step shows a note line" end
+    end
+    -- beta.14: the coordinates sit in the title, never again on a line under the step
+    local pl = UI.model and UI.model.place
+    if pl and pl.coords then
+        for _, s in ipairs(r.subs or {}) do
+            if s.text:IsShown() and (s.text:GetText() or ""):find(pl.coords, 1, true) then return "the place line still shows under the step" end
+        end
+        if not UI.Small() and not (UI.titleText or ""):find(pl.coords, 1, true) and (UI.title.title:GetWidth() or 0) > 200 then
+            return "the title has no coordinates"
+        end
     end
     if (UI.foldCount or 0) > 0 and folds == 0 and loose > 0 and not UI.Small() then return "finished goals aren't folded" end
     -- with the 3D view: goal lines start under its square, the text right of it
@@ -1853,6 +1978,21 @@ function UI.BlockProblem()
         if type(gt) == "number" and type(vb) == "number" and gt > vb + 0.5 then return "a goal line runs beside the 3D view" end
         local tl = r.text:GetLeft()
         if type(tl) == "number" and type(vr) == "number" and tl < vr - 0.5 then return "the step text runs under the 3D view" end
+        -- the note: a line beside the view stays right of it; a line under it starts at the goal text column
+        -- (beta.14 bug: pushed right). (rl = the row's left, from the top of this check)
+        for _, fs in ipairs(noteShown) do
+            local nl, ntp = fs:GetLeft(), fs:GetTop()
+            if type(nl) == "number" and type(ntp) == "number" and type(vb) == "number" and type(vr) == "number" then
+                if ns.Rows.BesideView(r, rt - ntp) then
+                    if nl < vr - 0.5 then return "a note line runs into the 3D view" end
+                else
+                    if ntp > vb + 0.5 then return "a note line under the 3D view starts beside it" end
+                    if math.abs(nl - (rl + ns.Rows.GoalX(r) + Th.Size("tile") + 5)) > 0.6 then
+                        return "the note under the 3D view is pushed right"
+                    end
+                end
+            end
+        end
     end
     return UI.NextProblem()
 end

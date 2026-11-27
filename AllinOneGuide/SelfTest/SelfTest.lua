@@ -277,6 +277,8 @@ function ST.MainParts()
         { name = "title.small", obj = tb.small, art = { "icon" } },
         { name = "title.lock", obj = tb.lock, art = { "icon" } },
         { name = "title.close", obj = tb.close, art = { "icon" } },
+        -- beta.14: the step's distance at the title's right (hidden without a spot or on a narrow title)
+        { name = "title.dist", obj = tb.dist, opt = true, shownOnly = true },
         -- the rounded corners (our own art; a flat panel stands in without it)
         { name = "panel.round", obj = UI.frame and UI.frame.round and UI.frame.round.panel and UI.frame.round.panel.pieces.c, opt = true, shownOnly = true, behind = true },
         { name = "area", obj = UI.area },

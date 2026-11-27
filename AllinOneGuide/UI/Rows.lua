@@ -323,6 +323,12 @@ local function GoalX(row)
 end
 R.GoalX = GoalX
 
+-- Does a line whose top is `top` (from the row's top) sit beside the 3D view? Only on a lean row, above the line
+-- where the goals start under the view (row.leanH = the view's height in the row, + blockPad).
+function R.BesideView(row, top)
+    return (row.lean and row.leanH and top < row.leanH + Th.Size("blockPad")) and true or false
+end
+
 -- A goal / coordinate line's text: top anchors at the line's top (ln.top), clear of its right-hand text.
 local function PlaceLineText(row, ln)
     local x = GoalX(row) + Th.Size("tile") + 5 + (ln.indent or 0)
@@ -337,68 +343,106 @@ local function PlaceSubText(row, s)
     s.text:SetPoint("TOPRIGHT", row, "TOPRIGHT", -RightInset(s.right, 4, row.reserve, 0), -s.top)
 end
 
--- beta.8 step notes: splits text into at most two lines of width w (words; a too-long second line is cut with
--- "..."), measured on fs (single line). Returns line1, line2 (or nil), cut.
-function R.NoteLines(fs, text, w)
-    fs:SetText(text)
-    if w <= 0 or (fs:GetStringWidth() or 0) <= w then return text, nil, false end
-    -- (an item link is one word: never split between the two lines)
+-- Splits text into lines of the given widths (widths[i] for line i; as many lines as widths), by words, measured on
+-- fs (single line); the last line is cut with "..." when the text doesn't fit. An item link is one word. Returns
+-- the list of lines (1..#widths), cut.
+function R.NoteFlow(fs, text, widths)
     local words = {}
     local kept = text:gsub("|H.-|h.-|h", function(l) return (l:gsub(" ", "\1")) end)
     for word in kept:gmatch("%S+") do words[#words + 1] = (word:gsub("\1", " ")) end
-    local line1, k = "", 0
-    for i, word in ipairs(words) do
-        local try = line1 == "" and word or (line1 .. " " .. word)
-        fs:SetText(try)
-        if (fs:GetStringWidth() or 0) > w then break end
-        line1, k = try, i
+    local lines, k = {}, 0
+    for li, w in ipairs(widths) do
+        local rest = table.concat(words, " ", k + 1)
+        if rest == "" then break end
+        fs:SetText(rest)
+        if w <= 0 or (fs:GetStringWidth() or 0) <= w then
+            lines[li] = rest
+            return lines, false
+        end
+        if li == #widths then
+            lines[li] = Cut(fs, rest, w)
+            return lines, true
+        end
+        local line, kk = "", k
+        for i = k + 1, #words do
+            local try = line == "" and words[i] or (line .. " " .. words[i])
+            fs:SetText(try)
+            if (fs:GetStringWidth() or 0) > w then break end
+            line, kk = try, i
+        end
+        if kk == k then   -- one word wider than the line: cut it there
+            lines[li] = Cut(fs, rest, w)
+            return lines, true
+        end
+        lines[li], k = line, kk
     end
-    if k == 0 then return Cut(fs, text, w), nil, true end   -- one word wider than the line
-    local rest = table.concat(words, " ", k + 1)
-    fs:SetText(rest)
-    if (fs:GetStringWidth() or 0) <= w then return line1, rest, false end
-    return line1, Cut(fs, rest, w), true
+    return lines, false
 end
 
--- Lays out the note under the goals from height h; returns the new height. row.noteCut: the text was cut.
+-- beta.8 step notes: at most two lines of width w. Returns line1, line2 (or nil), cut.
+function R.NoteLines(fs, text, w)
+    local lines, cut = R.NoteFlow(fs, text, { w, w })
+    return lines[1] or "", lines[2], cut
+end
+
+-- The note's most lines: all that fit beside the 3D view, then at most R.NOTE_BELOW under it (R.NOTE_MAX in all,
+-- a guard for huge fonts / tiny ones).
+R.NOTE_MAX, R.NOTE_BELOW = 10, 2
+
+-- Lays out the note from height h (right under the step text); returns the new height. row.noteCut: the text was
+-- cut. beta.15 (the user: "i want to move the grey text, "a nibbled-on book may drop""): the grey note sits right
+-- under the step text, above the goals. A note line beside the 3D view (R.BesideView) wraps in the step text's
+-- column (its item tile there too); lines below the view use the full width, text at the goal lines' text column
+-- (tile at the goal tile's x). Without the view: the goal text column (beta.13 "Line up the grey note with the
+-- text"; beta.14 bug: never pushed right of the view when it isn't beside it).
 function R.Note(row, text, h, reserve, item)
     local note = row.note
     if not (text and item) then R.HideItemTile(row, "note") end
     if not text then
-        row.noteCut = nil
-        if note then note[1]:Hide() note[2]:Hide() end
+        row.noteCut, row.noteLines = nil, 0
+        if note then for _, fs in ipairs(note) do fs:Hide() end end
         return h
     end
-    if not note then
-        note = { K.Text(row, "goal", "note"), K.Text(row, "goal", "note") }
-        for _, fs in ipairs(note) do
-            fs:SetJustifyV("MIDDLE")
-            if fs.SetWordWrap then fs:SetWordWrap(false) end
-        end
-        row.note = note
-    end
+    if not note then note = {} row.note = note end
     local LG = Th.LineHeight("goal")
-    -- with an item: its tile where a goal line's tile sits, the text where a goal line's text starts
-    -- (beta.13, the user: "Line up the grey note with the text"): next to the 3D view (lean) the note starts in the
-    -- step text's column (its tile there too, like the step text's own tile); without the view as before
-    local x0 = row.lean and TextX(row) or GoalX(row)
-    local x = x0 + (item and Th.Size("tile") + 5 or (row.lean and 0 or Th.Size("foldIndent")))
-    local w = (row:GetWidth() or 0) - x - Pad() - (reserve or 0)
-    local l1, l2, cut = R.NoteLines(note[1], text, w)
-    row.noteCut = cut or nil
+    local tileW = Th.Size("tile") + 5
+    local rowW = row:GetWidth() or 0
     h = h + Th.Size("noteGap")
+    -- each line's spot: beside the view (step text column) or below it (goal text column, full width)
+    local xs, widths, below = {}, {}, 0
+    for i = 1, R.NOTE_MAX do
+        local beside = R.BesideView(row, h + (i - 1) * LG)
+        if not beside then
+            below = below + 1
+            if below > R.NOTE_BELOW then break end
+        end
+        local x = beside and (TextX(row) + (item and tileW or 0)) or (GoalX(row) + tileW)
+        xs[i], widths[i] = x, rowW - x - Pad() - (reserve or 0)
+    end
+    -- (FontStrings made only as needed: at least 2, as many as this note can use)
+    for i = #note + 1, math.max(2, #widths) do
+        local fs = K.Text(row, "goal", "note")
+        fs:SetJustifyV("MIDDLE")
+        if fs.SetWordWrap then fs:SetWordWrap(false) end
+        fs:Hide()
+        note[i] = fs
+    end
+    local lines, cut = R.NoteFlow(note[1], text, widths)
+    row.noteCut = cut or nil
     if item then
         local s = TileS(LG)   -- (the goal tile's size helper: always the same as the kill X)
-        R.ItemTile(row, "note", item, x0, h + (LG - s) / 2, s)
+        local beside = R.BesideView(row, h)
+        R.ItemTile(row, "note", item, beside and TextX(row) or GoalX(row), h + (LG - s) / 2, s)
     end
-    row.noteX = x
-    for i, t in ipairs({ l1, l2 or false }) do
-        local fs = note[i]
+    row.noteX = xs[1]
+    row.noteLines = #lines
+    for i, fs in ipairs(note) do
+        local t = lines[i]
         if t then
             fs:SetText(t)
             K.Color(fs, "note")
             fs:ClearAllPoints()
-            fs:SetPoint("TOPLEFT", row, "TOPLEFT", x, -h)
+            fs:SetPoint("TOPLEFT", row, "TOPLEFT", xs[i], -h)
             fs:SetPoint("TOPRIGHT", row, "TOPRIGHT", -(Pad() + (reserve or 0)), -h)
             fs:SetHeight(LG)
             fs:Show()
@@ -407,7 +451,7 @@ function R.Note(row, text, h, reserve, item)
             fs:Hide()
         end
     end
-    return h
+    return h + Th.Size("noteGap")   -- (the same gap under it as above it, before the goals)
 end
 
 -- Lays out one row; returns its height.
@@ -420,6 +464,7 @@ function R.Set(row, d)
     local lean = d.lean and true or false
     row.lean = lean
     row.leanX = lean and d.leanX or nil
+    row.leanH = lean and tonumber(d.leanH) or nil
     local numbered = NumW() > 0 and not lean
     row.num:SetShown(numbered)
     row.current, row.rightText = current, d.right
@@ -504,6 +549,8 @@ function R.Set(row, d)
         row.subs[i].text:Hide()
         row.subs[i].right:Hide()
     end
+    -- beta.15: the grey note right under the step text (beside the 3D view while there is room there)
+    h = R.Note(row, current and d.note or nil, h, reserve, current and d.noteItem or nil)
     -- goal lines (under the 3D view when it shows: full width), then the coordinate line
     if current and lean and d.leanH then h = math.max(h, d.leanH + Th.Size("blockPad")) end
     local n = 0
@@ -605,8 +652,6 @@ function R.Set(row, d)
         h = h + LG
     end
     for i = n + 1, #row.lines do ShowLine(row.lines[i], false) end
-    -- beta.8 step note (the step's `why`): dim, under the goals, full width, at most 2 lines ("..." + tooltip)
-    h = R.Note(row, current and d.note or nil, h, reserve, current and d.noteItem or nil)
     -- 4h: a next step is one line: framed verb tag + target (cut with "..." before the coords), fading
     local tagged = state == "upcoming" and d.tag ~= nil
     row.tagged = tagged
