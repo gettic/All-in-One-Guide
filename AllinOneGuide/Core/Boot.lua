@@ -78,6 +78,7 @@ ns.Test.StatusLine = B.StatusLine
 ns.Slash.Add("status", function()
     ns.Print(L.STATUS_HEAD)
     ns.Print(B.StatusLine())
+    if ns.PackLoader then ns.Print(ns.PackLoader.StatusLine()) end   -- v0.2.5 pack addons
 end, "HELP_STATUS", { main = true })
 
 ns.Slash.Add("debug", function(arg)

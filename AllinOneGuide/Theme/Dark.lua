@@ -77,6 +77,7 @@ ns.Theme.Register("Dark", {
     ["color.corpse"] = { "#C9D3DF", 1 },
     ["color.pinFace"] = { "#0B0E13", 1 },
     ["color.stepFrame"] = { "#4A4A50", 1 },
+    ["color.endButtonEdge"] = "=stepFrame",   -- v0.2.5: the end card button's 1 px edge (the accent under the mouse)
     ["color.stepFrameMissing"] = { "#E0524A", 1 },
     -- v0.2 look review: the Hub, dialog, copy box and menu (text over the world; the guide window keeps
     -- color.panel and the opacity setting)

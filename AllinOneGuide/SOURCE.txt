@@ -5,7 +5,9 @@ This addon is free software under the GNU General Public License, version 3
 or (at your option) any later version. See LICENSE and CREDITS.txt.
 
 Everything in this folder is readable Lua and is the source itself. The guide
-routes in Routes\*.lua are built from readable pack sources by a script; those
+routes (in the guide pack addons AllinOneGuide_Alliance\Routes\ and
+AllinOneGuide_Horde\Routes\), Routes\Connectors.lua, Routes\Spots.lua and
+Data\KnownPacks.lua are built from readable pack sources by a script; those
 sources, the pack format description and the build tools are in the GitHub
 repository, at the tag that matches this addon's version (## Version in the
 .toc file):
@@ -14,7 +16,10 @@ repository, at the tag that matches this addon's version (## Version in the
 
   packs-src\          the readable guide pack sources
   packs-src\FORMAT.md the pack format
-  tools\              the pack checker and the build script (Routes\*.lua)
+  tools\              the pack checker and the build script (the pack addons,
+                      Routes\*.lua, Data\KnownPacks.lua)
+  tools\data\         which pack goes in which pack addon, timed quests,
+                      must-do quests
   tools\import\       the offline data importer and its licence / provenance
                       filter (for packs made from other projects' GPL data)
   art-src\            the scripts that draw the pictures in media\
@@ -24,5 +29,5 @@ repository folder:
   luajit tools/build.lua
 or on Windows:
   powershell -NoProfile -File tools\build.ps1
-To check that Routes\*.lua match their sources: add --check (or -Check).
+To check that the built files match their sources: add --check (or -Check).
 To rebuild the pictures (needs Python 3): python -B art-src\build_<name>.py

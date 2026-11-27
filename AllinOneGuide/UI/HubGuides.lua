@@ -49,6 +49,22 @@ function HG.List()
                 blurb = type(h.blurb) == "string" and h.blurb or nil }
         end
     end
+    -- v0.2.5: packs in a guide pack addon that isn't loaded: installed (loads on Switch), or one neutral status line
+    -- (not installed / turned off / out of date; tos T28: no pop-ups, no repeats)
+    local known = type(ns.KnownPacks) == "table" and type(ns.KnownPacks.packs) == "table" and ns.KnownPacks.packs or {}
+    local PL = ns.PackLoader
+    for id, k in pairs(known) do
+        if not have[id] and PL and type(k) == "table" and (k.kind == nil or k.kind == "route") then
+            have[id] = true
+            local st, folder = PL.PackState(id)
+            local lv = type(k.levels) == "table" and k.levels or {}
+            local title = (ns.Locale.code == "daDK" and k.da) or k.title or id
+            out[#out + 1] = { id = id, title = title, faction = k.faction, a = lv[1], b = lv[2],
+                fits = k.faction == nil or k.faction == "Neutral" or k.faction == E.ctx.faction,
+                pack = st, folder = folder,
+                blurb = st ~= "ready" and folder and ns.U.Fill(L().PACKS_IN, { title = PL.Title(folder) }) or nil }
+        end
+    end
     for _, g in ipairs(ns.PlannedGuides or {}) do
         if not have[g.id] then
             local lv = g.levels or {}
@@ -56,7 +72,20 @@ function HG.List()
                 version = g.version, blurb = g.area }
         end
     end
+    -- v0.2.5 C1: the "Play next" card: the focused guide is finished and its pack joins another one (on top)
+    local g = E.Focused()
+    local nx = g and g:Finished() and E.NextOf(g)
+    if nx then
+        local found
+        for _, c in ipairs(out) do if c.id == nx.pack then found = c end end
+        if not found then
+            found = { id = nx.pack, title = nx.title, pack = nx.state }
+            out[#out + 1] = found
+        end
+        found.playNext, found.planned, found.active = true, nil, false
+    end
     table.sort(out, function(x, y)
+        if (x.playNext or false) ~= (y.playNext or false) then return x.playNext == true end
         if (x.planned or false) ~= (y.planned or false) then return not x.planned end
         if (x.fits or false) ~= (y.fits or false) then return x.fits == true end
         return tostring(x.title) < tostring(y.title)
@@ -100,6 +129,22 @@ function HG.Switch(id)
     end
 end
 
+-- "Play next" (v0.2.5 C1; a click only, tos T34)
+function HG.PlayNext()
+    local g, why = E.Chain()
+    if not g and why == "queued" then ns.Print(L().PLAY_NEXT_COMBAT) end
+    HG.Layout()
+end
+
+-- "Turn on" on a turned-off pack addon (v0.2.5; a click only, tos T27): enable for this character and load it.
+function HG.TurnOn(folder)
+    local PL = ns.PackLoader
+    if not PL then return end
+    local r = PL.Enable(folder)
+    if r == "reload" then ns.Print(ns.U.Fill(L().PACKS_RELOAD, { title = PL.Title(folder) })) end
+    HG.Layout()
+end
+
 -- ------------------------------------------------------------------ cards
 local function MakeCard(parent)
     local c = CreateFrame("Frame", nil, parent)
@@ -132,7 +177,11 @@ local function MakeCard(parent)
     c.line:SetPoint("TOPLEFT", c.title, "BOTTOMLEFT", 0, -3)
     c.blurb = K.Text(c, "goal", "text.dim")
     c.blurb:SetPoint("TOPLEFT", c.line, "BOTTOMLEFT", 0, -2)
-    c.button = K.Button(c, "", function(self) if self.id then HG.Switch(self.id) end end, { feature = "hub" })
+    c.button = K.Button(c, "", function(self)
+        if self.chain then HG.PlayNext()
+        elseif self.id then HG.Switch(self.id)
+        elseif self.folder then HG.TurnOn(self.folder) end
+    end, { feature = "hub" })
     c.button:SetPoint("RIGHT", c, "RIGHT", -10, 0)
     c.state = K.Text(c, "goal", "accent", "RIGHT")
     c.state:SetPoint("RIGHT", c, "RIGHT", -12, 0)
@@ -144,6 +193,7 @@ end
 
 local function Fill(card, c)
     card.data = c
+    card.button.folder, card.button.chain = nil, nil
     local side = Side(c)
     Th.Glyph(card.emblem, c.planned and "emblem.soon" or ("emblem." .. (side == "both" and "neutral" or side)))
     card.title:SetText(c.title or c.id)
@@ -159,10 +209,30 @@ local function Fill(card, c)
         K.Color(card.state, "text.dim")
         card.state:Show()
         card:SetAlpha(0.6)
+    elseif c.pack and c.pack ~= "ready" then
+        -- a pack whose addon isn't usable now: one neutral line; "Turn on" only for a turned-off folder (a click)
+        card.line:SetText(lv and ns.U.Fill(L().GUIDES_LEVELS_SOON, { a = c.a, b = c.b }) or "")
+        card.state:Hide()
+        if c.pack == "disabled" then
+            card.button.id = nil
+            card.button.folder = c.folder
+            card.button:SetLabel(L().PACKS_TURN_ON)
+            card.button:SetPrimary(false)
+            card.button:Show()
+        else
+            card.button:Hide()
+            card.button.id = nil
+            card.state:SetText(L()["PACKS_STATE_" .. c.pack:upper()] or L().PACKS_STATE_UNKNOWN)
+            K.Color(card.state, "text.dim")
+            card.state:Show()
+        end
+        card:SetAlpha(0.75)
     else
         local done = (c.at and c.steps > 0) and math.floor((c.at - 1) * 100 / c.steps + 0.5) or nil
         local where = done and ns.U.Fill(L().GUIDES_DONE, { n = done }) or L().GUIDES_NOT_STARTED
-        card.line:SetText(ns.U.Fill(L().GUIDES_LEVELS, { a = c.a or "?", b = c.b or "?", n = c.steps or 0 }) .. " - " .. where)
+        local levels = c.steps and ns.U.Fill(L().GUIDES_LEVELS, { a = c.a or "?", b = c.b or "?", n = c.steps })
+            or ns.U.Fill(L().GUIDES_LEVELS_SOON, { a = c.a or "?", b = c.b or "?" })   -- (not loaded yet: no count)
+        card.line:SetText(levels .. " - " .. where)
         card:SetAlpha(1)
         if c.active then
             card.button:Hide()
@@ -178,7 +248,16 @@ local function Fill(card, c)
             card.button:Show()
         end
     end
-    card.blurb:SetText(c.blurb or "")
+    -- v0.2.5 C1: the "Play next" card (the focused guide is finished): one button, a click opens it at the join step
+    if c.playNext and (c.pack == nil or c.pack == "loaded" or c.pack == "ready") then
+        card.state:Hide()
+        card.button.id, card.button.folder, card.button.chain = nil, nil, true
+        card.button:SetLabel(L().PLAY_NEXT)
+        card.button:SetPrimary(true)
+        card.button:Show()
+        card:SetAlpha(1)
+    end
+    card.blurb:SetText(c.playNext and L().PLAY_NEXT_BLURB or c.blurb or "")
     for _, t in ipairs(card.edges) do
         t:SetColorTexture(Th.Color(c.active and "cardEdge" or "cardBorder"))
     end
@@ -198,9 +277,13 @@ function HG.Layout()
         if s == "horde" or s == "both" then counts.horde = counts.horde + 1 end
         if c.planned then counts.soon = counts.soon + 1 planned = planned + 1 else installed = installed + 1 end
     end
+    -- v0.2.5: nothing planned any more (every route ships) = no "Coming soon" chip and no "coming" count
+    HG.soonShown = planned > 0
+    if not HG.soonShown and HG.filter == "soon" then HG.filter = "all" end
     for key, chip in pairs(HG.chips) do
         chip:SetLabel(ns.U.Fill(L()["GUIDES_" .. key:upper()], { n = counts[key] }))
         chip:SetOn(HG.filter == key)
+        if key == "soon" then chip:SetShown(HG.soonShown) end
     end
     local y, n = HG.top, 0
     local gap = 6
@@ -227,7 +310,7 @@ function HG.Layout()
     if n == 0 then y = y + Th.LineHeight("step") + 6 end
     HG.count:ClearAllPoints()
     HG.count:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -(y + 4))
-    HG.count:SetText(ns.U.Fill(L().GUIDES_COUNT, { n = installed, m = planned }))
+    HG.count:SetText(ns.U.Fill(planned > 0 and L().GUIDES_COUNT or L().GUIDES_COUNT_ALL, { n = installed, m = planned }))
     HG.shown = n
     local h = y + 4 + math.max(Th.LineHeight("goal"), HG.count:GetStringHeight() or 0) + 6
     if ns.Hub.current == "guides" then ns.Hub.SetHeight("guides", h) end
@@ -292,7 +375,7 @@ ns.SelfChecks[#ns.SelfChecks + 1] = { label = "guides", fn = function(h)
     local active, installed = 0, 0
     for _, c in ipairs(list) do
         if c.active then active = active + 1 end
-        if not c.planned then installed = installed + 1 end
+        if not c.planned and not c.pack then installed = installed + 1 end   -- (c.pack: an unloaded pack addon's pack)
         if c.planned and P.Header(c.id) then h.Problem("guides: " .. c.id .. " is installed and planned") end
     end
     local packs = 0

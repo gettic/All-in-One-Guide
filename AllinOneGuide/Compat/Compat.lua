@@ -137,6 +137,47 @@ function Co.LoadAddOn(name)
     if not f then return false, "MISSING_API" end
     return f(name)
 end
+-- v0.2.5 pack loader: loadable (true / false / nil = unknown), reason token (MISSING, DISABLED, INTERFACE_VERSION,
+-- DEP_*, ...; nil when loadable). Secret / missing answers = unknown.
+function Co.AddOnInfo(name)
+    local f = F.AddOnInfo
+    if not f then return nil, "MISSING_API" end
+    local ok, n, _, _, loadable, reason = pcall(f, name)
+    if not ok then return nil, "MISSING" end
+    if n == nil then return false, "MISSING" end
+    local l = Co.IsTrue(loadable)
+    return l, type(reason) == "string" and reason or nil
+end
+-- Enabled for this character? true / false / nil (unknown). GetAddOnEnableState(name, character) on 1.60.1.
+function Co.AddOnEnabled(name, character)
+    local f = F.AddOnEnableState
+    if not f then return nil end
+    local ok, state = pcall(f, name, character)
+    state = ok and Co.Num(state) or nil
+    if state == nil then return nil end
+    return state > 0
+end
+-- v0.2.5 waits: seconds left on a timed quest's own timer (C_QuestLog.GetQuestTimers), or nil (not timed, not in
+-- the log, API missing, secret).
+function Co.QuestTimer(questID)
+    local f = F.QuestTimers
+    if not f then return nil end
+    local ok, list = pcall(f)
+    if not ok or type(list) ~= "table" then return nil end
+    for _, t in ipairs(list) do
+        if type(t) == "table" and Co.Num(t.questID) == questID then
+            local left = Co.Num(t.questTimer)
+            if left and left >= 0 then return left end
+        end
+    end
+    return nil
+end
+-- Only from a click (tos T27). Takes effect at once for a LoadOnDemand addon's next LoadAddOn, else after /reload.
+function Co.EnableAddOn(name, character)
+    local f = F.EnableAddOn
+    if not f then return false end
+    return (pcall(f, name, character))
+end
 
 -- Our own memory in KB (self-test only: UpdateAddOnMemoryUsage walks every addon, so never on a timer).
 function Co.MemoryKB(name)

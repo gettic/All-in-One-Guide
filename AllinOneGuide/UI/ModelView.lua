@@ -724,8 +724,13 @@ function MV.Update()
     -- in combat with modelHideCombat off: it stays as it is (no reload until the fight ends); with nothing
     -- loaded (first show or after the unload) the card stands in until then (beta.5 fix: an empty box)
     MV.waiting = nil
-    if not Co.InCombat() then
-        Load(MV.TargetFor(ns.Engine.Current()))
+    -- v0.2.5 messy-play fix (seed 20261126 #132: "/aog undo" in combat back onto a go-to step, right after the end
+    -- card had hidden the view): a picture target loads no model, only a texture, so it is drawn in combat too.
+    -- Before, the view shown again in combat got the waiting card while MV.target still held the last step's
+    -- picture (the self-check's "a step without a unit but no picture").
+    local want = MV.TargetFor(ns.Engine.Current())
+    if not Co.InCombat() or (want and want.picture) then
+        Load(want)
         -- beta.13: some clients reset the facing when a model (re)loads: set it again on every update (step
         -- change, window shown); the default follows the dock side until the player turns the model
         if not MV.turned then MV.facing = MV.DefaultFacing() end
@@ -735,8 +740,9 @@ function MV.Update()
             ApplyView()
         end
     elseif not MV.loadedKey then
+        -- (the card stands in for a model until the fight ends: no target of an earlier step is kept with it)
         MV.waiting = true
-        MV.stage = "card"
+        MV.stage, MV.target = "card", nil
         ShowCard(true)
     end
     f:Show()

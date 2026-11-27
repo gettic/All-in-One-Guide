@@ -287,6 +287,11 @@ function ST.MainParts()
         { name = "divider", obj = UI.divider, opt = true, shownOnly = true, thin = true },
         { name = "state", obj = UI.stateText, shownOnly = true },
         { name = "state.icon", obj = UI.stateIcon, shownOnly = true, artSelf = true },
+        -- v0.2.5 end card / missing pack card: the dim line and the button (Play next / Turn on)
+        { name = "end.line", obj = UI.endLine, opt = true, shownOnly = true },
+        { name = "end.button", obj = UI.endButton, opt = true, shownOnly = true },
+        -- v0.2.5 waits countdown line (on the current step when it waits)
+        { name = "wait.line", obj = UI.rows and UI.rows[1] and UI.rows[1].waitLine and UI.rows[1].waitLine.text, opt = true, shownOnly = true },
         { name = "notice", obj = UI.noticeLine, shownOnly = true },
         { name = "notice.icon", obj = nl.icon, opt = true, shownOnly = true, artSelf = true },
         -- the info chips (route / level / time left; a chip that doesn't fit hides)
@@ -342,7 +347,7 @@ function ST.HubParts()
         { name = "guides.search", obj = HG.search },
         { name = "guides.search.icon", obj = s.icon, artSelf = true },
         { name = "guides.chip.all", obj = chips.all },
-        { name = "guides.chip.soon", obj = chips.soon },
+        { name = "guides.chip.soon", obj = chips.soon, opt = not HG.soonShown, shownOnly = not HG.soonShown },
         { name = "guides.card1", obj = card, opt = not hasCard, shownOnly = not hasCard },
         { name = "guides.card1.emblem", obj = card and card.emblem, opt = not hasCard, shownOnly = not hasCard, artSelf = true },
     }

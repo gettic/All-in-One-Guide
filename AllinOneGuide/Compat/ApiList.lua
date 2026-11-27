@@ -30,6 +30,12 @@ ns.ApiList = {
     { id = "AddOnMetadata", path = "C_AddOns.GetAddOnMetadata", kind = "function", secret = "args", src = "doc AddOnsDocumentation" },
     { id = "IsAddOnLoaded", path = "C_AddOns.IsAddOnLoaded", feature = "modules", kind = "function", src = "doc AddOnsDocumentation" },
     { id = "LoadAddOn", path = "C_AddOns.LoadAddOn", feature = "modules", kind = "function", secret = "args", src = "doc AddOnsDocumentation" },
+    -- v0.2.5 pack loader (Packs\Loader.lua): state of the guide pack addons; EnableAddOn only after a click (tos T27)
+    { id = "AddOnInfo", path = "C_AddOns.GetAddOnInfo", kind = "function", secret = "args", src = "doc AddOnsDocumentation" },
+    { id = "AddOnEnableState", path = "C_AddOns.GetAddOnEnableState", kind = "function", secret = "args", src = "doc AddOnsDocumentation" },
+    { id = "EnableAddOn", path = "C_AddOns.EnableAddOn", kind = "function", secret = "args", src = "doc AddOnsDocumentation" },
+    -- v0.2.5 waits countdown: the timed quests' seconds left ({ questID, questTimer }; Blizzard_QuestTimer uses it)
+    { id = "QuestTimers", path = "C_QuestLog.GetQuestTimers", kind = "function", src = "doc QuestLogDocumentation" },
 
     -- the player
     { id = "UnitLevel", path = "UnitLevel", feature = "player", kind = "function", src = "doc UnitDocumentation" },

@@ -4,8 +4,9 @@
 -- Compiled by tools\build.ps1 from packs-src\durotar.lua; do not edit.
 -- The readable source and packs-src\FORMAT.md are in the GitHub repository at the matching tag.
 -- Row fields: id|type|quest|npc|map|x|y|r|text|da|flags|cond|src|extra
-local _, ns = ...
-ns.Packs.Register({ author = "All-in-One Guide", category = "leveling", conditions = "faction=Horde", da = "Durotar 1-6", entry = "race=Orc,Troll", faction = "Horde", formatVersion = 2, id = "demo-durotar", kind = "route", levels = { 1, 6 }, license = "GPL-3.0-or-later", minFormat = 1, renamedSteps = {  }, retiredSteps = {  }, source = "packs-src/durotar.lua at the matching GitHub tag", title = "Durotar 1-6", version = "0.1.0" }, {
+local AOG = AllinOneGuide
+if not (AOG and AOG.RegisterPack) then return end
+AOG.RegisterPack({ author = "All-in-One Guide", category = "leveling", conditions = "faction=Horde", da = "Durotar 1-6", entry = "race=Orc,Troll", faction = "Horde", formatVersion = 2, id = "demo-durotar", kind = "route", levels = { 1, 6 }, license = "GPL-3.0-or-later", minFormat = 1, renamedSteps = {  }, retiredSteps = {  }, source = "packs-src/durotar.lua at the matching GitHub tag", title = "Durotar 1-6", version = "0.1.0" }, {
     { id = "normal", title = "Normal", da = "Normal", sections = { "1|The Den|Hulen", "5|Around the valley|Rundt i dalen", "21|Burning Blade Coven|Burning Blade-hulen", "70|Sen'jin and Razor Hill|Sen'jin og Razor Hill" }, rows = {
         "dur-acc-4641|accept|4641|10176|1411|43.29|68.53||Accept {quest} from the orc where you start|Tag imod {quest} fra orken, hvor du starter|||cmangos|confirmed=0;qname=Your Place In The World;seen=2026-11",
         "dur-ti-4641|turnin|4641|3143|1411|42.06|68.33||Turn in {quest} to Gornek in the Den|Aflever {quest} til Gornek i hulen|||cmangos|confirmed=0;qname=Your Place In The World;room=vot-den;seen=2026-11",

@@ -17,6 +17,25 @@ ns.SelfChecks = {}
 AllinOneGuide = AllinOneGuide or {}
 AllinOneGuide.name = ns.TITLE
 
+-- v0.2.5: the guide pack addons (AllinOneGuide_Alliance / _Horde, LoadOnDemand) can't see this private namespace,
+-- so their compiled pack files register through these two (data only, tos T29). Set on every load, so the newest
+-- guide code always receives them. Returns true, or false + reason (like ns.Packs.Register).
+function AllinOneGuide.RegisterPack(header, routes)
+    if not (ns.Packs and ns.Packs.Register) then return false, "not ready" end
+    local ok, res, why = pcall(ns.Packs.Register, header, routes)
+    if not ok then
+        if ns.Errors then ns.Errors.Debug("RegisterPack: %s", tostring(res)) end
+        return false, "bad pack"
+    end
+    if res and ns.PackLoader and ns.PackLoader.Registered then ns.PackLoader.Registered(header.id) end
+    return res, why
+end
+function AllinOneGuide.RegisterSpots(packId, targets)
+    if not (ns.Spots and ns.Spots.Register) then return false end
+    local ok, res = pcall(ns.Spots.Register, packId, targets)
+    return ok and res or false
+end
+
 -- Every chat line we write starts with "All-in-One Guide:" in the addon's colour.
 -- v0.2 M4: the chat tab from the setting chatTab (ChatFrame1..10); the default chat frame when that tab
 -- doesn't exist (or before the settings are read).

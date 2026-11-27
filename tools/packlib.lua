@@ -315,10 +315,13 @@ function Lib.Compile(ns, pack, routes, srcName)
     L[#L + 1] = "-- Compiled by tools\\build.ps1 from packs-src\\" .. srcName .. "; do not edit."
     L[#L + 1] = "-- The readable source and packs-src\\FORMAT.md are in the GitHub repository at the matching tag."
     L[#L + 1] = "-- Row fields: " .. table.concat(ns.Format.FIELDS, "|")
-    L[#L + 1] = "local _, ns = ..."
+    -- v0.2.5: packs live in their own LoadOnDemand addons, which can't see the guide's private namespace, so they
+    -- register through the one public entry (data only: T29)
+    L[#L + 1] = Lib.PACK_HEAD[1]
+    L[#L + 1] = Lib.PACK_HEAD[2]
     local header = {}
     for k, v in pairs(pack) do if not HEADER_SKIP[k] then header[k] = v end end
-    L[#L + 1] = "ns.Packs.Register(" .. Lit(header) .. ", {"
+    L[#L + 1] = "AOG.RegisterPack(" .. Lit(header) .. ", {"
     for _, r in ipairs(routes) do
         local secs = {}
         for _, s in ipairs(r.sections) do
@@ -338,5 +341,119 @@ end
 
 -- Output file name for a pack.
 function Lib.OutName(pack) return (pack.file or pack.id) .. ".lua" end
+
+-- ------------------------------------------------------------------ v0.2.5 pack folders
+-- The two code lines every compiled pack file starts with (after its comments).
+Lib.PACK_HEAD = { "local AOG = AllinOneGuide", "if not (AOG and AOG.RegisterPack) then return end" }
+
+-- T29 (plans\roadmap-1-60\tos.md): a compiled pack file is plain readable data. Every line must be a comment, one
+-- of the two head lines, the RegisterPack call, a route head, a row string, or a closing bracket; nothing may
+-- hide code (loadstring, load(, setfenv, getfenv, \ddd escapes, long base64-like runs). Returns a list of problems.
+Lib.SCAN_CODE = { "loadstring", "load%s*%(", "setfenv", "getfenv", "dofile", "require", "%f[%w_]_G%f[^%w_]",
+    "function", "%f[%w_]AOG%.[%a_]+" }
+Lib.BASE64_RUN = 40   -- a run of base64 letters this long (with + or /) counts as encoded
+-- The line with every string literal emptied (so words in step texts never count as code).
+local function StripStrings(line)
+    local out, i, n = {}, 1, #line
+    while i <= n do
+        local c = line:sub(i, i)
+        if c == '"' then
+            local j = i + 1
+            while j <= n do
+                local d = line:sub(j, j)
+                if d == "\\" then j = j + 2 elseif d == '"' then break else j = j + 1 end
+            end
+            out[#out + 1] = '""'
+            i = j + 1
+        else
+            out[#out + 1] = c
+            i = i + 1
+        end
+    end
+    return table.concat(out)
+end
+Lib.StripStrings = StripStrings
+function Lib.ScanOutput(text, name)
+    local out = {}
+    local function P(n, msg) out[#out + 1] = (name or "?") .. ":" .. n .. ": " .. msg end
+    local n, calls = 0, 0
+    for line in (text .. "\n"):gmatch("([^\n]*)\n") do
+        n = n + 1
+        local check = true
+        if line:match("^%-%-") or line == Lib.PACK_HEAD[1] or line == Lib.PACK_HEAD[2] then
+            check = false
+        elseif line:match("^AOG%.RegisterPack%({.*}, {$") then
+            calls = calls + 1
+        elseif not (line:match('^    { id = "[^"]*", title = .*, rows = {$') or line:match('^        ".*",$')
+            or line == "    } }," or line == "})" or line == "") then
+            P(n, "not a pack data line")
+        end
+        if check then
+            local code = StripStrings(line)
+            if line:match("^AOG%.RegisterPack%(") then code = code:gsub("^AOG%.RegisterPack", "", 1) end
+            for _, pat in ipairs(Lib.SCAN_CODE) do
+                local hit = code:match(pat)
+                if hit then P(n, "looks like code: " .. hit) end
+            end
+            if line:find("\\%d") then P(n, "a \\ddd byte escape") end
+            for run in line:gmatch("[%w%+/=]+") do
+                if #run >= Lib.BASE64_RUN and run:find("[%+/]") then P(n, "a long encoded-looking run: " .. run:sub(1, 40)) break end
+            end
+        end
+    end
+    if calls ~= 1 then P(n, "needs exactly one AOG.RegisterPack call (has " .. calls .. ")") end
+    return out
+end
+
+-- The pack addon's .toc (generated; one per folder in tools\data\pack-folders.lua).
+function Lib.PackToc(f, interface, files, packIds)
+    local L = {
+        "# SPDX-License-Identifier: GPL-3.0-or-later",
+        "## Interface: " .. interface,
+        "## Title: " .. f.title,
+        "## Notes: " .. f.notes,
+        "## Author: gettic",
+        "## Version: " .. f.version,
+        "## Dependencies: AllinOneGuide",
+        "## LoadOnDemand: 1",
+    }
+    if f.icon then L[#L + 1] = "## IconTexture: Interface\\AddOns\\" .. f.folder .. "\\" .. f.icon end
+    L[#L + 1] = "## X-License: GPL-3.0-or-later"
+    L[#L + 1] = "## X-AOG-Packs: " .. table.concat(packIds, ",")
+    L[#L + 1] = ""
+    for _, file in ipairs(files) do L[#L + 1] = file end
+    return table.concat(L, "\n") .. "\n"
+end
+
+-- AllinOneGuide\Data\KnownPacks.lua: what the guide knows about the shipped packs without loading their folders
+-- (which folder, title, faction, levels, entry, joins). entries = { { id, folder, header } } in build order.
+local KNOWN_KEYS = { "title", "da", "faction", "levels", "entry", "conditions", "joins", "kind" }
+function Lib.KnownPacks(folders, entries)
+    local L = {
+        "-- SPDX-License-Identifier: GPL-3.0-or-later",
+        "-- Copyright (C) 2026 gettic",
+        "-- Generated by tools\\build.lua from tools\\data\\pack-folders.lua and the pack headers. Never edit by hand.",
+        "-- The guide pack addons and their packs, known without loading them (Packs\\Loader.lua).",
+        "local _, ns = ...",
+        "ns.KnownPacks = {",
+        "    folders = {",
+    }
+    for _, f in ipairs(folders) do
+        L[#L + 1] = ("        { folder = %q, faction = %q, title = %q },"):format(f.folder, f.faction or "Neutral", f.title)
+    end
+    L[#L + 1] = "    },"
+    L[#L + 1] = "    packs = {"
+    local sorted = {}
+    for _, e in ipairs(entries) do sorted[#sorted + 1] = e end
+    table.sort(sorted, function(a, b) return a.id < b.id end)
+    for _, e in ipairs(sorted) do
+        local t = { folder = e.folder }
+        for _, k in ipairs(KNOWN_KEYS) do t[k] = e.header[k] end
+        L[#L + 1] = ("        [%q] = %s,"):format(e.id, Lit(t))
+    end
+    L[#L + 1] = "    },"
+    L[#L + 1] = "}"
+    return table.concat(L, "\n") .. "\n"
+end
 
 return Lib

@@ -37,121 +37,13 @@ Both are built by tools\build_fonts.py (in the source repository).
 Warcraft Wiki (https://warcraft.wiki.gg), by the Warcraft Wiki contributors.
 Text licensed under CC BY-SA 4.0
 (https://creativecommons.org/licenses/by-sa/4.0/).
-Used: single facts (ids, coordinates, levels) in the demo routes.
+Used: single facts (ids, coordinates, levels) in the guide routes.
 Changes: the facts are restated in our own words; no wiki text or images
 are copied. Facts from the wiki are marked "wiki" in the guide pack sources.
 
-Warcraft Wiki pages used:
-https://warcraft.wiki.gg/wiki/UiMapID
-https://warcraft.wiki.gg/wiki/A_Threat_Within
-https://warcraft.wiki.gg/wiki/Deputy_Willem
-https://warcraft.wiki.gg/wiki/Marshal_McBride
-https://warcraft.wiki.gg/wiki/Eagan_Peltskinner
-https://warcraft.wiki.gg/wiki/Eagan_Peltskinner_(quest)
-https://warcraft.wiki.gg/wiki/Wolves_Across_the_Border
-https://warcraft.wiki.gg/wiki/Tough_Wolf_Meat
-https://warcraft.wiki.gg/wiki/Young_Wolf
-https://warcraft.wiki.gg/wiki/Kobold_Camp_Cleanup
-https://warcraft.wiki.gg/wiki/Kobold_Vermin
-https://warcraft.wiki.gg/wiki/Investigate_Echo_Ridge
-https://warcraft.wiki.gg/wiki/Kobold_Worker
-https://warcraft.wiki.gg/wiki/Skirmish_at_Echo_Ridge
-https://warcraft.wiki.gg/wiki/Kobold_Laborer
-https://warcraft.wiki.gg/wiki/Report_to_Goldshire
-https://warcraft.wiki.gg/wiki/Marshal_Dughan
-https://warcraft.wiki.gg/wiki/Brotherhood_of_Thieves
-https://warcraft.wiki.gg/wiki/Red_Burlap_Bandana
-https://warcraft.wiki.gg/wiki/Defias_Thug
-https://warcraft.wiki.gg/wiki/Milly_Osworth
-https://warcraft.wiki.gg/wiki/Milly_Osworth_(quest)
-https://warcraft.wiki.gg/wiki/Milly%27s_Harvest
-https://warcraft.wiki.gg/wiki/Milly%27s_Harvest_(quest)
-https://warcraft.wiki.gg/wiki/Grape_Manifest_(quest)
-https://warcraft.wiki.gg/wiki/Brother_Neals
-https://warcraft.wiki.gg/wiki/Bounty_on_Garrick_Padfoot
-https://warcraft.wiki.gg/wiki/Garrick_Padfoot
-https://warcraft.wiki.gg/wiki/Rest_and_Relaxation
-https://warcraft.wiki.gg/wiki/Falkhaan_Isenstrider
-https://warcraft.wiki.gg/wiki/Innkeeper_Farley
-https://warcraft.wiki.gg/wiki/Simple_Letter_(quest)
-https://warcraft.wiki.gg/wiki/Consecrated_Letter_(quest)
-https://warcraft.wiki.gg/wiki/Encrypted_Letter_(quest)
-https://warcraft.wiki.gg/wiki/Hallowed_Letter_(quest)
-https://warcraft.wiki.gg/wiki/Glyphic_Letter_(quest)
-https://warcraft.wiki.gg/wiki/Tainted_Letter_(quest)
-https://warcraft.wiki.gg/wiki/Llane_Beshere
-https://warcraft.wiki.gg/wiki/Brother_Sammuel
-https://warcraft.wiki.gg/wiki/Jorik_Kerridan
-https://warcraft.wiki.gg/wiki/Priestess_Anetta
-https://warcraft.wiki.gg/wiki/Khelden_Bremen
-https://warcraft.wiki.gg/wiki/Drusilla_La_Salle
-https://warcraft.wiki.gg/wiki/Kaltunk
-https://warcraft.wiki.gg/wiki/Your_Place_In_The_World
-https://warcraft.wiki.gg/wiki/Gornek
-https://warcraft.wiki.gg/wiki/Valley_of_Trials
-https://warcraft.wiki.gg/wiki/Cutting_Teeth
-https://warcraft.wiki.gg/wiki/Mottled_Boar
-https://warcraft.wiki.gg/wiki/Wayward_Weapons
-https://warcraft.wiki.gg/wiki/Abandoned_Training_Weapon
-https://warcraft.wiki.gg/wiki/Kzan_Thornslash
-https://warcraft.wiki.gg/wiki/Sting_of_the_Scorpid
-https://warcraft.wiki.gg/wiki/Scorpid_Worker
-https://warcraft.wiki.gg/wiki/Galgar
-https://warcraft.wiki.gg/wiki/Galgar%27s_Cactus_Apple_Surprise
-https://warcraft.wiki.gg/wiki/Cactus_Apple
-https://warcraft.wiki.gg/wiki/Zureetha_Fargaze
-https://warcraft.wiki.gg/wiki/Vile_Familiars_(Classic)
-https://warcraft.wiki.gg/wiki/Vile_Familiar
-https://warcraft.wiki.gg/wiki/Hana%27zua
-https://warcraft.wiki.gg/wiki/Sarkoth
-https://warcraft.wiki.gg/wiki/Sarkoth_(quest)
-https://warcraft.wiki.gg/wiki/Sarkoth_(2)
-https://warcraft.wiki.gg/wiki/Burning_Blade_Medallion_(Classic)
-https://warcraft.wiki.gg/wiki/Yarrog_Baneshadow
-https://warcraft.wiki.gg/wiki/Report_to_Sen%27jin_Village_(Classic)
-https://warcraft.wiki.gg/wiki/Master_Gadrin
-https://warcraft.wiki.gg/wiki/Report_to_Orgnil
-https://warcraft.wiki.gg/wiki/Orgnil_Soulscar
-https://warcraft.wiki.gg/wiki/A_Peon%27s_Burden
-https://warcraft.wiki.gg/wiki/Ukor
-https://warcraft.wiki.gg/wiki/Innkeeper_Grosk
-https://warcraft.wiki.gg/wiki/Simple_Parchment_(quest)
-https://warcraft.wiki.gg/wiki/Simple_Tablet_(quest)
-https://warcraft.wiki.gg/wiki/Etched_Parchment_(quest)
-https://warcraft.wiki.gg/wiki/Etched_Tablet_(quest)
-https://warcraft.wiki.gg/wiki/Encrypted_Parchment_(quest)
-https://warcraft.wiki.gg/wiki/Encrypted_Tablet_(quest)
-https://warcraft.wiki.gg/wiki/Rune-Inscribed_Parchment_(quest)
-https://warcraft.wiki.gg/wiki/Rune-Inscribed_Tablet_(quest)
-https://warcraft.wiki.gg/wiki/Tainted_Parchment_(quest)
-https://warcraft.wiki.gg/wiki/Hallowed_Tablet_(quest)
-https://warcraft.wiki.gg/wiki/Glyphic_Tablet_(quest)
-https://warcraft.wiki.gg/wiki/Glyphic_Parchment_(Forever)
-https://warcraft.wiki.gg/wiki/Frang
-https://warcraft.wiki.gg/wiki/Karranisha
-https://warcraft.wiki.gg/wiki/Jen%27shan
-https://warcraft.wiki.gg/wiki/Rwag
-https://warcraft.wiki.gg/wiki/Shikrik
-https://warcraft.wiki.gg/wiki/Nartok
-https://warcraft.wiki.gg/wiki/Ken%27jai
-https://warcraft.wiki.gg/wiki/Mai%27ah
-https://warcraft.wiki.gg/wiki/Elwynn_Forest_(Classic)_quests
-https://warcraft.wiki.gg/wiki/Etched_Parchment_(Classic)
-https://warcraft.wiki.gg/wiki/Verner_Osgood
-https://warcraft.wiki.gg/wiki/Mountaineer_Rockgar
-https://warcraft.wiki.gg/wiki/Einar_Stonegrip
-https://warcraft.wiki.gg/wiki/Valstag_Ironjaw
-https://warcraft.wiki.gg/wiki/James_Halloran
-https://warcraft.wiki.gg/wiki/Vrang_Wildgore
-https://warcraft.wiki.gg/wiki/Bruised_Pride_and_Lion_Hides
-https://warcraft.wiki.gg/wiki/Vrang%27s_Game
-https://warcraft.wiki.gg/wiki/The_Hermit_Tanner
-https://warcraft.wiki.gg/wiki/Trouble_in_the_Valley
-https://warcraft.wiki.gg/wiki/Kuray%27bin
-https://warcraft.wiki.gg/wiki/Lazy_Peons
-https://warcraft.wiki.gg/wiki/Vile_Familiars_(Warlock)
-https://warcraft.wiki.gg/wiki/Vile_Familiars_(Warlock_2)
-https://warcraft.wiki.gg/wiki/Ruzan
+Questie and QuestieDB (https://github.com/Questie/Questie), GPL-3.0, by
+the Questie contributors. Used: quest givers, turn-ins, levels, chains,
+objectives and NPC spots, as facts for the routes and their tests.
 
 CMaNGOS classic-db (https://github.com/cmangos/classic-db), GPL-3.0.
 Some NPC positions, quest giver/turn-in ids, creature spawn areas
@@ -169,7 +61,6 @@ Data from ForeverDB.net (https://foreverdb.net): some quest ids, levels,
 XP, prerequisites, NPC ids and quest-item ids for WoW Forever-only quests,
 used as reference facts. ForeverDB states no licence for its data; no
 texts were copied. Not affiliated with ForeverDB or Blizzard.
-https://foreverdb.net/
 
 
 World of Warcraft and its content are trademarks and copyrights of

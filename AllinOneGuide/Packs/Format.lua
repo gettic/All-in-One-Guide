@@ -36,7 +36,12 @@ Fm.EXTRA = { obj = "list", any = "number", override = "string", whileUntil = "st
     onWay = "string",
     -- hunt path (v0.3): a loop of points round the spawn area of a kill / collect step (`-` = false, none), where
     -- the points came from (hand / gen), a there-and-back line instead of a loop, "reached" yards per point
-    path = "path", pathSrc = "string", pathOpen = "bool", pathR = "number" }
+    path = "path", pathSrc = "string", pathOpen = "bool", pathR = "number",
+    -- v0.2.5 waits: what the quest makes you wait for (escort / timed / event / respawn), "wait up to N min",
+    -- the quest's own timer in minutes (timed)
+    waits = "string", waitMin = "number", timeLimit = "number" }
+-- the `waits` words (packcheck; the window's countdown)
+Fm.WAITS = { escort = true, timed = true, event = true, respawn = true }
 Fm.DEFAULT_RADIUS = 10
 
 local tonumber, tostring, concat, sort = tonumber, tostring, table.concat, table.sort

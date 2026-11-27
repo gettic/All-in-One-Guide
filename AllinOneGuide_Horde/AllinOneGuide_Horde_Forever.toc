@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+## Interface: 16001
+## Title: All-in-One Guide: Horde routes
+## Notes: Horde leveling routes for All-in-One Guide. Loaded only when the guide needs them.
+## Author: gettic
+## Version: 1.0.0
+## Dependencies: AllinOneGuide
+## LoadOnDemand: 1
+## X-License: GPL-3.0-or-later
+## X-AOG-Packs: demo-durotar,normal-horde,normal-horde-20-30,normal-horde-30-40,normal-horde-40-50,normal-horde-50-60,normal-start-mulgore,normal-start-tirisfal
+
+Routes\Durotar.lua
+Routes\NormalHorde.lua
+Routes\NormalHorde2030.lua
+Routes\NormalHorde3040.lua
+Routes\NormalHorde4050.lua
+Routes\NormalHorde5060.lua
+Routes\NormalStartMulgore.lua
+Routes\NormalStartTirisfal.lua

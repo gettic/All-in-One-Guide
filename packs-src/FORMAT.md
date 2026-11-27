@@ -27,6 +27,10 @@ return {
     levels = { 1, 6 },
     conditions = "faction=Alliance",    -- who the pack is for (grammar, section 5)
     entry = "race=Human",               -- start-area entry condition (used from v0.3)
+    joins = { pack = "normal-alliance", step = "wfl-acc-1" },   -- v0.2.5: where the player goes on when this ends
+                                        -- (optional route = "<route id>", cond = "<condition>"; or a list of these:
+                                        -- the first whose cond fits wins). "Play next" opens it at that step.
+    mustDoSkip = { [1234] = "it's in the next stretch" },        -- v0.2.5 (rare): waive a must-do quest here
     formatVersion = 1, minFormat = 1,   -- format this pack is written in / oldest format that can read it
     version = "0.1.0",
     license = "GPL-3.0-or-later",
@@ -107,6 +111,9 @@ shows the new types as plain manual steps and ignores the new keys.
 | `spell` | spell id (`learn`, `train`) |
 | `minLevel` | the step waits for this level: until then it shows "in N levels" and the route goes on; it comes back once the level is there |
 | `dungeon` | a dungeon id; packcheck warns at more than 2 visits of the same dungeon in a row (the instance limit is a limit, not a target) |
+| `waits` (v0.2.5) | on an `accept` (or `objective`) step: what the quest makes you wait for: `escort`, `timed`, `event` (scripted event / spawn wave), `respawn` (one NPC / object others also need). The window counts it down (a timed quest's timer while it runs; "wait up to N min" for the others) |
+| `waitMin` (v0.2.5) | `escort` / `event` / `respawn`: wait up to this many minutes (1-60, needed) |
+| `timeLimit` (v0.2.5) | `timed`: the quest's own timer in minutes (1-180, needed); packcheck warns on a hearth / fly / ride leg while it runs and when the steps' `estMin` from accept to turn-in add up to more. `tools\data\quest-waits.lua` lists the known timed quests (CMaNGOS LimitTime) and escorts: a route step for one without `waits` gets a warning |
 
 Header extras: `startInn` (the hearthstone is already set at the start), `knownNodes` (taxi nodes known at the start),
 `xpModel = true` (warn when the XP model doesn't reach a `minLevel`), `phase` (the WoW Forever content phase the
@@ -145,13 +152,23 @@ names an item that has no field, or calls it something else than its real name.
 - After adding items, run `luajit tools/item_names.lua <ClassicDB.sql>` so `Data\ItemNames.lua` knows their names
   (Forever-only items aren't in CMaNGOS: the game's name is used).
 
-## 3. Compiled file (`AllinOneGuide\Routes\<file>.lua`)
+## 3. Compiled file (`<pack folder>\Routes\<file>.lua`)
+
+From v0.2.5 the packs ship in their own LoadOnDemand addons next to the guide: `AllinOneGuide_Alliance\` and
+`AllinOneGuide_Horde\`, listed in `tools\data\pack-folders.lua` (a pack not listed there doesn't ship). The build writes
+each folder's `.toc` (`<folder>_Forever.toc`: LoadOnDemand, `Dependencies: AllinOneGuide`, `X-AOG-Packs: <ids>`),
+LICENSE and CREDITS.txt, and the index `AllinOneGuide\Data\KnownPacks.lua` (which pack is in which folder). The guide
+loads only the folder a character needs. A compiled pack file is plain data and nothing else (tos T29): the build's
+scan fails on any other code, `\ddd` escapes or long encoded-looking runs. Must-do quests (`tools\data\must-do.lua`):
+a pack of the quest's faction whose levels overlap gets a warning without it; in the build's chain check (every
+shipped pack of a faction) a must-do quest no pack has is an error, and so is a `joins` target that isn't built.
 
 ```lua
 -- (SPDX header, wiki line, "compiled by tools\build.ps1 from packs-src\elwynn.lua; do not edit")
 -- row fields: id|type|quest|npc|map|x|y|r|text|da|flags|cond|src|extra
-local _, ns = ...
-ns.Packs.Register({ id = "demo-elwynn", ... header ... }, {
+local AOG = AllinOneGuide
+if not (AOG and AOG.RegisterPack) then return end
+AOG.RegisterPack({ id = "demo-elwynn", ... header ... }, {
     { id = "normal", title = "Normal", da = "Normal",
       sections = { "1|Northshire|Northshire" },          -- first row|title|da
       rows = {
@@ -172,7 +189,8 @@ ns.Packs.Register({ id = "demo-elwynn", ... header ... }, {
 
 ## 4. Reading packs (addon side)
 
-- `ns.Packs.Register(header, routes)` is the only entry point. Headers are read at login; rows are decoded only
+- `ns.Packs.Register(header, routes)` is the only entry point (pack addons reach it through the public
+  `AllinOneGuide.RegisterPack(header, routes)`). Headers are read at login; rows are decoded only
   when a guide opens, a window at a time, through **one accessor** `ns.Packs.GetStep(route, index)` (frozen step
   tables). Nothing else reads rows.
 - **Forward compatible:** a pack with `formatVersion` newer than the addon loads if `minFormat` is not newer;

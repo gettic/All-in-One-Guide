@@ -2,24 +2,28 @@
 
 One leveling guide addon with one guide window and a waypoint arrow. It can hold many guides as guide packs, so you only need one guide addon in game.
 
-Made for WoW Forever (interface 16001). Version: 0.2 (beta).
+Made for WoW Forever (interface 16001). Version: 0.2.5.
 
-## What you get in this beta
+## What you get
 
-This is a beta. It has two demo routes:
+Normal leveling routes from level 1 to 60, for both factions.
 
-| Route | Faction | Levels |
-|---|---|---|
-| Elwynn Forest (Northshire to Goldshire) | Alliance | about 1-6 |
-| Durotar (Valley of Trials to Razor Hill) | Horde | about 1-6 |
+| Part | What it has |
+|---|---|
+| Start routes | One for each starting area (for example Elwynn Forest, Dun Morogh, Teldrassil, Durotar, Mulgore, Tirisfal), up to about level 11-18 |
+| Normal routes | Alliance and Horde 1-20, 20-30, 30-40, 40-50 and 50-60, one after the other |
+| Demo routes | Elwynn Forest (Alliance) and Durotar (Horde), about 1-6 |
 
-- Both routes include each class's starting letter, and neither one grinds.
+- First pass: in places your level may run a bit behind the route. Version 0.3.0 goes over every route.
+- Routes avoid grinding. A short, optional "keep killing until it drops" step appears only when the item starts a quest chain.
+- When a route ends, an end card shows the level you reached and a **Play next** button. It opens the route that goes on from there, at the right step. The Guides page has the same card. Click it yourself; nothing opens by itself.
+- Timed quests show the quest's time left, and escorts and events show "wait up to N min". It is only a countdown; it never does anything for you.
 - The guide follows the game itself (quest log, finished quests, level, bags, position). It only remembers which step you are on, and your skips.
 - The guide window shows the step to do now at the top, with the next steps under it. The arrow points to the spot.
-- Quest facts come from the Warcraft Wiki, CMaNGOS and ForeverDB (see [Credits](#credits)). They are not yet all confirmed on WoW Forever. If a step looks wrong, please [report it](#report-a-mistake).
+- Quest facts come from the Warcraft Wiki, Questie, CMaNGOS and ForeverDB (see [Credits](#credits)). They are not yet all confirmed on WoW Forever. If a step looks wrong, please [report it](#report-a-mistake).
 - Texts are in English and Danish.
 
-## What's in v0.2
+## What it can do
 
 | Part | What it does |
 |---|---|
@@ -51,8 +55,6 @@ This is a beta. It has two demo routes:
 | Ghost | Walking as a ghost doesn't tick travel steps. |
 | Full quest log | Shows which quests the route doesn't need. |
 | Travel steps | Fly, hearthstone, get a flight path, set your hearthstone, learn, train, use an item, notes, and grind as a last resort. |
-
-The route packs for levels 1-20 are not in this beta yet.
 
 ### The guide window
 
@@ -122,7 +124,7 @@ Open it with `/aog`, right-click the minimap button, left-click the menu button 
 
 | Page | What it has |
 |---|---|
-| Guides | Every installed guide as a card with its levels, steps and how far you got. **Switch** changes guide. Search, and Alliance / Horde / Coming soon filters. Guides still being written show as "Coming in vX". |
+| Guides | Every installed guide as a card with its levels, steps and how far you got. **Switch** changes guide. Search, and Alliance / Horde filters. A guide whose pack is missing or turned off says so, with a **Turn on** button when it is turned off. |
 | Settings | General, Guide window, Arrow, Map pins, Steps and Advanced, with sliders and drop-downs. |
 | Quest items | Advice for each quest item in your bags. |
 | Report a mistake | See [Report a mistake](#report-a-mistake). |
@@ -187,9 +189,17 @@ The skill caps and costs are not yet checked on WoW Forever. The guide never cra
 
 ## Install
 
-Use your addon manager and switch it to the **beta channel** for All-in-One Guide. Then install or update as usual. To go back to normal releases, switch the channel back to stable.
+Use the Addon Manager (v0.24.0 or newer). Install three things:
 
-The addon is one folder, `AllinOneGuide`. It sends nothing itself (see [Your data](#your-data)).
+| Addon | What it is |
+|---|---|
+| All-in-One Guide | The guide window, arrow and menu |
+| All-in-One Guide: Alliance | The Alliance routes |
+| All-in-One Guide: Horde | The Horde routes |
+
+Install the guide and the routes for your faction (or both). Only the routes a character needs are loaded. If a routes addon is missing or turned off, the Guides page and the guide window say so (your progress is kept). To try a beta, switch the Addon Manager to its beta channel for All-in-One Guide; to go back, switch it to stable.
+
+The addon sends nothing itself (see [Your data](#your-data)).
 
 ## Use it
 
@@ -251,7 +261,7 @@ If you also run Questie, TomTom, Guidelime or Mapster, one quiet hint says so, o
 | `/aog show` | Show or hide the guide window |
 | `/aog guides` | Open the guide list in the guide menu |
 | `/aog help` | Show the main commands (`/aog help all` shows every one) |
-| `/aog guide` | List the guides. `/aog guide elwynn` or `/aog guide durotar` opens one |
+| `/aog guide` | List the guides. `/aog guide elwynn`, `/aog guide durotar` or a full guide id such as `/aog guide normal-horde-20-30` opens one |
 | `/aog skip` | Skip the current step (it is remembered) |
 | `/aog undo` | Take back your last skips |
 | `/aog back` | Go back one step |
@@ -300,6 +310,7 @@ The addon's Discord has a help channel, #gettics-guide-support-desk, where an AI
 - Messages are read and answered with Claude (Anthropic's AI) and are not used to train AI.
 - Error and report texts are kept until the fix is out (30 days at most). Anyone can ask for their messages to be deleted.
 - It keeps no names or message texts, only short notes in its own words on the developer's PC. It only runs while the developer has it open, so answers can wait.
+- Coming with this release: a `/guide` command in the Discord.
 
 ## Your data
 
@@ -310,23 +321,26 @@ The addon itself sends nothing. Only reports you press **Send** on are sent, by 
 | Folder | What is in it |
 |---|---|
 | `AllinOneGuide\` | The addon. Load order is in `AllinOneGuide_Forever.toc` |
-| `AllinOneGuide\Routes\` | Compiled guide packs and smart arrow data (`Connectors.lua`). Generated: never edit by hand |
+| `AllinOneGuide_Alliance\`, `AllinOneGuide_Horde\` | The route addons (load on demand). Their `Routes\` folders hold the compiled guide packs. Generated: never edit by hand |
+| `AllinOneGuide\Routes\` | Smart arrow data (`Connectors.lua`) and spawn spots (`Spots.lua`). Generated: never edit by hand |
 | `packs-src\` | Readable guide pack sources. The format is in `packs-src\FORMAT.md` |
 | `packs-src\connectors\` | Smart arrow doors, caves and gates per area (FORMAT.md section 8) |
 | `tools\` | The pack checker, the build script, the connector tool (`connectors.lua`), the text checker (`textlint.lua`), `packdiff.lua`, `recmerge.lua` and the data importer (`import\`) |
 | `art-src\` | Scripts that draw the addon's own art (`MANIFEST.md` lists it) |
 | `.github\ISSUE_TEMPLATE\` | The bug report and mistake report forms |
 
-- **Build a pack:** edit a file in `packs-src\`, then run `powershell -NoProfile -File tools\build.ps1`. It needs LuaJIT (`luajit` on the PATH, or `-LuaJit <path>`). The checker runs first, then the compiled files are written to `AllinOneGuide\Routes\`. `-Check` writes nothing and fails if a compiled file is out of date.
+- **Build a pack:** edit a file in `packs-src\`, then run `powershell -NoProfile -File tools\build.ps1`. It needs LuaJIT (`luajit` on the PATH, or `-LuaJit <path>`). The checker runs first, then the compiled files are written to the `Routes\` folder of the route addon that lists the pack. That list is `tools\data\pack-folders.lua`; a pack not listed there doesn't ship. The build also writes the route addons' `.toc` files and `AllinOneGuide\Data\KnownPacks.lua`. `-Check` writes nothing and fails if a generated file is out of date.
 - **Checks:** the Lua is checked with luacheck, and the addon is run against a fake game world in offline test scenarios. Both are kept by the maintainer and are not in this repo.
 - **Pack format:** guide pack format 2 is in `packs-src\FORMAT.md`. Conditions can test bag items (`item=<id>`, only on optional steps) and First Aid skill (`skill=firstaid>=50`). `tools\packcheck.lua` also warns about route mistakes (turn-in before accept, full log, hearth before setting it, the same dungeon too often). `tools\textlint.lua` checks our own texts (length, banned words, signs of copied text); a pack can set `strict = true` to make its findings errors.
-- **Trial build:** `tools\build.lua --out <folder>` builds to another folder and skips packs that aren't in the `.toc` yet. `--all` builds them too.
+- **Trial build:** `tools\build.lua --out <folder>` builds to another folder and puts every folder under it and skips packs not listed in `pack-folders.lua`. `--all` builds them too.
 - **Importer:** `tools\import` reads other projects' data as data only and keeps a record only when its licence and origin allow it (`--provenance <file>`).
 - **Facts in packs:** every fact has a source. Ones from the Warcraft Wiki are marked `wiki`.
 
 ## Credits
 
-Quest facts (ids, coordinates, levels) in the demo routes come from the [Warcraft Wiki](https://warcraft.wiki.gg), by its contributors, under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). The facts are restated in our own words; no wiki text or images are copied. The full list of pages is in `AllinOneGuide\CREDITS.txt`.
+Quest facts (ids, coordinates, levels) in the routes come in part from the [Warcraft Wiki](https://warcraft.wiki.gg), by its contributors, under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). The facts are restated in our own words; no wiki text or images are copied. The full list of pages is in `AllinOneGuide\CREDITS.txt`.
+
+[Questie](https://github.com/Questie/Questie) and QuestieDB, GPL-3.0, by the Questie contributors: quest givers, turn-ins, levels, chains, objectives and NPC spots, used as facts for the routes.
 
 [CMaNGOS classic-db](https://github.com/cmangos/classic-db), GPL-3.0: some NPC positions, quest giver and turn-in ids, creature spawn areas (grid-snapped), city gate object positions (smart arrow), quest item ids and loot / vendor sources, and model display ids were checked against or derived from this database. Game facts in it come from World of Warcraft, (c) Blizzard Entertainment; they are not covered by our GPL licence and are used only as reference facts in a free, non-commercial addon. Not affiliated with or endorsed by CMaNGOS or Blizzard.
 

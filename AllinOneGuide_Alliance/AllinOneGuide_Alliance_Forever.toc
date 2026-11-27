@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+## Interface: 16001
+## Title: All-in-One Guide: Alliance routes
+## Notes: Alliance leveling routes for All-in-One Guide. Loaded only when the guide needs them.
+## Author: gettic
+## Version: 1.0.0
+## Dependencies: AllinOneGuide
+## LoadOnDemand: 1
+## X-License: GPL-3.0-or-later
+## X-AOG-Packs: demo-elwynn,normal-alliance,normal-alliance-20-30,normal-alliance-30-40,normal-alliance-40-50,normal-alliance-50-60,normal-start-dunmorogh,normal-start-teldrassil
+
+Routes\Elwynn.lua
+Routes\NormalAlliance.lua
+Routes\NormalAlliance2030.lua
+Routes\NormalAlliance3040.lua
+Routes\NormalAlliance4050.lua
+Routes\NormalAlliance5060.lua
+Routes\NormalStartDunMorogh.lua
+Routes\NormalStartTeldrassil.lua

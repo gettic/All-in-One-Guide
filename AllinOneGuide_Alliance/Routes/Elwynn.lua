@@ -4,8 +4,9 @@
 -- Compiled by tools\build.ps1 from packs-src\elwynn.lua; do not edit.
 -- The readable source and packs-src\FORMAT.md are in the GitHub repository at the matching tag.
 -- Row fields: id|type|quest|npc|map|x|y|r|text|da|flags|cond|src|extra
-local _, ns = ...
-ns.Packs.Register({ author = "All-in-One Guide", category = "leveling", conditions = "faction=Alliance", da = "Elwynn Forest 1-6", entry = "race=Human", faction = "Alliance", formatVersion = 2, id = "demo-elwynn", kind = "route", levels = { 1, 6 }, license = "GPL-3.0-or-later", minFormat = 1, renamedSteps = {  }, retiredSteps = {  }, source = "packs-src/elwynn.lua at the matching GitHub tag", title = "Elwynn Forest 1-6", version = "0.1.0" }, {
+local AOG = AllinOneGuide
+if not (AOG and AOG.RegisterPack) then return end
+AOG.RegisterPack({ author = "All-in-One Guide", category = "leveling", conditions = "faction=Alliance", da = "Elwynn Forest 1-6", entry = "race=Human", faction = "Alliance", formatVersion = 2, id = "demo-elwynn", kind = "route", levels = { 1, 6 }, license = "GPL-3.0-or-later", minFormat = 1, renamedSteps = {  }, retiredSteps = {  }, source = "packs-src/elwynn.lua at the matching GitHub tag", title = "Elwynn Forest 1-6", version = "0.1.0" }, {
     { id = "normal", title = "Normal", da = "Normal", sections = { "1|Northshire Abbey|Northshire Abbey", "7|Kobolds and wolves|Kobolder og ulve", "21|Echo Ridge Mine|Echo Ridge-minen", "52|Thieves and the vineyards|Tyve og vingårdene", "67|On to Goldshire|Videre til Goldshire" }, rows = {
         "eln-acc-783|accept|783|823|1429|48.2|42.9||Accept {quest} from the deputy in front of the abbey|Tag imod {quest} fra vicesheriffen foran klostret|||wiki|confirmed=0;qname=A Threat Within;seen=2026-11",
         "eln-ti-783|turnin|783|197|1429|48.9|41.6||Turn in {quest} to the marshal inside the abbey|Aflever {quest} til marskalken inde i klostret|||wiki|confirmed=0;qname=A Threat Within;room=nsh-abbey;seen=2026-11",

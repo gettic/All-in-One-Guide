@@ -118,6 +118,205 @@ local function Dist(a, b) return math.sqrt((a.x - b.x) ^ 2 + (a.y - b.y) ^ 2) en
 
 -- Checks one loaded source pack. opts: { ns, exploits, words, name }
 -- Returns errors (list of strings), report (table).
+-- ------------------------------------------------------------------ v0.2.5 waits (FORMAT.md section 2)
+-- `waits` = escort | timed | event | respawn; `waitMin` 1-60 (escort / event / respawn), `timeLimit` 1-180 (timed);
+-- only on accept / objective steps. Returns a list of problems (errors).
+PC.WAIT_MIN_MAX, PC.TIME_LIMIT_MAX = 60, 180
+PC.WAIT_TYPES = { accept = true, objective = true }
+function PC.WaitsProblems(s, Fm)
+    local out = {}
+    local w = s.waits
+    if w == nil then
+        if s.waitMin ~= nil or s.timeLimit ~= nil then out[#out + 1] = "waitMin / timeLimit without waits" end
+        return out
+    end
+    if type(w) ~= "string" or not Fm.WAITS[w] then
+        out[#out + 1] = "waits must be escort, timed, event or respawn"
+        return out
+    end
+    if not PC.WAIT_TYPES[s.type] then out[#out + 1] = "waits only on accept or objective steps" end
+    local function Whole(v, max) return type(v) == "number" and v >= 1 and v <= max and v == math.floor(v) end
+    if w == "timed" then
+        if s.timeLimit == nil then out[#out + 1] = "waits = timed needs timeLimit (the quest's timer in minutes)"
+        elseif not Whole(s.timeLimit, PC.TIME_LIMIT_MAX) then out[#out + 1] = "timeLimit must be 1-" .. PC.TIME_LIMIT_MAX .. " minutes" end
+        if s.waitMin ~= nil and not Whole(s.waitMin, PC.WAIT_MIN_MAX) then out[#out + 1] = "waitMin must be 1-" .. PC.WAIT_MIN_MAX .. " minutes" end
+    else
+        if s.waitMin == nil then out[#out + 1] = "waits = " .. w .. " needs waitMin (wait up to N minutes)"
+        elseif not Whole(s.waitMin, PC.WAIT_MIN_MAX) then out[#out + 1] = "waitMin must be 1-" .. PC.WAIT_MIN_MAX .. " minutes" end
+        if s.timeLimit ~= nil then out[#out + 1] = "timeLimit only with waits = timed" end
+    end
+    return out
+end
+
+-- Known timed / escort quests (tools\data\quest-waits.lua) and the must-do list (tools\data\must-do.lua).
+local QuestWaits, MustDo
+function PC.QuestWaits()
+    if QuestWaits == nil then
+        local f = loadfile(Here("data/quest-waits.lua"))
+        QuestWaits = f and f() or false
+    end
+    return QuestWaits or {}
+end
+function PC.MustDo()
+    if MustDo == nil then
+        local f = loadfile(Here("data/must-do.lua"))
+        MustDo = f and f() or false
+    end
+    return MustDo or {}
+end
+
+-- WARN lines for timed / escort quests in one route: a known one without the flag (or another kind), a hearth /
+-- fly / ride leg while a timer runs, and the estimated minutes from accept to turn-in over the timer.
+function PC.WaitsLint(r, known, W)
+    local acc = {}
+    for i, s in ipairs(r.steps) do
+        local where = r.id .. " #" .. i .. " " .. tostring(s.id)
+        if s.type == "accept" and s.quest then
+            local k = known[s.quest]
+            if k and s.waits == nil then
+                W(where, ("quest %d is a known %s quest: add waits = \"%s\" (or leave the quest out)"):format(s.quest, k.kind, k.kind))
+            elseif k and s.waits ~= k.kind then
+                W(where, ("quest %d is known as %s, the step says %s"):format(s.quest, k.kind, tostring(s.waits)))
+            elseif k and k.timeLimit and s.timeLimit and s.timeLimit ~= k.timeLimit then
+                W(where, ("quest %d's timer is %d min, the step says %d"):format(s.quest, k.timeLimit, s.timeLimit))
+            end
+            if s.waits == "timed" and s.timeLimit then acc[s.quest] = { i = i, limit = s.timeLimit, est = 0 } end
+        end
+        for q, a in pairs(acc) do
+            if i > a.i then
+                if s.type == "hearth" or s.type == "fly" or s.type == "ride" then
+                    W(where, ("a %s leg while timed quest %d runs (%d min)"):format(s.type, q, a.limit))
+                end
+                if type(s.estMin) == "number" then a.est = a.est + s.estMin end
+                if s.type == "turnin" and s.quest == q then
+                    if a.est > a.limit then
+                        W(where, ("timed quest %d: about %d min from accept to turn-in, the timer is %d"):format(q, a.est, a.limit))
+                    end
+                    acc[q] = nil
+                end
+            end
+        end
+    end
+end
+
+-- Must-do quests (tools\data\must-do.lua) of this pack's faction whose level range overlaps the pack's levels and
+-- that have no accept + turn-in in it (and no `mustDoSkip` entry). Returns a list of { quest, why }.
+function PC.MustDoMissing(pack, routes, list)
+    local lv = type(pack.levels) == "table" and pack.levels or {}
+    local a, b = tonumber(lv[1]), tonumber(lv[2])
+    local skip = type(pack.mustDoSkip) == "table" and pack.mustDoSkip or {}
+    local has = {}
+    for _, r in ipairs(routes) do
+        for _, s in ipairs(r.steps) do
+            if s.quest then
+                has[s.quest] = has[s.quest] or {}
+                has[s.quest][s.type] = true
+            end
+        end
+    end
+    local out = {}
+    for _, m in ipairs(list or {}) do
+        local fits = m.faction == nil or pack.faction == nil or pack.faction == "Neutral" or m.faction == pack.faction
+        local ml = type(m.levels) == "table" and m.levels or {}
+        local overlap = a and b and tonumber(ml[1]) and tonumber(ml[2]) and ml[1] <= b and ml[2] >= a
+        if fits and overlap and not skip[m.quest] then
+            local h = has[m.quest]
+            if not (h and h.accept and h.turnin) then out[#out + 1] = m end
+        end
+    end
+    return out
+end
+
+-- The `joins` header (FORMAT.md section 1): one { pack, step, route?, cond? } or a list of them. Returns a list.
+function PC.JoinsList(j)
+    if type(j) ~= "table" then return {} end
+    if j.pack ~= nil or j.step ~= nil then return { j } end
+    local out = {}
+    for _, e in ipairs(j) do out[#out + 1] = e end
+    return out
+end
+
+-- The chain check of the build, over every pack built together: entries = { { id, header, routes } }.
+-- Errors: a `joins` target pack that isn't built, of another faction, a step that isn't in its route (or is
+-- retired), a `cond` that doesn't parse; a must-do quest of a faction that no built pack of it has while its levels
+-- overlap one of them. Returns errs, warns.
+function PC.ChainCheck(entries, opts)
+    opts = opts or {}
+    local errs, warns = {}, {}
+    local by = {}
+    for _, e in ipairs(entries) do by[e.id] = e end
+    local Cd = opts.Conditions or PC.Lib().AddonParts(opts.addon or "AllinOneGuide").Conditions
+    for _, e in ipairs(entries) do
+        local h = e.header
+        for n, j in ipairs(PC.JoinsList(h.joins)) do
+            local where = e.id .. " joins #" .. n
+            local t = type(j.pack) == "string" and by[j.pack]
+            if type(j.pack) ~= "string" or type(j.step) ~= "string" then
+                errs[#errs + 1] = where .. ": needs pack and step"
+            elseif not t then
+                errs[#errs + 1] = where .. ": pack '" .. j.pack .. "' isn't built (add it to tools\\data\\pack-folders.lua)"
+            else
+                if t.header.faction ~= h.faction and t.header.faction ~= "Neutral" then
+                    errs[#errs + 1] = where .. ": pack '" .. j.pack .. "' is " .. tostring(t.header.faction)
+                end
+                local route
+                for _, r in ipairs(t.routes or {}) do
+                    if (j.route == nil and route == nil) or r.id == j.route then route = r end
+                end
+                local found
+                for _, s in ipairs(route and route.steps or {}) do if s.id == j.step then found = s end end
+                for _, id in ipairs(t.header.retiredSteps or {}) do
+                    if id == j.step then errs[#errs + 1] = where .. ": step '" .. j.step .. "' is retired" end
+                end
+                if not route then
+                    errs[#errs + 1] = where .. ": no route '" .. tostring(j.route) .. "' in " .. j.pack
+                elseif not found then
+                    errs[#errs + 1] = where .. ": step '" .. j.step .. "' isn't in " .. j.pack .. "/" .. route.id
+                end
+                local a, b = type(t.header.levels) == "table" and t.header.levels[1], type(h.levels) == "table" and h.levels[2]
+                if type(a) == "number" and type(b) == "number" and a > b + 2 then
+                    warns[#warns + 1] = where .. (": %s starts at %d, %s ends at %d"):format(j.pack, a, e.id, b)
+                end
+            end
+            if j.cond ~= nil and not (type(j.cond) == "string" and Cd.Parse(j.cond)) then
+                errs[#errs + 1] = where .. ": cond doesn't parse"
+            end
+        end
+    end
+    -- must-do per faction
+    for _, m in ipairs(opts.mustDo or PC.MustDo()) do
+        local ml = type(m.levels) == "table" and m.levels or {}
+        local relevant, has = false, false
+        for _, e in ipairs(entries) do
+            local h = e.header
+            local fits = m.faction == nil or h.faction == m.faction or h.faction == "Neutral"
+            local lv = type(h.levels) == "table" and h.levels or {}
+            if fits and tonumber(lv[1]) and tonumber(lv[2]) and tonumber(ml[1]) and tonumber(ml[2])
+                and ml[1] <= lv[2] and ml[2] >= lv[1] then
+                relevant = true
+            end
+            if fits then
+                -- any pack of the faction (also outside the range: a must-do may sit a stretch later) with an
+                -- accept and a turn-in of it; a mustDoSkip never counts as having it
+                local acc, ti = false, false
+                for _, r in ipairs(e.routes or {}) do
+                    for _, s in ipairs(r.steps) do
+                        if s.quest == m.quest then
+                            if s.type == "accept" then acc = true elseif s.type == "turnin" then ti = true end
+                        end
+                    end
+                end
+                if acc and ti then has = true end
+            end
+        end
+        if relevant and not has then
+            errs[#errs + 1] = ("must-do quest %s (%s): no %s pack has it"):format(tostring(m.quest), tostring(m.why or "?"),
+                tostring(m.faction or "built"))
+        end
+    end
+    return errs, warns
+end
+
 function PC.Check(pack, opts)
     local ns, L = opts.ns, PC.Lib()
     local Fm, Cd = ns.Format, ns.Conditions
@@ -183,6 +382,8 @@ function PC.Check(pack, opts)
             if s.type == "grind" and not s.why then Err(where, "grind step without why") end
             if s.type == "fly" and not (s.map and s.x and s.y) then Err(where, "needs map, x, y") end
             if s.minLevel ~= nil and (type(s.minLevel) ~= "number" or s.minLevel < 1) then Err(where, "bad minLevel") end
+            -- v0.2.5 waits: escort / event / respawn need "wait up to" minutes, timed needs the quest's timer
+            for _, e in ipairs(PC.WaitsProblems(s, Fm)) do Err(where, e) end
             if (s.x == nil) ~= (s.y == nil) then Err(where, "x and y go together") end
             if (s.x or s.y) and not s.map then Err(where, "coordinates need a map") end
             for _, c in ipairs({ "x", "y" }) do
@@ -538,8 +739,14 @@ function PC.Lint(pack, routes, opts)
     local known = {}
     for _, n in ipairs(pack.knownNodes or {}) do known[n] = true end
     local allIds = {}
+    local knownWaits = opts.questWaits or PC.QuestWaits()
+    for _, m in ipairs(PC.MustDoMissing(pack, routes, opts.mustDo or PC.MustDo())) do
+        W("must-do", ("quest %s (%s) is on the must-do list for levels %s-%s: add it, or mustDoSkip = { [%s] = \"why\" }")
+            :format(tostring(m.quest), tostring(m.why or "?"), tostring(m.levels[1]), tostring(m.levels[2]), tostring(m.quest)))
+    end
     for _, r in ipairs(routes) do
         OnWayLint(r, W)
+        PC.WaitsLint(r, knownWaits, W)
         local accepted, inLog, logN = {}, {}, 0
         local level, bound = startLevel, pack.startInn ~= nil
         local nodes = {}

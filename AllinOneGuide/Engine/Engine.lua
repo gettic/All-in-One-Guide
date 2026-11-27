@@ -42,6 +42,13 @@ function E.Key(packId, routeId) return packId .. "/" .. routeId end
 
 -- Opens (or returns) a guide and focuses it. Returns guide or nil, reason.
 function E.Open(packId, routeId)
+    -- v0.2.5: a known pack whose folder isn't loaded yet loads now (callers: the player's own picks, the
+    -- reopen of saved guides, the first pick; never an ADDON_LOADED handler; in combat it waits: tos T27)
+    if not P.packs[packId] and ns.PackLoader then
+        E.opening = true
+        ns.Errors.Call("packs", ns.PackLoader.EnsurePack, packId)
+        E.opening = nil
+    end
     local route, err = P.Open(packId, routeId)
     if not route then return nil, err end
     local key = E.Key(packId, route.id)
@@ -101,6 +108,13 @@ end
 
 function E.Restore()
     E.restored = true
+    -- v0.2.5: the routes are in LoadOnDemand pack addons; load the folders this character needs first (out of
+    -- combat; a load that waits for the end of combat reopens through PacksChanged below)
+    if ns.PackLoader then
+        E.restoring = true
+        ns.Errors.Call("packs", ns.PackLoader.LoadNeeded)
+        E.restoring = nil
+    end
     Reopen()
     if not ns.Test.quietFirstRun then
         -- a renamed character: ask "move data?" first; the first-login pick only runs when there is nothing to move
@@ -112,6 +126,20 @@ function E.Restore()
         ns.Errors.Call("engine", E.OfferUpgrade)
     end
 end
+
+-- A pack folder loaded later (after combat, a click, "Turn on"): reopen the saved guides it holds, and run the
+-- first pick when nothing is open yet. Nothing opens from here before the first Restore.
+function E.OnPacksChanged(_, ok)
+    if not (E.restored and ok) or E.restoring or E.opening then return end
+    local missing = false
+    for _, k in ipairs(ns.DB.char.active or {}) do
+        local packId = tostring(k):match("^([^/]+)/")
+        if packId and P.packs[packId] and not E.guides[k] then missing = true end
+    end
+    if missing then Reopen() end
+    if not E.Focused() and not ns.Test.quietFirstRun then ns.Errors.Call("engine", E.FirstPick) end
+end
+ns.Bus.On("PacksChanged", E, E.OnPacksChanged, "engine")
 
 -- ------------------------------------------------------------------ "move data?" after a rename
 -- DB.FindMoveCandidate (at login) found exactly one known character with the same class, race, faction and
@@ -221,9 +249,31 @@ function E.FirstPick()
     if g then
         ns.Bus.Fire("StepChanged", g)
         ns.Print(ns.U.Fill(ns.L.GUIDE_OPENED, { guide = GuideTitle(id) }))
+    elseif not E.HaveRoutes() then
+        -- v0.2.5 fix: no route pack is installed for this character yet (the pack addon is a separate download).
+        -- Don't mark the character as picked, so the pick runs once the pack is there; say so once per character.
+        if not ns.DB.readOnly.char then flags.guidePicked = nil end
+        local PL = ns.PackLoader
+        local folder = PL and PL.FolderForFaction(ns.Compat.Player().faction)
+        if folder and not flags.packHint then
+            if not ns.DB.readOnly.char then flags.packHint = true end
+            ns.Print(ns.U.Fill(ns.L.PACKS_NONE, { title = PL.Title(folder) }))
+        end
     else
         ns.Print(ns.U.Fill(ns.L.GUIDE_NONE, { list = (E.GuideList()) }))
     end
+end
+
+-- Is any route pack installed for this character's faction (or a neutral one)?
+function E.HaveRoutes()
+    E.UpdateCtx()
+    for _, id in ipairs(P.List()) do
+        local h = P.Header(id)
+        if h and h.kind == "route" and (h.faction == nil or h.faction == "Neutral" or h.faction == ctx.faction) then
+            return true
+        end
+    end
+    return false
 end
 
 -- bug-first-step cause 2: v0.1 picked by faction only, so a v0.1 character may sit on a guide for another
@@ -311,11 +361,82 @@ function E.Upgrade(oldKey, newId, routeId)
     return g ~= nil
 end
 
+-- ------------------------------------------------------------------ v0.2.5 C1: pack chaining
+-- Where a finished guide goes on: its pack header's `joins` ({ pack, step, route?, cond? } or a list; the first whose
+-- cond fits). The header comes from the loaded pack, else from Data\KnownPacks.lua. Returns
+-- { pack, route, step, title, state } (state = the PackLoader pack state: "loaded", "ready", "missing" ...) or nil.
+function E.NextOf(g)
+    if not g then return nil end
+    local packId = g.key:match("^([^/]+)/")
+    local h = P.Header(packId)
+    local known = type(ns.KnownPacks) == "table" and type(ns.KnownPacks.packs) == "table" and ns.KnownPacks.packs or {}
+    local joins = (h and h.joins) or (known[packId] and known[packId].joins)
+    if type(joins) ~= "table" then return nil end
+    local list = (joins.pack ~= nil or joins.step ~= nil) and { joins } or joins
+    E.UpdateCtx()
+    for _, j in ipairs(list) do
+        if type(j) == "table" and type(j.pack) == "string" and type(j.step) == "string" then
+            local fits = true
+            if type(j.cond) == "string" and j.cond ~= "" then fits = ns.Conditions.Check(ns.Conditions.Get(j.cond), ctx) end
+            if fits then
+                local th = P.Header(j.pack) or known[j.pack] or {}
+                local title = (ns.Locale.code == "daDK" and th.da) or th.title or j.pack
+                local state = ns.PackLoader and (ns.PackLoader.PackState(j.pack)) or (P.packs[j.pack] and "loaded" or "missing")
+                return { pack = j.pack, route = j.route, step = j.step, title = title, state = state }
+            end
+        end
+    end
+    return nil
+end
+
+-- "Play next" (a click only, tos T34): opens the joined guide at the join step. A joined guide already started is
+-- only focused (its progress is never reset). The finished guide closes; its save stays. Safe to repeat (a reload
+-- in the middle, a double click). Returns the new guide, or nil + reason.
+function E.Chain(g)
+    g = g or E.Focused()
+    if not (g and g:Finished()) then return nil, "not finished" end
+    local nx = E.NextOf(g)
+    if not nx then return nil, "no next" end
+    if not P.packs[nx.pack] and ns.PackLoader then
+        local r = ns.PackLoader.EnsurePack(nx.pack)
+        if r == "queued" then return nil, "queued" end
+    end
+    local route = P.Open(nx.pack, nx.route)
+    if not route then return nil, "missing" end
+    local key = E.Key(nx.pack, route.id)
+    if ns.DB.readOnly.char then return nil, "read-only" end
+    local save = ns.DB.Guide(key)
+    local fresh = save.current == nil and not save.finished and next(save.skips or {}) == nil
+        and next(save.done or {}) == nil
+    -- written first: a reload from here on repeats the same thing
+    if save.chainedFrom == nil then save.chainedFrom = g.key end
+    if fresh and not E.guides[key] and P.IndexOf(route, nx.step) then save.current = nx.step end
+    local oldKey = g.key
+    E.Close(oldKey)
+    local ng = E.Open(nx.pack, route.id)
+    if not ng then return nil, "missing" end
+    E.SaveActive()
+    table.insert(E.undo, { kind = "chain", from = oldKey, to = key })
+    while #E.undo > E.UNDO_MAX do table.remove(E.undo, 1) end
+    ns.Bus.Fire("StepChanged", ng)
+    ns.Print(ns.U.Fill(ns.L.CHAIN_OPENED, { guide = GuideTitle(nx.pack) }))
+    return ng
+end
+
 -- "/aog guide elwynn": a pack id, or the id without its "demo-" part.
 function E.FindPack(word)
     word = tostring(word or ""):lower()
     if word == "" then return nil end
     for _, id in ipairs(P.List()) do
+        local l = id:lower()
+        if l == word or l == "demo-" .. word then return id end
+    end
+    -- v0.2.5: a known pack in a pack addon that isn't loaded yet (E.Open loads it)
+    local known = type(ns.KnownPacks) == "table" and type(ns.KnownPacks.packs) == "table" and ns.KnownPacks.packs or {}
+    local ids = {}
+    for id in pairs(known) do ids[#ids + 1] = id end
+    table.sort(ids)
+    for _, id in ipairs(ids) do
         local l = id:lower()
         if l == word or l == "demo-" .. word then return id end
     end
@@ -573,6 +694,15 @@ function E.NotDoing(questID, on) return Act("NotDoing", questID, on) end
 function E.Undo()
     local u = table.remove(E.undo)
     if not u then return false end
+    if u.kind == "chain" then
+        -- v0.2.5: back to the finished guide (the joined guide stays saved, with its progress)
+        local packId, routeId = u.from:match("^([^/]+)/(.+)$")
+        if E.guides[u.to] then E.Close(u.to) end
+        local og = packId and E.Open(packId, routeId)
+        E.SaveActive()
+        if og then ns.Bus.Fire("StepChanged", og) end
+        return og ~= nil
+    end
     u.guide:Restore(u.snap)
     undoToken = undoToken + 1
     if ns.Notice then ns.Notice.Remove("undo") end

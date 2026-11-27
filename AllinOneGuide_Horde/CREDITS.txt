@@ -1,0 +1,68 @@
+All-in-One Guide - credits and licences
+=======================================
+
+All-in-One Guide - a leveling guide addon for WoW Forever
+Copyright (C) 2026 gettic
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option)
+any later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+more details.
+
+You should have received a copy of the GNU General Public License along
+with this program (the file LICENSE). If not, see
+<https://www.gnu.org/licenses/>.
+
+Source code for each release: the matching tag at
+https://github.com/gettic/All-in-One-Guide
+
+
+Third-party content
+-------------------
+
+Fonts (media\fonts\, SIL Open Font License 1.1; the licence and the
+copyright notices are in media\fonts\OFL.txt; the fonts stay under the OFL):
+- OpenSans.ttf: a subset of Open Sans SemiBold, Copyright 2020 The Open Sans
+  Project Authors (https://github.com/googlefonts/opensans).
+- AOGReadable.ttf ("Easy-read"): a renamed subset of OpenDyslexic Regular by
+  Abbie Gonzalez (https://github.com/antijingoist/opendyslexic). OpenDyslexic
+  is a Reserved Font Name, so our changed copy has its own name.
+Both are built by tools\build_fonts.py (in the source repository).
+
+Warcraft Wiki (https://warcraft.wiki.gg), by the Warcraft Wiki contributors.
+Text licensed under CC BY-SA 4.0
+(https://creativecommons.org/licenses/by-sa/4.0/).
+Used: single facts (ids, coordinates, levels) in the guide routes.
+Changes: the facts are restated in our own words; no wiki text or images
+are copied. Facts from the wiki are marked "wiki" in the guide pack sources.
+
+Questie and QuestieDB (https://github.com/Questie/Questie), GPL-3.0, by
+the Questie contributors. Used: quest givers, turn-ins, levels, chains,
+objectives and NPC spots, as facts for the routes and their tests.
+
+CMaNGOS classic-db (https://github.com/cmangos/classic-db), GPL-3.0.
+Some NPC positions, quest giver/turn-in ids, creature spawn areas
+(grid-snapped), city gate object positions (smart arrow), quest item
+and loot/vendor ids, model display ids, mob names (target button), item names
+(item pictures), quest levels
+(quest giver check), and
+spawn spots and respawn times were checked against or derived
+from this database. Game facts in it come from World of Warcraft,
+(c) Blizzard Entertainment; they are not covered by our GPL licence
+and are used here only as reference facts in a free, non-commercial
+addon. Not affiliated with or endorsed by CMaNGOS or Blizzard.
+
+Data from ForeverDB.net (https://foreverdb.net): some quest ids, levels,
+XP, prerequisites, NPC ids and quest-item ids for WoW Forever-only quests,
+used as reference facts. ForeverDB states no licence for its data; no
+texts were copied. Not affiliated with ForeverDB or Blizzard.
+
+
+World of Warcraft and its content are trademarks and copyrights of
+Blizzard Entertainment. This addon is not made or endorsed by Blizzard
+Entertainment.

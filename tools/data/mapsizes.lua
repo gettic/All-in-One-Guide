@@ -5,6 +5,10 @@
 -- (numbers only, no names); WoW Forever may differ slightly. A 1 % error in the size is a 1 % error in the
 -- distance, far below the 15 / 50 yd limits. Maps not listed here are not distance-checked (packcheck warns).
 -- seen 2026-11.
+-- 2548 (the Riverglades, WoW Forever): from the zone map's region in Shortest Path Forever v1.41.0 (cjber,
+-- GPL-3.0-or-later), Data\Zones.lua (made from the 1.60.1 client's UiMapAssignment): width = maxY - minY,
+-- height = maxX - minX (the same rule gives 1411 and 1429 below exactly). seen 2026-11-27.
+-- 2482 (Mount Hyjal, WoW Forever): no size found in an open source yet, so it is not distance-checked.
 return {
     [1411] = { 5287.5, 3525.0 },
     [1412] = { 5137.5, 3425.0 },
@@ -54,4 +58,5 @@ return {
     [1456] = { 1043.8, 695.8 },
     [1457] = { 1058.3, 705.7 },
     [1458] = { 959.4, 640.1 },
+    [2548] = { 4850.0, 3233.0 },
 }

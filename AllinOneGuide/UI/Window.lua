@@ -630,6 +630,34 @@ function UI.Build()
     UI.stateText:SetPoint("TOP", UI.stateIcon, "BOTTOM", 0, -6)
     UI.stateText:SetPoint("LEFT", UI.area, "LEFT", Pad() * 2, 0)
     UI.stateText:SetPoint("RIGHT", UI.area, "RIGHT", -Pad() * 2, 0)
+    -- v0.2.5 end card / missing pack: a dim line under the state text, and one button under it
+    UI.endLine = K.Text(UI.area, "goal", "text.dim", "CENTER")
+    UI.endLine:SetWordWrap(true)
+    UI.endLine:SetPoint("TOP", UI.stateText, "BOTTOM", 0, -6)
+    UI.endLine:SetPoint("LEFT", UI.area, "LEFT", Pad() * 2, 0)
+    UI.endLine:SetPoint("RIGHT", UI.area, "RIGHT", -Pad() * 2, 0)
+    UI.endLine:Hide()
+    UI.endButton = K.Button(UI.area, "", function(self) UI.EndClick(self.action) end, { feature = "ui" })
+    -- (ui review #1) a 1 px edge so it reads as a button: color.endButtonEdge, the accent under the mouse
+    local eb = UI.endButton
+    eb.edges = {}
+    for i, side in ipairs({ "TOP", "BOTTOM", "LEFT", "RIGHT" }) do
+        local t = K.Fill(eb, "BORDER", "endButtonEdge")
+        if i <= 2 then
+            t:SetPoint(side .. "LEFT", eb, side .. "LEFT", 0, 0)
+            t:SetPoint(side .. "RIGHT", eb, side .. "RIGHT", 0, 0)
+            t:SetHeight(K.Hair(1))
+        else
+            t:SetPoint("TOP" .. side, eb, "TOP" .. side, 0, 0)
+            t:SetPoint("BOTTOM" .. side, eb, "BOTTOM" .. side, 0, 0)
+            t:SetWidth(K.Hair(1))
+        end
+        eb.edges[i] = t
+    end
+    local function EdgeColor(key) for _, t in ipairs(eb.edges) do t:SetColorTexture(Th.Color(key)) end end
+    eb:HookScript("OnEnter", function() EdgeColor("accent") end)
+    eb:HookScript("OnLeave", function() EdgeColor("endButtonEdge") end)
+    eb:Hide()
     UI.chips = Chips(f)
     UI.footer = Footer(f)
     UI.grip = Grip(f, "width")
@@ -877,9 +905,15 @@ end
 function UI.Model()
     if ns.safeMode then return { state = "safe" } end
     local g = ns.Engine.Focused()
-    if not g then return { state = "none" } end
+    if not g then return UI.MissingModel() or { state = "none" } end
     local cur, top = ns.Engine.Current()
-    if not cur then return { state = "finished", guide = g } end
+    if not cur then
+        -- v0.2.5 end card: where the route goes on (E.NextOf), and the level reached
+        local ok, nx = ns.Errors.Call("chain", ns.Engine.NextOf, g)
+        local h = g.header or {}
+        return { state = "finished", guide = g, next = ok and nx or nil, level = ns.Engine.ctx and ns.Engine.ctx.level,
+            title = (ns.Locale.code == "daDK" and h.da) or h.title or g.key }
+    end
     local m = { state = "guide", guide = g, top = top, cur = cur }
     local route = top.route
     local sec = ns.Packs.Section(route, cur.index or top.pos)
@@ -1173,13 +1207,17 @@ local function NumInfo(top)
     local count = top:Count()
     local c = numCache[top]
     if c and c.count == count then return c end
-    c = { count = count, fixed = {}, live = {} }
+    c = { count = count, fixed = {}, live = {}, probe = {} }
     for j = 1, count do
         local s = top:Step(j)
         if not s then
             c.fixed[j] = 0
         elseif s.minLevel or (s.cond and s.condAst and s.condAst.info and s.condAst.info.dynamic) then
             c.live[#c.live + 1] = j
+            -- v0.2.5 C8 (perf, 1-60 routes: many `level>=N` steps): only what Guide:Applicable reads is kept, so a
+            -- refresh never decodes the live steps again (GetStep's capped cache thrashed on long routes)
+            c.probe[j] = { bad = s.bad, minLevel = s.minLevel, cond = s.cond, condAst = s.condAst,
+                key = tostring(s.minLevel or "") .. "|" .. tostring(s.cond or "") .. (s.bad and "|bad" or "") }
         else
             c.fixed[j] = top:Applicable(s) and 1 or 0
         end
@@ -1198,9 +1236,14 @@ function UI.Numbers(top)
         c.liveAns = live
     end
     local same = c.numbers ~= nil
+    local memo = {}   -- one answer per (minLevel, condition) on this refresh: many steps share "level>=N"
     for _, j in ipairs(c.live) do
-        local s = top:Step(j)
-        local v = (s and top:Applicable(s)) and 1 or 0
+        local p = c.probe[j]
+        local v = memo[p.key]
+        if v == nil then
+            v = top:Applicable(p) and 1 or 0
+            memo[p.key] = v
+        end
         if live[j] ~= v then
             live[j] = v
             same = false
@@ -1244,25 +1287,148 @@ local function Row(i)
     return r
 end
 
-local STATE_TEXT = { none = "STATE_NONE", finished = "STATE_FINISHED", error = "STATE_ERROR", safe = "STATE_SAFE" }
-local STATE_GLYPH = { none = "state.none", finished = "state.finished", error = "state.error", safe = "state.error" }
+local STATE_TEXT = { none = "STATE_NONE", finished = "STATE_FINISHED", error = "STATE_ERROR", safe = "STATE_SAFE",
+    missing = "STATE_MISSING" }
+local STATE_GLYPH = { none = "state.none", finished = "state.finished", error = "state.error", safe = "state.error",
+    missing = "state.none" }
 
-local function DrawState(state)
+-- v0.2.5: the focused guide's pack isn't loaded (its pack addon is missing, turned off, too old ...): the save is
+-- kept, the window says where the route is. nil when there is no saved focus or its pack is loaded.
+function UI.MissingModel()
+    local key = ns.DB.char and ns.DB.char.focus
+    local packId = type(key) == "string" and key:match("^([^/]+)/")
+    if not packId or ns.Packs.packs[packId] or not ns.PackLoader then return nil end
+    local st, folder = ns.PackLoader.PackState(packId)
+    if st == "loaded" then return nil end
+    local known = type(ns.KnownPacks) == "table" and type(ns.KnownPacks.packs) == "table" and ns.KnownPacks.packs[packId] or {}
+    local title = (ns.Locale.code == "daDK" and known.da) or known.title or packId
+    return { state = "missing", pack = packId, packState = st, folder = folder, title = title,
+        folderTitle = folder and ns.PackLoader.Title(folder) or nil }
+end
+
+-- A pack addon's name for "in the {download} download": its title without the addon's own name in front
+-- (ui review #5: "All-in-One Guide: Horde routes" -> "Horde routes").
+function UI.DownloadName(folder)
+    if not folder then return nil end
+    local t = ns.PackLoader and ns.PackLoader.Title(folder) or folder
+    return (tostring(t):gsub("^All%-in%-One Guide:%s*", ""))
+end
+
+-- After Turn on, when the game needs a /reload (ui review #6): the line says so and there is no button.
+local function ReloadLine(folder)
+    if folder and ns.PackLoader and ns.PackLoader.needsReload and ns.PackLoader.needsReload[folder]
+        and ns.PackLoader.State(folder) ~= "loaded" then
+        return ns.U.Fill(L().PACKS_RELOAD, { title = UI.DownloadName(folder) })
+    end
+    return nil
+end
+
+-- The end card's / missing card's dim line and button: (line, button label, action) from the model.
+function UI.EndParts(m)
+    local Lc = L()
+    if m.state == "finished" then
+        local nx = m.next
+        if not nx then return Lc.END_NONE end
+        local st = nx.state
+        if st == "loaded" or st == "ready" then return ns.U.Fill(Lc.END_NEXT, { guide = nx.title }), Lc.PLAY_NEXT, "chain" end
+        local folder = ns.PackLoader and ns.PackLoader.FolderOf(nx.pack)
+        local where = UI.DownloadName(folder) or nx.pack
+        local rl = ReloadLine(folder)
+        if rl then return rl end
+        if st == "disabled" and folder then
+            return ns.U.Fill(Lc.END_NEXT_OFF, { guide = nx.title, download = where }), Lc.PACKS_TURN_ON, "enable:" .. folder
+        end
+        if st == "refused" or st == "old" then return ns.U.Fill(Lc.END_NEXT_OLD, { guide = nx.title }) end
+        return ns.U.Fill(Lc.END_NEXT_MISSING, { guide = nx.title, download = where })
+    elseif m.state == "missing" then
+        local where = UI.DownloadName(m.folder) or m.pack
+        local rl = ReloadLine(m.folder)
+        if rl then return rl end
+        if m.packState == "disabled" and m.folder then
+            return ns.U.Fill(Lc.MISSING_OFF, { guide = m.title, download = where }), Lc.PACKS_TURN_ON, "enable:" .. m.folder
+        end
+        if m.packState == "refused" or m.packState == "old" then return ns.U.Fill(Lc.MISSING_OLD, { guide = m.title }) end
+        if m.packState == "ready" then return ns.U.Fill(Lc.MISSING_LOADING, { guide = m.title }) end
+        return ns.U.Fill(Lc.MISSING_NONE, { guide = m.title, download = where })
+    end
+    return nil
+end
+
+-- The end card button (a click only, tos T34 / T27).
+function UI.EndClick(action)
+    if action == "chain" then
+        local g, why = ns.Engine.Chain()
+        if not g and why == "queued" then ns.Print(L().PLAY_NEXT_COMBAT) end
+    elseif type(action) == "string" and action:match("^enable:") then
+        local folder = action:sub(8)
+        local r = ns.PackLoader and ns.PackLoader.Enable(folder)
+        if r == "reload" then ns.Print(ns.U.Fill(L().PACKS_RELOAD, { title = UI.DownloadName(folder) })) end
+    end
+    UI.Refresh()
+end
+
+local function DrawState(m)
+    local state = m.state
     for _, r in ipairs(UI.rows) do r:Hide() end
     UI.divider:Hide()
     UI.nextLine:SetText("")
+    UI.waitShape = nil
     UI.stateIcon:Show()
-    Th.Glyph(UI.stateIcon, STATE_GLYPH[state])
+    Th.Glyph(UI.stateIcon, STATE_GLYPH[state] or "state.none")
     UI.stateIcon:SetVertexColor(Th.Color(state == "finished" and "accentText" or "text.dim"))
     UI.stateText:Show()
-    UI.stateText:SetText(L()[STATE_TEXT[state]])
+    local Lc = L()
+    local text = Lc[STATE_TEXT[state] or "STATE_NONE"]
+    if state == "finished" and m.title then
+        text = ns.U.Fill(Lc.END_DONE, { guide = m.title })
+        if type(m.level) == "number" then text = text .. "\n" .. ns.U.Fill(Lc.END_LEVEL, { level = m.level }) end
+    elseif state == "missing" then
+        text = Lc.STATE_MISSING
+    end
+    -- v0.2.5 end card / missing pack: the dim line and its one button. Small mode (ui review #4): no icon; the state
+    -- text's first line, the dim line on one line (cut with "..."), the button; the block centred in the area
+    local line, label, action = UI.EndParts(m)
+    local small = UI.Small()
+    UI.stateIcon:SetShown(not small)
+    UI.stateText:ClearAllPoints()
+    UI.stateText:SetWordWrap(not small)
+    UI.endLine:SetWordWrap(not small)
+    if small then
+        text = text:match("^[^\n]*")
+        local blockH = LH() + (line and LG() + 2 or 0) + (label and (UI.endButton:GetHeight() or LH()) + 3 or 0)
+        -- (a notice takes the small window's last line)
+        local room = (UI.area:GetHeight() or 0) - ((ns.Notice and ns.Notice.Top()) and LH() or 0)
+        local top = math.max(2, math.floor((room - blockH) / 2))
+        UI.stateText:SetPoint("TOP", UI.area, "TOP", 0, -top)
+    else
+        UI.stateText:SetPoint("TOP", UI.stateIcon, "BOTTOM", 0, -6)
+    end
+    UI.stateText:SetPoint("LEFT", UI.area, "LEFT", Pad() * 2, 0)
+    UI.stateText:SetPoint("RIGHT", UI.area, "RIGHT", -Pad() * 2, 0)
+    UI.stateText:SetText(text)
+    UI.endLine:SetText(line or "")
+    UI.endLine:ClearAllPoints()
+    UI.endLine:SetPoint("TOP", UI.stateText, "BOTTOM", 0, small and -2 or -6)
+    UI.endLine:SetPoint("LEFT", UI.area, "LEFT", Pad() * 2, 0)
+    UI.endLine:SetPoint("RIGHT", UI.area, "RIGHT", -Pad() * 2, 0)
+    UI.endLine:SetShown(line ~= nil)
+    UI.endButton.action = action
+    if label then
+        UI.endButton:SetLabel(label)
+        UI.endButton:SetPrimary(true)
+        UI.endButton:ClearAllPoints()
+        UI.endButton:SetPoint("TOP", line and UI.endLine or UI.stateText, "BOTTOM", 0, small and -3 or -8)
+        UI.endButton:Show()
+    else
+        UI.endButton:Hide()
+    end
     UI.DrawTitle(nil)
     for _, c in ipairs(UI.chips.list) do c:Hide() end
-    UI.SetProgress(0)
+    UI.SetProgress(state == "finished" and 1 or 0)
     UI.footer.text:SetText("")
     UI.footer.text:Hide()   -- (messy-play fix: an empty shown text was a 0x0 frame in the self-test)
-    -- nothing to step through without a guide: no back / next
-    UI.footer.prev:Hide()
+    -- nothing to step through without a guide: no next; Back stays on the end card (back to the last step)
+    UI.footer.prev:SetShown(state == "finished")
     UI.footer.next:Hide()
 end
 
@@ -1435,6 +1601,10 @@ local function FitBlock(d, avail)
     out.note = nil
     local base = math.max(LH(), (d.lean and d.leanH or 0) + Th.Size("blockPad"))
     local room = math.max(0, math.floor((avail - base) / LG()))
+    -- (v0.2.5: the waits countdown line stays first while there is a line for it)
+    if out.wait then
+        if room > 0 then room = room - 1 else out.wait = nil end
+    end
     local goals = {}
     for i = 1, math.min(#(d.goals or {}), room) do goals[i] = d.goals[i] end
     out.goals = goals
@@ -1453,7 +1623,7 @@ function UI.Refresh()
             UI.grow = 0
             UI.Layout()
         end
-        DrawState(m.state)
+        DrawState(m)
         DrawNotice()
         if ns.ModelView and ns.ModelView.frame then ns.Errors.Call("model", ns.ModelView.Update) end
         if ns.Waypoint then ns.Waypoint.Clear("step") elseif ns.Arrow then ns.Arrow.SetTarget(nil) end
@@ -1461,6 +1631,8 @@ function UI.Refresh()
     end
     UI.stateIcon:Hide()
     UI.stateText:Hide()
+    UI.endLine:Hide()
+    UI.endButton:Hide()
     UI.footer.prev:Show()
     UI.footer.next:Show()
     UI.footer.text:Show()
@@ -1485,6 +1657,12 @@ function UI.Refresh()
     end
     UI.foldCount = 0
     d = UI.FoldGoals(d, m.cur.id)
+    -- v0.2.5 waits countdown (full mode): one line after the note, before the goals; UI.waitShape = what it shows
+    -- apart from the time (a tick with the same shape only sets the time, UI.WaitTick)
+    local wok, wp = false, nil
+    if not small and ns.Waits then wok, wp = ns.Errors.Call("waits", ns.Waits.Parts) end
+    d.wait = wok and wp or nil
+    UI.waitShape = d.wait and (d.wait.label .. (d.wait.over and "|over" or "") .. (d.wait.time and "|t" or "")) or nil
     local base = small and (UI.AreaHeight(true) - reserve - blockPad) or (UI.BlockBase() - blockPad)
     if small then d = UI.FitSmall(d, base) end
     -- v0.2 fix (the user: "text are overlapping the now step"): anchor the row before laying it out, so its text
@@ -1826,6 +2004,71 @@ local function OnSettings(_, key)
 end
 ns.Bus.On("SettingsChanged", UI, OnSettings, "ui", 70)
 ns.Bus.On("StepChanged", UI, function() UI.Refresh() end, "ui", 70)
+
+-- v0.2.5 waits countdown, once a second while something counts: the same line -> only its time text changes;
+-- a line that comes, goes or reads differently -> one redraw. Nothing at all while the window is hidden.
+function UI.WaitTick()
+    local f = UI.frame
+    if not (f and f:IsShown() and UI.model and UI.model.state == "guide") then return end
+    if ns.Bus.Pending("StepChanged") then return end
+    local p = not UI.Small() and ns.Waits and ns.Waits.Parts() or nil
+    local shape = p and (p.label .. (p.over and "|over" or "") .. (p.time and "|t" or "")) or nil
+    local r = UI.rows[1]
+    if shape == UI.waitShape then
+        -- (a line cut for room in combat stays cut until the next redraw)
+        if p and r and r.waitLine then r.waitLine.right:SetText(p.time or "") end
+        UI.waitTicks = (UI.waitTicks or 0) + 1
+        return
+    end
+    UI.Refresh()
+end
+ns.Bus.On("WaitsTick", UI, function() ns.Errors.Call("ui", UI.WaitTick) end, "ui", 70)
+-- The end card / missing card: nil when right, else a reason (self-check "endcard" + offline tests): its button
+-- shows when the parts say so, it and the line sit inside the window above the footer, the line above the button.
+function UI.EndProblem()
+    local m, f = UI.model, UI.frame
+    if not (f and f:IsShown() and m and (m.state == "finished" or m.state == "missing")) then return nil end
+    local _, label = UI.EndParts(m)
+    if (label ~= nil) ~= UI.endButton:IsShown() then return "the end card button doesn't match its state" end
+    local fb, ftop = f:GetBottom(), UI.footer:GetTop()
+    -- (ui review #7: the state text too, and a notice line on the last row)
+    local nl = UI.noticeLine
+    local ntop = nl and nl:IsShown() and nl:GetTop()
+    local ab = UI.area:GetBottom()
+    for _, o in ipairs({ UI.stateText, UI.endLine, UI.endButton }) do
+        if o:IsShown() then
+            local b = o:GetBottom()
+            if type(b) == "number" and type(fb) == "number" and b < fb - 0.5 then return "the end card runs out of the window" end
+            if type(b) == "number" and type(ftop) == "number" and UI.footer:IsShown() and b < ftop - 0.5 then
+                return "the end card runs into the footer"
+            end
+            if type(b) == "number" and type(ntop) == "number" and b < ntop - 0.5 then return "the notice line overlaps the end card" end
+            if type(b) == "number" and type(ab) == "number" and UI.Small() and b < ab - 0.5 then
+                return "the end card runs out of the small window's room"
+            end
+        end
+    end
+    if UI.stateText:IsShown() then
+        local sb, lt = UI.stateText:GetBottom(), UI.endLine:IsShown() and UI.endLine:GetTop()
+        if type(sb) == "number" and type(lt) == "number" and lt > sb + 0.5 then return "the end card line overlaps the state text" end
+    end
+    if UI.endLine:IsShown() and UI.endButton:IsShown() then
+        local lb, bt = UI.endLine:GetBottom(), UI.endButton:GetTop()
+        if type(lb) == "number" and type(bt) == "number" and bt > lb + 0.5 then return "the end card button overlaps its line" end
+    end
+    return nil
+end
+ns.SelfChecks[#ns.SelfChecks + 1] = { label = "endcard", fn = function(h)
+    h.Count()
+    local m = UI.model
+    if not (m and (m.state == "finished" or m.state == "missing")) then h.Info("endcard: not shown") return end
+    local p = UI.EndProblem()
+    if p then h.Problem("endcard: " .. p) end
+    local line, label = UI.EndParts(m)
+    h.Info(("endcard: %s, line '%s', button %s"):format(m.state, tostring(line), tostring(label)))
+end }
+-- (a pack addon loaded / failed: the end card's and the missing card's state reads anew)
+ns.Bus.On("PacksChanged", UI, function() if not ns.Bus.Pending("StepChanged") then UI.Refresh() end end, "ui", 71)
 ns.Bus.On("NoticeChanged", UI, function() UI.Refresh() end, "ui", 70)
 -- (perf: a StepChanged already waiting in this bus chain refreshes the window right after; no second redraw)
 local function RefreshUnlessStep() if not ns.Bus.Pending("StepChanged") then UI.Refresh() end end

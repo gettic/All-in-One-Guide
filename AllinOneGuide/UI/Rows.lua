@@ -13,6 +13,7 @@
 --            start under this height: the 3D view's square), reserveRight (units kept free on the right),
 --            tag = { kind, word } + target + fade + sep (a next step as one line, mock-up 4h) }
 --   a goal may also carry kind ("kill" / "loot" / "use": its tile), side (its step), more ("+n more")
+--   wait = { label, time, over } (v0.2.5, ns.Waits.Parts): the countdown line after the note, before the goals
 local _, ns = ...
 local Th, K = ns.Theme, ns.UIKit
 local R = {}
@@ -293,6 +294,7 @@ local function ShowLine(ln, shown)
         ln.caret:Hide()
         ln.fold, ln.item = nil, nil
         if ln.icon then ln.icon:Hide() end
+        if ln.waitIcon then ln.waitIcon:Hide() end
         ln.holder:EnableMouse(false)
         K.TileShown(ln.tile, false)
         K.TileShown(ln.open, false)
@@ -555,6 +557,10 @@ function R.Set(row, d)
     if current and lean and d.leanH then h = math.max(h, d.leanH + Th.Size("blockPad")) end
     local n = 0
     local lines = {}
+    row.waitLine = nil
+    -- v0.2.5 waits countdown: one line after the note, before the goals (label left, time right)
+    local off = 0
+    if current and d.wait then lines[1], off = { kind = "wait", w = d.wait }, 1 end
     if current then
         for _, gl in ipairs(d.goals or {}) do lines[#lines + 1] = { kind = "goal", g = gl } end
         if d.coord then lines[#lines + 1] = { kind = "coord", c = d.coord } end
@@ -581,6 +587,7 @@ function R.Set(row, d)
         ln.right:SetPoint("TOPRIGHT", row, "TOPRIGHT", -(Pad() + reserve), -h)
         ln.right:SetHeight(LG)
         ln.text:SetHeight(LG)
+        if ln.waitIcon and l.kind ~= "wait" then ln.waitIcon:Hide() end
         if l.kind == "goal" then
             local g = l.g
             -- open goal with a kind: its tile; done: the done tile; plain open goal: the empty tile; "+n more": none
@@ -613,7 +620,7 @@ function R.Set(row, d)
                 ln.right:SetText("")
             end
             K.Color(ln.right, g.fold and "text.dim" or (g.done and doneKey) or "goalCount")
-            local isFocus = focus == n and not g.done and not g.more
+            local isFocus = focus == n - off and not g.done and not g.more
             -- a goal that just finished flashes green before it folds in; the fold line and opened goals: no box
             local bg = (isFocus and "goalNowBg") or (g.flash and "goalFlashBg")
                 or (g.done and not g.more and not g.fold and not g.indent and "goalDoneBg") or nil
@@ -629,6 +636,32 @@ function R.Set(row, d)
                 local tw = math.min(ln.text:GetStringWidth() or 0, 200)
                 ln.caret:SetPoint("LEFT", row, "TOPLEFT", gx + Th.Size("tile") + 5 + tw + 4, -(h + LG / 2))
             end
+        elseif l.kind == "wait" then
+            -- the waits countdown (ui review #2): the hourglass glyph tinted color.wait while counting, the danger
+            -- glyph once over; label in the goal colour (danger colour once over), the time at the right in the
+            -- count colour; the window updates only the time each second (row.waitLine)
+            ln.fold, ln.indent, ln.item = nil, 0, nil
+            if ln.icon then ln.icon:Hide() end
+            ln.caret:Hide()
+            ln.holder:EnableMouse(false)
+            K.TileShown(ln.tile, false)
+            K.TileShown(ln.open, false)
+            K.TileShown(ln.done, false)
+            if not ln.waitIcon then
+                ln.waitIcon = row:CreateTexture(nil, "ARTWORK", nil, 5)
+                ln.waitIcon:SetAllPoints(ln.pin)
+            end
+            Th.Glyph(ln.waitIcon, l.w.over and "notice.danger" or "state.wait")
+            ln.waitIcon:SetVertexColor(Th.Color(l.w.over and "notice.danger" or "wait"))
+            ln.waitIcon:Show()
+            if ln.text.SetWordWrap then ln.text:SetWordWrap(false) end
+            ln.text:SetText(l.w.label or "")
+            K.Color(ln.text, l.w.over and "notice.danger" or "goal")
+            ln.right:SetText(l.w.time or "")
+            K.Color(ln.right, "goalCount")
+            LineBg(ln, nil)
+            ln.edge:Hide()
+            row.waitLine = ln
         else
             ln.fold, ln.indent, ln.item = nil, 0, nil
             if ln.icon then ln.icon:Hide() end
