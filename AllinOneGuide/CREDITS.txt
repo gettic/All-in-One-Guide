@@ -57,6 +57,12 @@ from this database. Game facts in it come from World of Warcraft,
 and are used here only as reference facts in a free, non-commercial
 addon. Not affiliated with or endorsed by CMaNGOS or Blizzard.
 
+Shortest Path Forever (https://github.com/cjber/shortest-path-forever),
+GPL-3.0-or-later, by Cillian Berragan. Used: positions read off its baked
+walking grid (the floors, heights and steps of the Deathknell start crypt)
+for the smart arrow's stairs points; read with its own decoder, no code or
+files copied. Marked "spf" in the connector sources.
+
 Data from ForeverDB.net (https://foreverdb.net): some quest ids, levels,
 XP, prerequisites, NPC ids and quest-item ids for WoW Forever-only quests,
 used as reference facts. ForeverDB states no licence for its data; no

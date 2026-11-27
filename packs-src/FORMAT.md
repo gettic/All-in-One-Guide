@@ -317,8 +317,9 @@ return {
 | `hint` | locale key of the line under the arrow ("Through the abbey door"); must exist in enUS and daDK; without it the kind's text (`VIA_KIND_*`) |
 | `inside` | the room this point is in (nil = outdoors). A door is two points: one inside, one outside, linked. The arrow aims at the middle between them (when both are on one map), so place them on one line straight through the middle of the doorway (cave mouth), about the same distance from it on each side |
 | `link` | walkable neighbours, both ways. An entry may be `{ "id", cost = <yards>, oneWay = true }`; `oneWay` only for a safe drop a normal player walks off, never a jump or trick |
-| `src`, `confirmed` | `"own"` (our own estimate or a tester's `/aog rec` recording) or `"cmangos"` (a bare position fact from CMaNGOS classic-db: a door / gate game object, or a cave's size from its dwellers' spawns on a 0.5 % grid; never paths or waypoints). Nothing is copied from other addons' waypoint data. `confirmed = true` once checked on Forever |
+| `src`, `confirmed` | `"own"` (our own estimate or a tester's `/aog rec` recording), `"spf"` (placed on Shortest Path Forever's baked walking grid, GPL-3.0-or-later: its floors, heights and steps) or `"cmangos"` (a bare position fact from CMaNGOS classic-db: a door / gate game object, or a cave's size from its dwellers' spawns on a 0.5 % grid; never paths or waypoints). Nothing is copied from other addons' waypoint data. `confirmed = true` once checked on Forever |
 | room `poly` | 3+ corners in percent, not crossing itself; `indoor = true` also needs `IsIndoors()` (when the game answers) |
+| room `chain` | `true` for a stairwell whose points inside it are walked in order (linked one to the next): the arrow joins at the nearest leg between two of them instead of aiming straight at any point of the room |
 | room `subzone` | English name for the checker and people only; not shipped |
 
 A whole walled city can be one room with `indoor = false` (its map's corners): you leave it through its gate.

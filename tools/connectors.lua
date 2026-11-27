@@ -14,8 +14,9 @@ local CC = {}
 CC.KINDS = { door = true, cave = true, ramp = true, bridge = true, gate = true, tram = true, path = true, stairs = true }
 -- where a point may come from: our own estimate / recording, or a bare position fact from CMaNGOS classic-db
 -- (GPL; a door / gate game object, or a cave's size from its dwellers' spawn area, grid-snapped; never paths
--- or waypoints: plans ruling 2026-11-25)
-CC.SOURCES = { own = true, cmangos = true }
+-- or waypoints: plans ruling 2026-11-25), or a position measured on Shortest Path Forever's baked walking grid
+-- (GPL-3.0-or-later, by Cillian Berragan: its walkable floors and steps, read with its own decoder; 2026-11-27)
+CC.SOURCES = { own = true, cmangos = true, spf = true }
 CC.ID = "^[a-z0-9][a-z0-9%-]*$"
 CC.TRICK = { "jump", "hop", "glitch", "wall", "fall through", "out of bounds", "unstuck", "hoppe" }
 
@@ -75,7 +76,8 @@ function CC.Check(list, opts)
                 end
             end
             if #poly >= 4 and SelfCrossing(poly) then E("%s: room %s: the outline crosses itself", area, id) end
-            if not CC.SOURCES[r.src] then E("%s: room %s: src must be \"own\" or \"cmangos\"", area, id) end
+            if r.chain ~= nil and r.chain ~= true and r.chain ~= false then E("%s: room %s: chain must be true or false", area, id) end
+            if not CC.SOURCES[r.src] then E("%s: room %s: src must be \"own\", \"cmangos\" or \"spf\"", area, id) end
         end
         for _, c in ipairs(data.connectors or {}) do
             local id = tostring(c.id)
@@ -93,10 +95,13 @@ function CC.Check(list, opts)
             if c.hint ~= nil then
                 for _, code in ipairs({ "enUS", "daDK" }) do
                     local keys = opts.keys and opts.keys[code]
-                    if keys and keys[c.hint] == nil then E("%s: %s: hint %s missing in %s", area, id, tostring(c.hint), code) end
+                    -- Danish waits until v1.0 (missing Danish falls back to English): only a warning
+                    if keys and keys[c.hint] == nil then
+                        (code == "daDK" and W or E)("%s: %s: hint %s missing in %s", area, id, tostring(c.hint), code)
+                    end
                 end
             end
-            if not CC.SOURCES[c.src] then E("%s: %s: src must be \"own\" or \"cmangos\"", area, id) end
+            if not CC.SOURCES[c.src] then E("%s: %s: src must be \"own\", \"cmangos\" or \"spf\"", area, id) end
             if c.confirmed ~= true and c.confirmed ~= false then E("%s: %s: confirmed must be true or false", area, id) end
         end
     end
@@ -172,7 +177,7 @@ local function Lit(v)
 end
 
 local NODE_KEYS = { "id", "map", "x", "y", "r", "kind", "hint", "inside", "oneWay" }
-local ROOM_KEYS = { "id", "map", "indoor" }
+local ROOM_KEYS = { "id", "map", "indoor", "chain" }
 
 local function Fields(t, keys)
     local out = {}

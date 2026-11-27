@@ -276,6 +276,11 @@ ns.Locale.Add("enUS", {
     SPOT_RESPAWN = "All cleared: they respawn here in ~{min} min",
     MENU_ARROW_MODE = "Spawn spot order: {mode}",
     VIA_KIND_STAIRS = "Take the stairs",
+    -- a stairwell with a turn (Deathknell crypt): one line per leg, shown under the arrow
+    VIA_STAIRS_UP = "Up the stairs",
+    VIA_STAIRS_TURN_LEFT = "Turn left on the landing",
+    VIA_STAIRS_NEXT = "Up the next stairs",
+    VIA_CRYPT_OUT = "Out of the crypt",
     -- v0.2 quest items in the bags (Engine\BagQuests.lua, UI\HubBag.lua)
     HUB_QUESTITEMS = "Quest items",
     QI_TITLE = "Quest items in your bags",

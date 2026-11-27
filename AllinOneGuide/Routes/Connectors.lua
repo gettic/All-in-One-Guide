@@ -77,10 +77,15 @@ R({ area = "stormwind",
 })
 R({ area = "tirisfal",
     connectors = {
-        { id = "dkn-crypt-stairs-in", map = 1420, x = 29.919, y = 72.051, r = 3, kind = "stairs", inside = "dkn-crypt", link = { "dkn-crypt-stairs-out" } },
-        { id = "dkn-crypt-stairs-out", map = 1420, x = 29.891, y = 72.141, r = 3, kind = "stairs", link = { "dkn-crypt-stairs-in" } },
+        { id = "dkn-crypt-stairs-foot", map = 1420, x = 30.068, y = 72.33, r = 4, kind = "stairs", inside = "dkn-crypt", link = { "dkn-crypt-landing" } },
+        { id = "dkn-crypt-landing", map = 1420, x = 30.068, y = 72.793, r = 4, kind = "stairs", hint = "VIA_STAIRS_UP", inside = "dkn-crypt-stairs", link = { "dkn-crypt-landing-turn" } },
+        { id = "dkn-crypt-landing-turn", map = 1420, x = 30.242, y = 72.793, r = 4, kind = "stairs", hint = "VIA_STAIRS_TURN_LEFT", inside = "dkn-crypt-stairs-2", link = { "dkn-crypt-stairs-top" } },
+        { id = "dkn-crypt-stairs-top", map = 1420, x = 30.313, y = 72.495, r = 4, kind = "stairs", hint = "VIA_STAIRS_NEXT", inside = "dkn-crypt-stairs-2", link = { "dkn-crypt-way-out" } },
+        { id = "dkn-crypt-way-out", map = 1420, x = 30.346, y = 72.231, r = 5, kind = "path", hint = "VIA_CRYPT_OUT" },
     },
     rooms = {
-        { id = "dkn-crypt", map = 1420, indoor = true, poly = { { 29.964, 71.516 }, { 30.125, 71.628 }, { 29.97, 72.123 }, { 29.81, 72.011 } } },
+        { id = "dkn-crypt", map = 1420, indoor = true, poly = { { 30.501, 72.379 }, { 30.501, 71.85 }, { 30.136, 71.85 }, { 30.136, 71.552 }, { 29.627, 71.552 }, { 29.627, 72.644 }, { 29.97, 72.644 }, { 29.97, 72.379 } } },
+        { id = "dkn-crypt-stairs", map = 1420, indoor = true, poly = { { 30.156, 72.925 }, { 30.156, 72.379 }, { 29.97, 72.379 }, { 29.97, 72.925 } } },
+        { id = "dkn-crypt-stairs-2", map = 1420, indoor = true, chain = true, poly = { { 30.501, 72.925 }, { 30.501, 72.644 }, { 30.413, 72.644 }, { 30.413, 72.379 }, { 30.156, 72.379 }, { 30.156, 72.925 } } },
     },
 })
