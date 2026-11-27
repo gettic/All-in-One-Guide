@@ -52,6 +52,7 @@ ns.Locale.Add("enUS", {
     PACKS_NONE = "your routes are a separate download: install {title} with the Addon Manager.",
     PACKS_STATUS = "packs: {loaded} loaded, {missing} not installed, {other} other",
     PACKS_RELOAD = "{title} is turned on. Type /reload to load it.",
+    PACKS_LOAD_FAILED = "{title} couldn't load: {why}.",
     -- Guides page: one neutral line per pack whose addon can't be used now (tos T28)
     PACKS_IN = "In {title}",
     PACKS_TURN_ON = "Turn on",

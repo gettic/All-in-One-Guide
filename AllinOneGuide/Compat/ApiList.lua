@@ -34,6 +34,13 @@ ns.ApiList = {
     { id = "AddOnInfo", path = "C_AddOns.GetAddOnInfo", kind = "function", secret = "args", src = "doc AddOnsDocumentation" },
     { id = "AddOnEnableState", path = "C_AddOns.GetAddOnEnableState", kind = "function", secret = "args", src = "doc AddOnsDocumentation" },
     { id = "EnableAddOn", path = "C_AddOns.EnableAddOn", kind = "function", secret = "args", src = "doc AddOnsDocumentation" },
+    -- v0.2.6 hotfix: the old globals (before C_AddOns), fallback only when the C_AddOns one is missing
+    { id = "AddOnMetadataOld", path = "GetAddOnMetadata", kind = "function", src = "xml (global before C_AddOns; fallback only)" },
+    { id = "IsAddOnLoadedOld", path = "IsAddOnLoaded", kind = "function", src = "xml (global before C_AddOns; fallback only)" },
+    { id = "LoadAddOnOld", path = "LoadAddOn", kind = "function", src = "xml (global before C_AddOns; fallback only)" },
+    { id = "AddOnInfoOld", path = "GetAddOnInfo", kind = "function", src = "xml (global before C_AddOns; fallback only)" },
+    { id = "AddOnEnableStateOld", path = "GetAddOnEnableState", kind = "function", src = "xml (global before C_AddOns, args (character, name); fallback only)" },
+    { id = "EnableAddOnOld", path = "EnableAddOn", kind = "function", src = "xml (global before C_AddOns; fallback only)" },
     -- v0.2.5 waits countdown: the timed quests' seconds left ({ questID, questTimer }; Blizzard_QuestTimer uses it)
     { id = "QuestTimers", path = "C_QuestLog.GetQuestTimers", kind = "function", src = "doc QuestLogDocumentation" },
 

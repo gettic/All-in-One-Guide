@@ -124,23 +124,27 @@ function Co.ClientLine()
 end
 
 -- ------------------------------------------------------------------ add-ons
+-- (v0.2.6 hotfix: each falls back to the old global when the C_AddOns one is missing)
 function Co.AddOnMeta(name, field)
-    local f = F.AddOnMetadata
-    return f and f(name, field) or nil
+    local f = F.AddOnMetadata or F.AddOnMetadataOld
+    if not f then return nil end
+    local ok, v = pcall(f, name, field)
+    if not ok or Secret(v) or type(v) ~= "string" then return nil end
+    return v
 end
 function Co.IsAddOnLoaded(name)
-    local f = F.IsAddOnLoaded
+    local f = F.IsAddOnLoaded or F.IsAddOnLoadedOld
     return f ~= nil and (f(name)) == true
 end
 function Co.LoadAddOn(name)
-    local f = F.LoadAddOn
+    local f = F.LoadAddOn or F.LoadAddOnOld
     if not f then return false, "MISSING_API" end
     return f(name)
 end
 -- v0.2.5 pack loader: loadable (true / false / nil = unknown), reason token (MISSING, DISABLED, INTERFACE_VERSION,
 -- DEP_*, ...; nil when loadable). Secret / missing answers = unknown.
 function Co.AddOnInfo(name)
-    local f = F.AddOnInfo
+    local f = F.AddOnInfo or F.AddOnInfoOld
     if not f then return nil, "MISSING_API" end
     local ok, n, _, _, loadable, reason = pcall(f, name)
     if not ok then return nil, "MISSING" end
@@ -149,13 +153,34 @@ function Co.AddOnInfo(name)
     return l, type(reason) == "string" and reason or nil
 end
 -- Enabled for this character? true / false / nil (unknown). GetAddOnEnableState(name, character) on 1.60.1.
+-- (v0.2.6 hotfix: a 0 from (name, character) is checked once more the other way round, (character, name), the old
+-- order, so a client that kept the old order can't make an installed pack look turned off; the old global only has
+-- that order)
+-- Also tried: the player's GUID (what other working Forever addons pass) and no character at all; enabled when any
+-- answer is above 0, off only when every readable answer is 0, nil when none could be read.
 function Co.AddOnEnabled(name, character)
+    local seen0 = false
+    local function Try(f, a, b)
+        local ok, s = pcall(f, a, b)
+        s = ok and Co.Num(s) or nil
+        if s == nil then return false end
+        if s > 0 then return true end
+        seen0 = true
+        return false
+    end
     local f = F.AddOnEnableState
-    if not f then return nil end
-    local ok, state = pcall(f, name, character)
-    state = ok and Co.Num(state) or nil
-    if state == nil then return nil end
-    return state > 0
+    if f then
+        if Try(f, name, character) then return true end
+        local g = F.UnitGUID and F.UnitGUID("player")
+        if type(g) == "string" and not Secret(g) and Try(f, name, g) then return true end
+        if Try(f, name, nil) then return true end
+        if character ~= nil and Try(f, character, name) then return true end
+    elseif F.AddOnEnableStateOld then
+        if Try(F.AddOnEnableStateOld, character, name) then return true end
+        if Try(F.AddOnEnableStateOld, nil, name) then return true end
+    end
+    if seen0 then return false end
+    return nil
 end
 -- v0.2.5 waits: seconds left on a timed quest's own timer (C_QuestLog.GetQuestTimers), or nil (not timed, not in
 -- the log, API missing, secret).
@@ -174,7 +199,7 @@ function Co.QuestTimer(questID)
 end
 -- Only from a click (tos T27). Takes effect at once for a LoadOnDemand addon's next LoadAddOn, else after /reload.
 function Co.EnableAddOn(name, character)
-    local f = F.EnableAddOn
+    local f = F.EnableAddOn or F.EnableAddOnOld
     if not f then return false end
     return (pcall(f, name, character))
 end

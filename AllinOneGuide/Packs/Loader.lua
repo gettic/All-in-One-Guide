@@ -17,7 +17,7 @@
 --   .PackState(packId) -> state, folder   .StatusLine()   bus: PacksChanged
 local _, ns = ...
 local Co = ns.Compat
-local PL = { loading = nil, registered = {}, results = {}, queued = {}, loads = 0, needsReload = {} }
+local PL = { loading = nil, registered = {}, results = {}, queued = {}, loads = 0, needsReload = {}, told = {} }
 ns.PackLoader = PL
 
 local function Known()
@@ -72,6 +72,9 @@ function PL.State(folder)
     if reason == "MISSING" then return "missing" end
     if reason == "DISABLED" or Co.AddOnEnabled(folder, CharName()) == false then return "disabled" end
     if reason == "INTERFACE_VERSION" then return "old" end
+    -- The client answers loadable=false, reason "DEMAND_LOADED" for every LoadOnDemand addon that isn't loaded
+    -- yet (Blizzard's own AddonList.lua / AddonCompartment.lua treat it as loadable): that is our normal case.
+    if reason == "DEMAND_LOADED" or reason == "DEP_DEMAND_LOADED" then loadable = true end
     if loadable == false then
         if type(reason) == "string" and reason:match("^DEP_") then return "broken" end
         return reason and "broken" or "unknown"
@@ -117,6 +120,13 @@ local function Load(folder, after)
     local loaded = ok and res == true
     if not ok then reason = "error" end
     if not loaded and ns.Errors then ns.Errors.Debug("pack folder %s didn't load: %s", folder, tostring(reason)) end
+    -- v0.2.6 hotfix: say once per session why (the game's own words for DEP_* / DISABLED / INTERFACE_VERSION ...)
+    if not loaded and not PL.told[folder] and ns.Print and ns.L and ns.L.PACKS_LOAD_FAILED then
+        PL.told[folder] = true
+        local why = type(reason) == "string" and Co.Resolve("ADDON_" .. reason)
+        why = type(why) == "string" and why ~= "" and (why .. " (" .. reason .. ")") or tostring(reason or "?")
+        ns.Print(ns.U.Fill(ns.L.PACKS_LOAD_FAILED, { title = PL.Title(folder), why = why }))
+    end
     Done(folder, loaded, reason, after)
     return loaded
 end
@@ -207,7 +217,9 @@ ns.SelfChecks[#ns.SelfChecks + 1] = { label = "packs", fn = function(h)
     local parts = {}
     for _, f in ipairs(Known().folders) do
         local st = PL.State(f.folder)
+        local res = PL.results[f.folder]
         parts[#parts + 1] = f.folder:gsub("^AllinOneGuide_", "") .. "=" .. st
+            .. ((res ~= nil and res ~= true) and ("(" .. tostring(res) .. ")") or "")
         if st == "loaded" then
             local any = false
             for _, folder in pairs(PL.registered) do if folder == f.folder then any = true end end
