@@ -157,7 +157,7 @@ function Md.FontPath(d)
 end
 
 -- An addon font can draw blank the first time it is used: one hidden font string per shipped font loads each
--- file while the addon loads (UIKit refreshes the texts once more at the first PLAYER_ENTERING_WORLD).
+-- file while the addon loads (UIKit refreshes the texts once more one frame after login, see below).
 function Md.PreloadFonts()
     if Md.preload then return end
     local CF = rawget(_G, "CreateFrame")
@@ -175,12 +175,21 @@ function Md.PreloadFonts()
     end
 end
 Md.PreloadFonts()
--- once more at login: texts made before the file was ready get their font again (blank first draws)
+-- once more after login: texts made before the file was ready get their font again (blank first draws). One
+-- frame later and after the guide window (Login order 80) and the options entry (90) are built, so their texts
+-- are covered too (at order 50 in the same frame it covered none).
+Md.REFRESH_ORDER = 95
+function Md.RefreshAfterLogin()
+    local _, d = ns.Theme.FontFile()
+    if d and d.file and ns.UIKit then
+        ns.UIKit.RefreshFonts()
+        Md.refreshed = #ns.UIKit.texts
+    end
+end
 if ns.Bus then   -- (check-zip loads this file alone)
     ns.Bus.On("Login", Md, function()
-        local _, d = ns.Theme.FontFile()
-        if d and d.file and ns.UIKit then ns.UIKit.RefreshFonts() end
-    end, "ui", 50)
+        ns.Compat.After(0, function() ns.Errors.Call("ui", Md.RefreshAfterLogin) end)
+    end, "ui", Md.REFRESH_ORDER)
 end
 
 -- Self-test: does font entry d load? true, or false + why. A hidden probe of our own (text cleared after).

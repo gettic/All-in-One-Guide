@@ -7,8 +7,10 @@
 --   AOGR2 rid=k3x9qa;v=0.2.0;c=16001 1.60.1.70959 forever enUS;...;note=...;ck=1a2b3c4d
 -- Never a name: debug lines are stripped when written (Errors.Debug) and every value again here
 -- (U.StripNames); the GUID is never kept (only the NPC id part, and only when the player ticks "add my
--- target"). "Remove my location" drops map / x / y / distance. Cap 1,500 characters: dropped in the order
--- engine lines > last steps > include path, then the note is shortened. The last 20 strings are kept
+-- target"). "Remove my location" drops map / x / y / distance, facing and the arrow's spot / yards / bearing.
+-- Better reports (2026-11-27): also step state, quest progress, the quest log, the arrow, realm, spec (R2 list in
+-- DB\Serializer.lua). Cap 1,500 characters: dropped in the order R.DROP (engine lines > quest log ids > last
+-- steps > ...), then the note is shortened. Never the realm (the report worker drops it). The last 20 strings are kept
 -- (account module `reports`, size cap) so the player can copy one again.
 --   ns.Report.Build(opts) -> string, fields     opts = { about, stepId, note, noloc, evidence }
 --   ns.Report.Steps() (current + last 3), .TYPES, .Keep(s), .Saved(), .Title(fields), .Checksum(s), .Verify(s)
@@ -61,6 +63,7 @@ local function OnStep(_, g)
     local cur = g:Top():Current()
     local id = cur and cur.id
     if id == R.lastId then return end
+    R.since = Co.Now()   -- seconds on this step (`ts`); only a clock stamp, read when the report is built
     if R.lastId and R.lastStep then
         table.insert(R.recent, 1, { id = R.lastId, how = How(g:Top(), R.lastStep) })
         while #R.recent > 3 do table.remove(R.recent) end
@@ -93,6 +96,165 @@ local function StepById(g, id)
     local i = top:IndexOf(id)
     if i then return top:Step(i), top end
     return nil
+end
+
+-- ------------------------------------------------------------------ more facts (better reports, 2026-11-27)
+-- Read once, when the report is built (tos B1). Every game read goes through Compat with its secret check (B7);
+-- each group runs on its own (pcall), so one bad read only leaves its fields out.
+local function Deg(rad)
+    local v = Co.Num(rad)
+    if not v then return nil end
+    return math.floor(math.deg(v) % 360 + 0.5) % 360
+end
+
+local function Word(s, max) return (tostring(s or ""):gsub("[^%w_%-]", ""):sub(1, max or 16)) end
+
+-- now / done / skip / notdoing / na / notoffered / future / level<n> / wait / open, "+pin" when pinned
+-- (steps compared by id: a route step's table may be made again on each read)
+local function IsCur(step, cur) return cur ~= nil and step.id == cur.id end
+
+local function StepState(top, step, cur)
+    local s = top:SkipReason(step)
+    if not s then
+        if top:Done(step) then s = "done"
+        elseif top:IsFuture(step) then s = "future"
+        else
+            local lv = top:UnderLevel(step)
+            if lv then s = "level" .. lv
+            elseif IsCur(step, cur) then
+                local raw = top:Step(top.pos)
+                s = (raw and raw.id ~= step.id) and "wait" or "now"
+            else
+                s = "open"
+            end
+        end
+    end
+    if IsCur(step, cur) and top.pinned then s = s .. "+pin" end
+    return s
+end
+
+local function StepFacts(f, g, top, step, cur)
+    f.ss = StepState(top, step, cur)
+    f.ty = step.type
+    local i = top:IndexOf(step.id)
+    if i then f.pos = i .. "/" .. top:Count() end
+    if top ~= g then
+        local depth, x = 0, g
+        while x.child do depth, x = depth + 1, x.child end
+        f.dt = Word(top.save and top.save.kind or "detour") .. ":" .. depth
+    end
+    if IsCur(step, cur) then
+        local ids = {}
+        for _, b in ipairs(top:Background()) do
+            if #ids >= 3 then break end
+            if b.id then ids[#ids + 1] = b.id end
+        end
+        if #ids > 0 then f.bg = table.concat(ids, ",") end
+        local t0, now = R.since, Co.Now()
+        if type(t0) == "number" and type(now) == "number" and now >= t0 then
+            f.ts = math.min(99990, math.floor((now - t0) / 10 + 0.5) * 10)
+        end
+    end
+    local items = {}
+    for _, id in ipairs({ step.item, step.useItem }) do
+        if type(id) == "number" and #items < 3 then items[#items + 1] = id .. ":" .. Co.ItemCount(id) end
+    end
+    if #items > 0 then f.it = table.concat(items, ",") end
+end
+
+local function QuestFacts(f, top, step)
+    local GS = ns.GameState
+    local q = step and top and step.quest
+    if q then
+        local e = GS.Quest(q)
+        if e then
+            if e.failed == true then f.qs = "failed" elseif e.complete == true then f.qs = "ready" end
+            local o = {}
+            for i = 1, math.min(#e.have, 8) do o[i] = (e.have[i] or 0) .. "/" .. (e.need[i] or 0) end
+            if #o > 0 then f.qo = table.concat(o, ",") end
+        end
+        local pre = {}
+        for _, p in ipairs(top:PreMap()[q] or {}) do
+            if #pre >= 6 then break end
+            if type(p) == "number" then
+                pre[#pre + 1] = p .. (GS.IsDone(p) and "d" or (GS.InLog(p) and "l" or "n"))
+            end
+        end
+        if #pre > 0 then f.pre = table.concat(pre, ",") end
+    end
+    local max = GS.LogMax()
+    f.ql = GS.LogCount() .. "/" .. (type(max) == "number" and max or "?")
+    local ids = {}
+    for id in pairs(GS.quests) do if type(id) == "number" then ids[#ids + 1] = id end end
+    table.sort(ids)
+    for i, id in ipairs(ids) do
+        local e = GS.quests[id]
+        ids[i] = id .. ((e.failed == true and "f") or (e.complete == true and "c") or "")
+    end
+    if #ids > 0 then f.qi = table.concat(ids, ",") end
+end
+
+local SOURCE = { step = "step", show = "show", external = "ext", corpse = "corpse" }
+
+local function ArrowFacts(f, noloc, cur)
+    local A = ns.Arrow
+    if not A then return end
+    local t = A.target
+    if not t then
+        f.ah = "none"
+        return
+    end
+    local src = SOURCE[A.source] or "step"
+    local aw = src
+    if src == "step" then
+        local id = t.id or (cur and cur.id)
+        if id then aw = aw .. ":" .. tostring(id) end
+    end
+    -- the target's own spot when it isn't the step's own point (a spot of the step, a /way or another addon's
+    -- point; never its title). Compared by value, so the same target always gives the same line.
+    -- "<src>:<map>,<x>,<y>" (the form the report worker rounds to whole percent on the public issue); a spot of
+    -- the step reads "spot:<map>,<x>,<y>" (the step itself is `sid`)
+    local own = src == "step" and cur and t.map == cur.map and t.x == cur.x and t.y == cur.y
+    local px, py = Pct(t.x), Pct(t.y)
+    if not own and src == "step" then aw = "spot" end
+    if not noloc and not own and type(t.map) == "number" and px and py then
+        aw = (src == "step" and "spot" or src) .. ":" .. t.map .. "," .. px .. "," .. py
+    end
+    f.aw = aw
+    local why = A.HiddenWhy()
+    if why then f.ah = why end
+    if noloc then return end
+    local v = A.via
+    if type(v) == "table" then
+        local kind = v.spot and "spot" or (v.hunt and "hunt") or Word(v.kind or "via", 10)
+        f.av = kind .. ":" .. tostring(Co.Num(v.index) or "?")
+    end
+    local y = Co.Num(A.yards)
+    if y then f.ay = math.floor(y + 0.5) end
+    f.br = Deg(A.bearing)
+end
+
+local function PlayerFacts(f, opts)
+    local GS = ns.GameState
+    local ps = {}
+    if GS.ghost then ps[#ps + 1] = "ghost" elseif GS.dead or Co.Dead() then ps[#ps + 1] = "dead" end
+    if GS.instance or Co.InInstance() then ps[#ps + 1] = "inst" end
+    if GS.taxi or Co.OnTaxi() then ps[#ps + 1] = "taxi" end
+    if Co.InCombat() then ps[#ps + 1] = "fight" end
+    if not GS.ready then ps[#ps + 1] = "notready" end
+    if #ps > 0 then f.ps = table.concat(ps, ",") end
+    f.sp = Co.Spec()   -- left out when GetSpecialization is missing or gives nothing (tos)
+    local S = ns.Settings
+    if S and S.Get then
+        f.set = "sa" .. (S.Get("smartArrow") and 1 or 0) .. ",hm" .. Word(S.Get("huntMode"), 8)
+    end
+    if not opts.noloc then f.fc = Deg(Co.Facing()) end
+end
+
+-- each group on its own: one that fails leaves only its fields out (the report is always made)
+local function Safe(fn, ...)
+    local ok, err = pcall(fn, ...)
+    if not ok and ns.Errors.Debug then ns.Errors.Debug("report facts: %s", tostring(err)) end
 end
 
 local function Fields(opts)
@@ -128,7 +290,11 @@ local function Fields(opts)
         end
         if step.cond and top then f.cnd = top:Applicable(step) and "yes" or "no" end
         f.r = step.r
+        if top then Safe(StepFacts, f, g, top, step, cur) end
     end
+    Safe(QuestFacts, f, top, step)
+    Safe(ArrowFacts, f, opts.noloc, cur)
+    Safe(PlayerFacts, f, opts)
     local p = Co.Player()
     f.lv = p.level
     local GS = ns.GameState
@@ -147,7 +313,12 @@ local function Fields(opts)
             if d then f.d = math.floor(d + 0.5) end
         end
     end
-    if opts.evidence then f.npc = Co.UnitNpcId("target") end
+    if opts.evidence then
+        local id, kind = Co.UnitNpcId("target")
+        f.npc = id
+        -- dead only next to an NPC id (tos B2); objects never count as dead
+        if id and kind == "npc" and Co.UnitDead("target") then f.nd = 1 end
+    end
     local cf = ns.Conflicts and ns.Conflicts.Scan() or {}
     if #cf > 0 then f.cf = table.concat(cf, ",") end
     local l3 = {}
@@ -166,6 +337,7 @@ local function Fields(opts)
         local text = f[k]
         if type(text) == "string" then f[k] = U.StripNames(text) end
     end
+    -- no realm (2026-11-27: the report worker never stores or shows it, so it isn't sent at all)
     return f
 end
 R.Fields = Fields
@@ -175,12 +347,15 @@ local function Assemble(f)
     return body .. ";ck=" .. R.Checksum(body)
 end
 
+-- What goes first when the line is too long (then the note is shortened).
+R.DROP = { "eng", "qi", "l3", "it", "pre", "bg", "inc", "cf" }
+
 -- The report string (and its fields). Cut to MAX_LEN in the drop order.
 function R.Build(opts)
     opts = opts or {}
     local f = Fields(opts)
     local s = Assemble(f)
-    for _, k in ipairs({ "eng", "l3", "inc", "cf" }) do
+    for _, k in ipairs(R.DROP) do
         if #s <= R.MAX_LEN then break end
         f[k] = nil
         s = Assemble(f)
@@ -258,9 +433,10 @@ end
 R.queued, R.dropped, R.session = 0, 0, {}
 R.OUTBOX, R.OUTBOX_BYTES = 40, 60000
 
--- Same report apart from its id and checksum (a second click on Send with nothing changed).
+-- Same report apart from its id, checksum and the seconds on the step (a second click on Send with nothing
+-- changed, a few seconds later).
 local function Core(s)
-    return (tostring(s):gsub("^AOGR2 rid=[%w]+;", "AOGR2 "):gsub(";ck=%x+$", ""))
+    return (tostring(s):gsub("^AOGR2 rid=[%w]+;", "AOGR2 "):gsub(";ts=%d+", ""):gsub(";ck=%x+$", ""))
 end
 
 -- The pattern the Addon Manager and the web page check too (allowed characters, checksum at the end).

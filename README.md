@@ -152,8 +152,9 @@ The smart arrow is on by default. Switch it in the arrow's right-click menu or o
 ### 3D view
 
 - The NPC or mob of your current step shows as a 3D model, by default inside the guide window: a square at the top left of the current step, with the step text beside it. The model is turned about 45 degrees toward the text.
-- The square stays on every step, so the layout doesn't jump. A step without a model shows a big picture there instead: the item it is about, or else the step's own icon (accept, turn in, go to ...).
-- Drag it to turn the model, use the mouse wheel to zoom, double-click to reset (back to 45 degrees), right-click for options. Each new model starts at 45 degrees.
+- The square stays on every step, so the layout doesn't jump. A step without a model shows a big picture there instead: the item it is about, or else the step's own icon (accept, turn in, go to ...). The big item pictures have no light corners.
+- On go-to steps it shows a small murloc pet walking on the spot (Azurky, else Murky; if neither loads, the go-to picture). Turn it off with Settings > Guide window > "Walking murloc on go-to steps" (on by default).
+- Drag it to turn the model, use the mouse wheel to zoom, double-click to reset (back to 45 degrees), right-click for options. Each new model starts at 45 degrees. The model stays centred when you zoom in and turn it.
 - Settings > Guide window: "Show the 3D view", "3D view position" (inside the window, left, right, below or free; Shift+drag it when free), "3D view size" and "Hide the 3D view in combat" (on by default; this applies to the outside positions, inside the window it stays during fights).
 - Switch it on or off with the options menu or `/aog model`.
 
@@ -272,7 +273,7 @@ If you also run Questie, TomTom, Guidelime or Mapster, one quiet hint says so, o
 ## Report a mistake
 
 1. Open the Report page (`/aog report`, or "Report a mistake" in the options menu).
-2. Pick what is wrong ("Wrong place on the map", "Wrong order", "Quest isn't there", "Step doesn't tick", "Text is wrong", "Dangerous spot" or "Something else") and which step (the current one or one of the last three). Add a note if you like. You can add the NPC you target. `/aog where` helps.
+2. Pick what is wrong ("Wrong place on the map", "Wrong order", "Quest isn't there", "Step doesn't tick", "Text is wrong", "Dangerous spot" or "Something else") and which step (the current one or one of the last three). Add a note if you like. `/aog where` helps.
 3. Press **Send**. The report is saved, and the Addon Manager (v0.21.0 or newer) sends it the next time the game is closed. It becomes a public GitHub issue. You can turn this off in the Addon Manager's settings ("Send guide reports").
 
 You can also copy the report and paste it in a new issue with the **Mistake report** form: https://github.com/gettic/All-in-One-Guide/issues/new/choose
@@ -280,11 +281,25 @@ You can also copy the report and paste it in a new issue with the **Mistake repo
 Saved reports wait in the outbox (up to 40). If the outbox is full with reports from this session, it says so.
 
 - If the guide is open but has no step to pick, the page says so.
-- Reports are public on GitHub. The report holds no character name, realm or other personal data, so please don't write names in the note.
-- Your map position is in the report unless you tick "Leave out my location".
+- Reports are public on GitHub. The report holds no character name, realm or other personal data (a name is removed and your realm is left out), so please don't write names in the note.
+- The report carries the facts needed to find the mistake: the step and its state, your quest progress and quest log, what the arrow points at, your facing, level, race, class, spec, language and addon version. Never your account, guild, chat, other players or gold.
+- The NPC you target is added by default (its number only, never a player). Untick "Add the NPC I'm targeting" to leave it out.
+- Your map position, facing and the arrow's distance are in the report unless you tick "Leave out my location".
 - The last 20 reports are kept so you can copy one again.
 
 For a bug in the addon itself, use the **Addon bug** form: run `/aog selftest`, then `/aog status`, and paste the lines. If the addon hit an error, `/aog error` shows the details.
+
+## Help on Discord
+
+The addon's Discord has a help channel, #gettics-guide-support-desk, where an AI helper called Murloc Helper answers questions.
+
+- Every message the helper writes says it was written by AI.
+- It passes Lua errors and guide mistakes on to the developer.
+- Under each answer it asks whether it solved your problem: react with the check mark if it did, the X if you still need help (writing "solved" works too).
+- Solved conversations are deleted, and so are conversations with no replies for 5 days.
+- Messages are read and answered with Claude (Anthropic's AI) and are not used to train AI.
+- Error and report texts are kept until the fix is out (30 days at most). Anyone can ask for their messages to be deleted.
+- It keeps no names or message texts, only short notes in its own words on the developer's PC. It only runs while the developer has it open, so answers can wait.
 
 ## Your data
 

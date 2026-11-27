@@ -208,6 +208,11 @@ ns.ApiList = {
     -- 3D viewer (UI\ModelView.lua): follow the SD / HD character models (report only: missing = not followed)
     { id = "SDHDToggle", path = "C_GameRules.IsSDHDToggleEnabled", kind = "function", secret = "returns", src = "doc GameRulesDocumentation:277" },
     { id = "SDEnabled", path = "C_GameRules.AccountHasSDEnabled", kind = "function", secret = "returns", src = "doc GameRulesDocumentation:11" },
+    -- 3D viewer, the walking murloc on go-to steps: Azurky's display id from the pet journal (report only: missing =
+    -- SetCreature(275487), then Murky's display id). Not in the generated docs (C-side legacy functions).
+    { id = "PetNumPets", path = "C_PetJournal.GetNumPets", kind = "function", src = "xml Blizzard_Collections\\Classic\\Blizzard_PetCollection.lua:239" },
+    { id = "PetInfoByIndex", path = "C_PetJournal.GetPetInfoByIndex", kind = "function", src = "xml Blizzard_Collections\\Classic\\Blizzard_PetCollection.lua:335" },
+    { id = "PetInfoBySpecies", path = "C_PetJournal.GetPetInfoBySpeciesID", kind = "function", src = "xml Blizzard_Collections\\Classic\\Blizzard_PetCollection.lua:593 (4th creatureID, 12th displayID)" },
 
     -- the window and arrow (M3)
     { id = "UIParent", path = "UIParent", feature = "ui", kind = "table", src = "xml (parent across the UI source)" },

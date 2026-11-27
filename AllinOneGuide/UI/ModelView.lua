@@ -10,6 +10,7 @@
 --   * load: SetCreature(npc) first (by NPC id, the client's own model files); when no model file shows after
 --     OnModelLoaded or CHECK_AFTER s, SetDisplayInfo(ns.ModelIds[npc]); then the fallback card (our own badge
 --     art + "No 3D view"). Only when the target (or the SD / HD answer) changes.
+--   * go-to steps (setting modelMurloc): a walking murloc (MV.MurlocChain: Azurky -> Murky), else the go-to picture
 --   * hidden: setting off, safe mode, window hidden / suppressed, small mode, no target, in combat
 --     (modelHideCombat; off = it stays but freezes: no reload until the fight ends)
 --   * the frame is built the first time it shows (setting off = no frame); ClearModel after CLEAR_AFTER s hidden
@@ -23,9 +24,15 @@ local MV = {
     ZOOM_MAX = 0.8, ZOOM_STEP = 0.1, TURN = 0.02, CHECK_AFTER = 0.5, CLEAR_AFTER = 30, DOUBLE = 0.35,
     -- beta.13 (the user: "rotate the 3d model a little so you dont see it straight on ... more like 45"): every new
     -- model starts turned FACING radians (45 degrees) toward the window's text; positive = toward the screen's
-    -- right (SetFacing turns counter-clockwise seen from above; facing 0 looks at the camera)
+    -- right (SetRotation / SetFacing turn counter-clockwise seen from above; 0 looks at the camera)
     FACING = math.pi / 4,
-    zoom = 0, loads = 0, token = 0,
+    -- go-to steps (the user, 2026-11-26: "for that walking steps can we use a murloc walking?", their pick "Try
+    -- Azurky, else Murky"): a baby murloc walking on the spot instead of the go-to picture. Display only (tos
+    -- 2026-11-26). Chain: Azurky (the Forever shop pet, creature AZURKY: its display id from the pet journal, else
+    -- SetCreature) -> Murky (display MURKY, 1.12 data) -> the go-to picture. A murloc that doesn't load (no model
+    -- file after OnModelLoaded / CHECK_AFTER) or has no Walk animation is skipped for the rest of the session.
+    AZURKY = 275487, MURKY = 15369, WALK = 4,
+    zoom = 0, loads = 0, token = 0, murlocBad = {},
 }
 ns.ModelView = MV
 local TWO_PI = math.pi * 2
@@ -58,7 +65,46 @@ function MV.TargetFor(step)
     local item = II and II.Ids and II.Ids(step)[1]
     if item then return { picture = true, item = item, key = "i" .. item, source = "step" } end
     local kind = MV.KindOf(step)
+    if kind == "goto" and S().Get("modelMurloc") then
+        local chain = MV.MurlocChain()
+        if chain[1] then return { murloc = true, chain = chain, i = 1, kind = kind, key = "w", source = "step" } end
+    end
     return { picture = true, kind = kind, key = "k" .. kind, source = "step" }
+end
+
+-- The murlocs still worth trying this session, in order: Azurky by its journal display id, Azurky by creature id,
+-- Murky by display id (entries in MV.murlocBad failed before). The journal is read once per session.
+function MV.MurlocChain()
+    if MV.azurkyDisplay == nil then MV.azurkyDisplay = Co.PetDisplay and Co.PetDisplay(MV.AZURKY) or false end
+    local all = {}
+    if MV.azurkyDisplay then
+        all[#all + 1] = { name = "Azurky", display = MV.azurkyDisplay, key = "d" .. MV.azurkyDisplay }
+    end
+    all[#all + 1] = { name = "Azurky", creature = MV.AZURKY, key = "c" .. MV.AZURKY }
+    all[#all + 1] = { name = "Murky", display = MV.MURKY, key = "d" .. MV.MURKY }
+    local list = {}
+    for _, e in ipairs(all) do
+        if not MV.murlocBad[e.key] then list[#list + 1] = e end
+    end
+    return list
+end
+
+-- One line for the self-test: which murloc walks, which failed, or why none.
+function MV.MurlocState()
+    if not S().Get("modelMurloc") then return "off" end
+    local failed = {}
+    for key in pairs(MV.murlocBad) do failed[#failed + 1] = key end
+    table.sort(failed)
+    local bad = #failed > 0 and " (failed: " .. table.concat(failed, ", ") .. ")" or ""
+    local t = MV.target
+    if t and t.murloc and MV.result == "murloc" then
+        local e = t.chain[t.i]
+        return ("%s walking (%s)%s"):format(e.name, e.display and "display " .. e.display or "creature " .. e.creature, bad)
+    end
+    if t and t.murloc and t.picture then return "none loaded: go-to picture" .. bad end
+    if t and t.murloc then return "loading " .. ((t.chain[t.i] or {}).name or "?") .. bad end
+    if #failed > 0 and not MV.MurlocChain()[1] then return "none loaded: go-to picture" .. bad end
+    return "not on a go-to step" .. bad
 end
 
 -- The step's tile kind as its row shows it (the verb at the start of its text, else its type).
@@ -192,7 +238,7 @@ local function Build()
     pic:SetAllPoints()
     pic.icon = pic:CreateTexture(nil, "ARTWORK", nil, 1)
     pic.icon:SetPoint("CENTER")
-    pic.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)   -- (the icon's own border cropped)
+    pic.icon:SetTexCoord(MV.PIC_CROP, 1 - MV.PIC_CROP, MV.PIC_CROP, 1 - MV.PIC_CROP)   -- (again after every SetTexture)
     pic.tile = K.Tile(pic, 32)
     pic.tile.base:SetPoint("CENTER")
     pic:Hide()
@@ -432,6 +478,11 @@ end
 -- beta.13 the big step picture: PIC_SHARE of the frame's smaller side, centred; the item's icon (II.Icon: the
 -- theme's unknown-item file until the game has it, then it is drawn again) or the kind tile. Never with the model.
 MV.PIC_SHARE = 0.65
+-- beta.13 bug (the user: "the new book in the 3d viwer have some white sports in the cornors"): a 1.x item icon's
+-- bevelled border has light, rounded corners that reach further in than the 7 % crop, and at the big picture's
+-- size the filtering pulls them in; the crop was also only set once at Build, never after SetTexture. Now 10 %,
+-- set again after every SetTexture (as the step button does).
+MV.PIC_CROP = 0.1
 function MV.DrawPicture()
     local f, t = MV.frame, MV.target
     if not (f and t and t.picture) then return end
@@ -444,6 +495,7 @@ function MV.DrawPicture()
     if t.item then
         local II = ns.ItemIcons
         pic.icon:SetTexture(II and II.Icon(t.item) or Th.File("itemUnknown"))
+        pic.icon:SetTexCoord(MV.PIC_CROP, 1 - MV.PIC_CROP, MV.PIC_CROP, 1 - MV.PIC_CROP)
         pic.icon:SetSize(size, size)
         pic.icon:Show()
         K.TileShown(pic.tile, false)
@@ -456,13 +508,35 @@ function MV.DrawPicture()
     MV.picSize = size
 end
 
+-- Turns the model to MV.facing. beta.13 bug (the user: "after we have rotated the 3d model. when i now zoom in the
+-- model moves other to the rigth side and are not centered anymore"): SetFacing (SimpleModel) turns the model in
+-- world space round its root, while SetPortraitZoom aims the camera at the model's portrait point as it was before
+-- the turn, so with any turn (the 45-degree start, a drag) zooming in slid the model sideways. SetRotation
+-- (CharacterModelBase, FrameAPICharacterModelBaseDocumentation:229) turns it under the portrait camera, and is what
+-- Blizzard pairs with SetPortraitZoom (Blizzard_SharedXML\Mainline\ModelFrames.lua:19/48/60). SetFacing only when a
+-- client has no SetRotation. MV.turnBy says which one was used (the self-check reads GetFacing only for SetFacing).
+local function Turn(m)
+    if m.SetRotation then
+        m:SetRotation(MV.facing, false)
+        MV.turnBy = "rotation"
+    elseif m.SetFacing then
+        m:SetFacing(MV.facing)
+        MV.turnBy = "facing"
+    end
+end
+MV.Turn = Turn
+
 local function ApplyView()
     local m = MV.frame.model
-    if m.SetFacing then m:SetFacing(MV.facing) end
+    Turn(m)
     if m.SetPortraitZoom then m:SetPortraitZoom(MV.zoom) end
+    -- the murloc walks on the spot; set again after every load / update (an animation set before the model file
+    -- is in is lost: Blizzard sets theirs in OnModelLoaded, Blizzard_ArtifactPerks.lua:153)
+    if MV.stage == "murloc" and m.SetAnimation then m:SetAnimation(MV.WALK) end
 end
 
--- stage: "npc" (SetCreature), "display" (SetDisplayInfo), "card" (nothing to show)
+-- stage: "npc" (SetCreature), "display" (SetDisplayInfo), "murloc" (the go-to murloc, chain entry t.i),
+-- "card" (nothing to show), "picture"
 local function Try(stage)
     local f, t = MV.frame, MV.target
     local m = f.model
@@ -479,6 +553,10 @@ local function Try(stage)
     elseif stage == "display" then
         ShowCard(false)
         m:SetDisplayInfo(t.display)
+    elseif stage == "murloc" then
+        ShowCard(false)
+        local e = t.chain[t.i]
+        if e.display then m:SetDisplayInfo(e.display) else m:SetCreature(e.creature) end
     else
         if m.ClearModel then m:ClearModel() end
         ShowCard(true)
@@ -494,21 +572,44 @@ end
 
 local function Next(stage)
     local t = MV.target
+    if stage == "murloc" then
+        -- this murloc failed: skip it for the session; the next one, else the go-to picture (never the card)
+        local e = t.chain[t.i]
+        if e then MV.murlocBad[e.key] = true end
+        t.i = t.i + 1
+        if t.chain[t.i] then return "murloc" end
+        -- the go-to picture under its own key (= what TargetFor gives from now on: no reload, same as a /reload)
+        t.picture, t.key = true, "k" .. t.kind
+        MV.loadedKey = t.key .. "|" .. tostring(MV.sd)
+        return "picture"
+    end
     if stage == "npc" and t.display then return "display" end
     return "card"
+end
+
+-- A loaded murloc without a Walk animation counts as failed (only asked after OnModelLoaded: before that the
+-- model's animation data may not be in yet).
+local function NoWalk(why)
+    local m = MV.frame.model
+    if MV.stage ~= "murloc" or why ~= "loaded" or not m.HasAnimation then return false end
+    local ok, has = pcall(m.HasAnimation, m, MV.WALK)
+    return ok and has == false
 end
 
 -- Did the model load? why = "loaded" (OnModelLoaded) or "timer". A late model brings the view back.
 function MV.Check(why)
     local f = MV.frame
     if not (f and MV.target) or MV.stage == nil or MV.stage == "picture" or MV.target.picture then return end
+    -- a hidden view drops its model (beta.12): no verdict on a murloc then (it would be skipped for the session);
+    -- showing again loads it again
+    if MV.stage == "murloc" and not f:IsShown() then return end
     -- no way to ask: trust what was asked for (never step down on a guess)
     if not f.model.GetModelFileID then
         if MV.stage ~= "card" then MV.result = MV.stage end
         return
     end
     local id = f.model:GetModelFileID()
-    if type(id) == "number" and id > 0 then
+    if type(id) == "number" and id > 0 and not NoWalk(why) then
         if MV.stage == "card" then
             -- a late model after all: back to the view (the last thing asked for)
             if MV.target.card then return end
@@ -525,6 +626,7 @@ function MV.Check(why)
         local nxt = Next(MV.stage)
         Try(nxt)
         if nxt == "card" then MV.result = "none" end
+        if nxt == "picture" then MV.result = "picture" end
     end
 end
 
@@ -545,6 +647,8 @@ local function Load(t)
     elseif t.card then
         Try("card")
         MV.result = "none"
+    elseif t.murloc then
+        Try("murloc")
     elseif t.npc then
         Try("npc")
     else
@@ -633,7 +737,7 @@ local function DragUpdate(self)
     if math.abs(x - d.x0) > 2 then d.moved = true end
     MV.facing = MV.Wrap(d.f0 + (x - d.x0) * MV.TURN)
     if x ~= d.x0 then MV.turned = true end
-    if self.model.SetFacing then self.model:SetFacing(MV.facing) end
+    Turn(self.model)
 end
 MV.DragUpdate = DragUpdate
 
@@ -727,7 +831,7 @@ end
 ns.Slash.Add("model", function() MV.Toggle() end, "HELP_MODEL")
 
 -- ------------------------------------------------------------------ wiring
-local SETTING_KEYS = { modelViewer = true, modelPos = true, modelScale = true, modelHideCombat = true, small = true,
+local SETTING_KEYS = { modelViewer = true, modelPos = true, modelScale = true, modelHideCombat = true, modelMurloc = true, small = true,
     scale = true, followUIScale = true, width = true }
 
 -- StepChanged: the window's refresh (order 70) has usually just updated the 3D view for this step already; update
@@ -785,14 +889,27 @@ ns.SelfChecks[#ns.SelfChecks + 1] = { label = "model", fn = function(h)
     if bad then h.Problem("model: " .. bad) end
     local t = MV.target
     local res = MV.result == "npc" and "npc ok" or MV.result == "display" and "display fallback"
-        or MV.result == "none" and "none" or MV.result == "picture" and "picture" or "loading"
+        or MV.result == "none" and "none" or MV.result == "picture" and "picture"
+        or MV.result == "murloc" and "murloc walking" or "loading"
     -- beta.13: the model and the big picture never show together; a picture target shows the picture
     if f:IsShown() and f.pic then
         if f.pic:IsShown() and f.model:IsShown() then h.Problem("model: the model and the picture both show") end
         if t and t.picture and not f.pic:IsShown() then h.Problem("model: a step without a unit but no picture") end
         if t and not t.picture and f.pic:IsShown() then h.Problem("model: a picture on a step with a unit") end
     end
-    h.Info(("model: %s %s, %s (sd %s, side %s, facing %d deg%s)"):format(t and (t.npc and "npc " .. t.npc or t.display and "display " .. t.display
+    -- the go-to murloc: which one walks (Azurky / Murky) or why none; a walking one has its Walk animation
+    h.Info("model murloc: " .. MV.MurlocState())
+    if t and t.murloc and not t.picture and MV.result == "murloc" and f.model.HasAnimation then
+        local ok, has = pcall(f.model.HasAnimation, f.model, MV.WALK)
+        if ok and has == false then h.Problem("model: the murloc has no walk animation") end
+    end
+    -- the big picture's item icon is cropped (beta.13 white corners)
+    if f.pic and f.pic.icon.GetTexCoord then
+        local l = f.pic.icon:GetTexCoord()
+        if type(l) == "number" and math.abs(l - MV.PIC_CROP) > 0.001 then h.Problem("model: the picture's icon isn't cropped") end
+    end
+    h.Info(("model: %s %s, %s (sd %s, side %s, facing %d deg%s)"):format(t and (t.murloc and not t.picture and "murloc "
+        .. ((t.chain[t.i] or {}).name or "?") or t.npc and "npc " .. t.npc or t.display and "display " .. t.display
         or t.item and "picture item " .. t.item or t.kind and "picture " .. t.kind or "card") or "-",
         t and t.source or "", res, tostring(MV.sd), tostring(MV.side), math.floor(math.deg(MV.facing or 0) + 0.5),
         MV.turned and ", turned by you" or ""))
@@ -801,7 +918,8 @@ ns.SelfChecks[#ns.SelfChecks + 1] = { label = "model", fn = function(h)
         h.Problem(("model: facing %.2f, not the start %.2f"):format(MV.facing or 0, MV.DefaultFacing()))
     end
     local m = f.model
-    if not MV.turned and f:IsShown() and MV.stage ~= "card" and MV.stage ~= "picture" and m.GetFacing then
+    if MV.turnBy then h.Info("model turn: " .. (MV.turnBy == "rotation" and "SetRotation (zoom stays centred)" or "SetFacing (no SetRotation)")) end
+    if MV.turnBy == "facing" and not MV.turned and f:IsShown() and MV.stage ~= "card" and MV.stage ~= "picture" and m.GetFacing then
         local got = m:GetFacing()
         if type(got) == "number" and math.abs(MV.Wrap(got) - MV.DefaultFacing()) > 0.05 then
             h.Problem(("model: the model faces %.2f, not %.2f (the client reset it)"):format(got, MV.DefaultFacing()))

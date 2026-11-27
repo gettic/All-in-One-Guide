@@ -3,7 +3,7 @@
 ## Title: All-in-One Guide
 ## Notes: Leveling guide with one guide window and a waypoint arrow.
 ## Author: gettic
-## Version: 0.2.0-beta.13
+## Version: 0.2.0-beta.14
 ## SavedVariables: AllinOneGuideDB, AllinOneGuideRecDB
 ## SavedVariablesPerCharacter: AllinOneGuideCharDB
 ## IconTexture: Interface\AddOns\AllinOneGuide\media\logo_64

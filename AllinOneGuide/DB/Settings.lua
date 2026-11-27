@@ -74,6 +74,8 @@ S.schema = {
     { key = "modelScale", scope = "char", kind = "number", default = 1, min = 0.6, max = 1.6, step = 0.05, export = true,
         page = "window" },
     { key = "modelHideCombat", scope = "account", kind = "bool", default = true, export = true, page = "window" },
+    -- go-to steps show a walking murloc (Azurky, else Murky) instead of the go-to picture (the user, 2026-11-26)
+    { key = "modelMurloc", scope = "account", kind = "bool", default = true, export = true, page = "window" },
     { key = "fontSize", scope = "account", kind = "number", default = 2, min = -4, max = 4, step = 1, export = true, page = "window" },  -- min -4 (was -2; font size fix 2026-11-25): 8 pt step text; default +2 (was 0; the user, 2026-11-25)
     -- text font (Theme\Media.lua Md.FONTS; the user, 2026-11-26: Open Sans by default, Easy-read and Classic as
     -- choices); a save without it or with an unknown value reads as Open Sans (the save is kept as is)

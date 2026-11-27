@@ -168,6 +168,16 @@ function Co.CharacterKey()
     return name .. "-" .. tostring(realm or "?")
 end
 
+-- Better reports (tos B7): the talent spec number (C_SpecializationInfo.GetSpecialization, doc SpecializationInfoDocumentation); nil when
+-- the API is missing (16001 may not have it), secret or 0 / none.
+function Co.Spec()
+    local f = F.Spec
+    if not f then return nil end
+    local ok, v = pcall(f)
+    if not ok or Secret(v) or type(v) ~= "number" or v <= 0 then return nil end
+    return v
+end
+
 function Co.OnTaxi()
     local f = F.UnitOnTaxi
     return f ~= nil and f("player") == true
@@ -194,6 +204,29 @@ function Co.SDModels()
     local v = sd()
     if Secret(v) or type(v) ~= "boolean" then return nil end
     return v
+end
+
+-- The pet journal's display id for a companion creature (the walking murloc: Azurky), or nil (no journal, not in
+-- the journal's list, or nothing plain). Walks the list once: index -> species -> creature; plain numbers only.
+function Co.PetDisplay(creature)
+    local num, byIndex, bySpecies = F.PetNumPets, F.PetInfoByIndex, F.PetInfoBySpecies
+    if not (num and byIndex and bySpecies) then return nil end
+    local ok, n = pcall(num)
+    if not ok or Secret(n) or type(n) ~= "number" then return nil end
+    local seen = {}
+    for i = 1, math.min(n, 2000) do
+        local ok2, _, species = pcall(byIndex, i)
+        if ok2 and not Secret(species) and type(species) == "number" and not seen[species] then
+            seen[species] = true
+            local r = { pcall(bySpecies, species) }
+            local who, display = r[5], r[13]   -- (r[1] = pcall's ok: 4th = creatureID, 12th = displayID)
+            if r[1] and not Secret(who) and who == creature then
+                if not Secret(display) and type(display) == "number" and display > 0 then return display end
+                return nil
+            end
+        end
+    end
+    return nil
 end
 
 -- XP and XP to the next level (nil, nil when unknown).

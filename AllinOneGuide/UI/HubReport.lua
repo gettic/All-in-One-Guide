@@ -1,8 +1,8 @@
 -- SPDX-License-Identifier: GPL-3.0-or-later
 -- Copyright (C) 2026 gettic
 -- v0.2 M5: the Hub's "Report a mistake" page. The player picks what is wrong and which step (the current
--- one or one of the last 3), may add a note (200 characters), may remove their location or add the NPC
--- they target and sees the exact string. The easy way is Send: it saves the report in the outbox and the
+-- one or one of the last 3), may add a note (200 characters), may remove their location or the NPC
+-- they target (ticked by default), reads what else the report holds (p.info) and sees the exact string. The easy way is Send: it saves the report in the outbox and the
 -- Addon Manager sends it when the game is closed. Without the Addon Manager: copy it and paste it on the web
 -- page (HR.WEB_URL), or into a GitHub issue. The addon itself never sends anything. Opened from the title
 -- menu, the Hub nav and /aog report.
@@ -10,7 +10,8 @@
 local _, ns = ...
 local Th, K = ns.Theme, ns.UIKit
 -- COL_MIN: the narrowest type column (look review #4); PREVIEW_LINES: the preview's fixed height in lines
-local HR = { opts = { about = "coords" }, typeButtons = {}, stepButtons = {}, COL_MIN = 180, PREVIEW_LINES = 8 }
+-- evidence (the target NPC's id) is ticked by default (the user's yes, 2026-11-27); an untick stays for the session
+local HR = { opts = { about = "coords", evidence = true }, typeButtons = {}, stepButtons = {}, COL_MIN = 180, PREVIEW_LINES = 8 }
 ns.HubReport = HR
 
 local function L() return ns.L end
@@ -114,7 +115,7 @@ function HR.Update()
 end
 
 -- The parts Update and the buttons need (the self-test and the offline tests check them all).
-HR.PARTS = { "noStep", "note", "noloc", "evidence", "preview", "count", "title", "send", "status", "waiting", "copy" }
+HR.PARTS = { "noStep", "note", "noloc", "evidence", "info", "preview", "count", "title", "send", "status", "waiting", "copy" }
 
 -- The line under Send: how many reports from this session wait for the Addon Manager.
 function HR.WaitingText()
@@ -244,7 +245,9 @@ local function Build(parent, width)
     end)
     p.evidence:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, -y)
     p.evidence:SetWidth(width)
-    y = y + rowH + 6
+    y = y + rowH + 2
+    -- what else the report holds, shown before Send (tos B3 / B4)
+    y, p.info = Para(parent, y, width, L().REPORT_INCLUDES .. " " .. L().REPORT_NEVER)
     y = Head(parent, y, L().REPORT_PREVIEW)
     -- fixed height: a full 1,500-character line is cut after PREVIEW_LINES ("..."), never over the rest
     -- (the copy box always holds the whole line)

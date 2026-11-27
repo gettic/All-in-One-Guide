@@ -14,8 +14,13 @@ Ser.kinds = {
     -- version / format / route, step id / step hash / include path, quest state, condition result, level,
     -- XP %, faction, race, class, Hardcore, map / x / y / radius / distance, location removed, NPC id
     -- (evidence), knownIssue, other addons, last 3 steps, engine lines, note. Never a name.
-    R2 = { "rid", "v", "c", "st", "lang", "ab", "pk", "pv", "fv", "rt", "sid", "sh", "inc", "qs", "cnd", "lv", "xp",
-        "fa", "ra", "cl", "hc", "map", "x", "y", "r", "d", "noloc", "npc", "ki", "cf", "l3", "eng", "note" },
+    -- Better reports (2026-11-27): step state / type / place / detour / goals shown / seconds on it, the step
+    -- quest's objectives and pre-quests, spec (no realm: the report worker drops it), player state, route settings,
+    -- facing, the arrow (target, hidden, via, yards, bearing), target NPC dead, quest log count and ids, items.
+    R2 = { "rid", "v", "c", "st", "lang", "ab", "pk", "pv", "fv", "rt", "sid", "sh", "inc", "ss", "ty", "pos", "dt",
+        "bg", "ts", "qs", "qo", "pre", "cnd", "lv", "xp", "fa", "ra", "cl", "sp", "hc", "ps", "set", "map", "x",
+        "y", "r", "d", "fc", "aw", "ah", "av", "ay", "br", "noloc", "npc", "nd", "ki", "cf", "ql", "qi", "it", "l3",
+        "eng", "note" },
     -- v0.2 M6: the dev recorder export "AOGREC1 ..." (Dev\Recorder.lua; tools\recmerge.lua reads it).
     -- Header: h=1, addon version, client line, records on this page, page "i/n". Records: kind, quest,
     -- NPC id, object id, instance id, start item, map, x / y (0-100), sightings, item ids. Never a name.
