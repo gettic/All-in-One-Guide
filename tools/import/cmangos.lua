@@ -30,19 +30,30 @@ function CM.Read(path)
     local db = { creatures = {}, cStart = {}, cEnd = {}, oStart = {}, oEnd = {} }
     local REL = { creature_questrelation = db.cStart, creature_involvedrelation = db.cEnd,
         gameobject_questrelation = db.oStart, gameobject_involvedrelation = db.oEnd }
+    local pooled, spawnEntry = {}, {}   -- guid -> point of an id-0 creature row; { guid, entry } rows
     for line in fh:lines() do
         local tbl = line:match("^INSERT INTO `([%w_]+)` VALUES ")
         if tbl == "creature" then
             -- (guid, id, map, spawnMask, position_x, position_y, position_z, orientation, spawntimesecsmin, ...)
             -- the 4th value kept = spawntimesecsmin (respawn seconds; tools\import\spots.lua), nil when unreadable
-            for _, id, map, x, y, rest in line:gmatch("%((%d+),(%d+),(%d+),%d+," .. NUM .. "," .. NUM .. ",([^%)]*)%)") do
+            -- id 0 = a pooled spawn whose creature comes from creature_spawn_entry (guid -> entry), joined below
+            for guid, id, map, x, y, rest in line:gmatch("%((%d+),(%d+),(%d+),%d+," .. NUM .. "," .. NUM .. ",([^%)]*)%)") do
                 id, map = tonumber(id), tonumber(map)
-                if id > 0 and (map == 0 or map == 1) then
-                    local list = db.creatures[id] or {}
-                    db.creatures[id] = list
+                if map == 0 or map == 1 then
                     local resp = rest:match("^[%-%d%.eE]+,[%-%d%.eE]+,(%d+),")
-                    list[#list + 1] = { map, tonumber(x), tonumber(y), tonumber(resp) }
+                    local p = { map, tonumber(x), tonumber(y), tonumber(resp) }
+                    if id > 0 then
+                        local list = db.creatures[id] or {}
+                        db.creatures[id] = list
+                        list[#list + 1] = p
+                    else
+                        pooled[tonumber(guid)] = p
+                    end
                 end
+            end
+        elseif tbl == "creature_spawn_entry" then
+            for guid, entry in line:gmatch("%((%d+),(%d+)%)") do
+                spawnEntry[#spawnEntry + 1] = { tonumber(guid), tonumber(entry) }
             end
         elseif tbl and REL[tbl] then
             local t = REL[tbl]
@@ -54,6 +65,14 @@ function CM.Read(path)
         end
     end
     fh:close()
+    for _, ge in ipairs(spawnEntry) do
+        local p = pooled[ge[1]]
+        if p and ge[2] > 0 then
+            local list = db.creatures[ge[2]] or {}
+            db.creatures[ge[2]] = list
+            list[#list + 1] = p
+        end
+    end
     return db
 end
 

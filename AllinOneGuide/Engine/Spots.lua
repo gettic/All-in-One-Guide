@@ -43,23 +43,33 @@ function SP.Register(packId, targets)
     return true
 end
 
-local function Ids(t)
+-- The step's mobs, in order, no repeats: targetNpc, npc, else (v0.2.10) every mob of its quest from
+-- Data\QuestMobs.lua (a kill step that names no mob, like the Tirisfal zombies dk-obj-364), or nil.
+function SP.Ids(t)
     if not t or t.type ~= "objective" or not Num(t.map) then return nil end
-    local a, b = Num(t.targetNpc) and t.targetNpc or nil, Num(t.npc) and t.npc or nil
-    if b == a then b = nil end
-    return a, b
+    local ids, seen = {}, {}
+    local function Add(id)
+        if Num(id) and id > 0 and not seen[id] then seen[id] = true ids[#ids + 1] = id end
+    end
+    Add(t.targetNpc)
+    Add(t.npc)
+    if #ids == 0 and Num(t.quest) and type(ns.QuestMobs) == "table" then
+        local mobs = ns.QuestMobs[t.quest]
+        if type(mobs) == "table" then for _, id in ipairs(mobs) do Add(id) end end
+    end
+    return #ids > 0 and ids or nil
 end
 
--- The step's spots (our own tables, cached per mob + map), or nil.
+-- The step's spots (our own tables, cached per mob list + map), or nil.
 function SP.For(t)
-    local a, b = Ids(t)
-    if not a and not b then return nil end
-    local key = tostring(a) .. "|" .. tostring(b) .. "@" .. t.map
+    local ids = SP.Ids(t)
+    if not ids then return nil end
+    local key = table.concat(ids, "|") .. "@" .. t.map
     local hit = SP.cache[key]
     if hit ~= nil then return hit or nil end
     local list = {}
-    for _, id in ipairs({ a or false, b or false }) do
-        local s = id and SP.data[id .. "@" .. t.map]
+    for _, id in ipairs(ids) do
+        local s = SP.data[id .. "@" .. t.map]
         if s then
             local i = 0
             for x, y, r in s:gmatch("(%d+),(%d+),(%d+)") do

@@ -2,7 +2,7 @@
 
 One leveling guide addon with one guide window and a waypoint arrow. It can hold many guides as guide packs, so you only need one guide addon in game.
 
-Made for WoW Forever (interface 16001). Version: 0.2.10-beta.1.
+Made for WoW Forever (interface 16001). Version: 0.2.10-beta.2.
 
 ## What you get
 
@@ -160,7 +160,7 @@ The smart arrow is on by default. Switch it in the arrow's right-click menu or o
 - Accept steps show the game's own yellow "!" quest marker, and turn-in steps the "?" marker.
 - Kill and loot steps that don't name their mob show the quest's mobs (they take turns when there are several), and the target button works for them too.
 - On go-to steps it shows a small murloc pet walking on the spot, standing low in the view and walking slowly (Azurky, else Murky; if neither loads, the go-to picture). Turn it off with Settings > Guide window > "Walking murloc on go-to steps" (on by default).
-- Drag it to turn the model, use the mouse wheel to zoom, double-click to reset (back to 45 degrees), right-click for options. Each new model starts at 45 degrees. The model stays centred when you zoom in and turn it, and when the view switches between models. The camera fits each kind of creature, so wolves, spiders and other long or big mobs are pulled back to fit the frame. Zooming in moves up to the chest and head; not zoomed, the whole model shows. A step without a model shows a sharp picture.
+- Drag it to turn the model, use the mouse wheel to zoom, double-click to reset (back to 45 degrees), right-click for options. Each new model starts at 45 degrees. The model stays centred when you zoom in and turn it, and when the view switches between models. The camera fits each kind of creature, so wolves, spiders and other long or big mobs are pulled back to fit the frame. Models start closer, so a humanoid fills most of the view. Zooming in moves up to the chest and head; not zoomed, the whole model shows. A step without a model shows a sharp picture.
 - Settings > Guide window: "Show the 3D view", "3D view position" (inside the window, left, right, below or free; Shift+drag it when free), "3D view size" and "Hide the 3D view in combat" (on by default; this applies to the outside positions, inside the window it stays during fights).
 - Switch it on or off with the options menu or `/aog model`.
 
@@ -173,6 +173,7 @@ The smart arrow is on by default. Switch it in the arrow's right-click menu or o
 - Settings > Arrow: "Lead me round mob areas" (on by default) and "Spawn spot order": Mixed (default: the guide's loop, with its "spot 1 of 6" counter, wherever a step has one; spots where it has none), Nearest spot, or Loop. In the arrow's right-click menu: "Lead me round the mob area" on or off, "Spawn spot order: {mode}" (changes the order), and "Point at the middle instead".
 - When every spot is cleared, the arrow says "All cleared: they respawn here in ~N min".
 - Loops so far: the Northshire kobolds (the camp and Echo Ridge), and the Valley of Trials boars and vile familiars.
+- Spawn spots are in every shipped route (start zones and Normal 1-60, both factions): about 350 of the 950 kill and collect steps have them. Kill steps that name no mob use all the mobs of their quest. The rest are quests only WoW Forever has, lone named mobs, or zones without spawn data yet.
 - Spawn spots and respawn times come from CMaNGOS classic-db (GPL), so WoW Forever's spawns may differ a little.
 
 ### Quest items

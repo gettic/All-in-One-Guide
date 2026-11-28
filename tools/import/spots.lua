@@ -20,7 +20,10 @@ local args = { ... }
 local toolsDir = (args[1] == "--lib" and args[2])
     or (arg and arg[0] and arg[0]:match("^(.*)[/\\]import[/\\][^/\\]+$")) or "tools"
 local SP = { NEAR = 400, LINK = 20, SNAP = 5, MAX = 40, MIN = 2, MAX_FIT = 15, MIN_RESP = 120, MAX_RESP = 900,
-    DEFAULT_RESP = 300 }
+    DEFAULT_RESP = 300, AREA = 90, QUEST_MOBS = "AllinOneGuide/Data/QuestMobs.lua" }
+--   4. huge spawn areas: only the area nearest the step spot is kept (spots chained within AREA yd of a kept spot,
+--      starting at the nearest one), so a step never sends you across the zone
+--   5. a step that names no mob uses its quest's mobs from Data\QuestMobs.lua (quest id -> creature ids, also cmangos)
 
 local Lib = assert(loadfile(toolsDir .. "/packlib.lua"))()
 local CM = assert(loadfile(toolsDir .. "/import/cmangos.lua"))()
@@ -88,6 +91,39 @@ local function InExploit(exploits, map, pct, size)
     return false
 end
 
+-- Rule 4: the spots chained to the one nearest the step spot (each within AREA yd of an already kept spot).
+function SP.Area(list)
+    if #list == 0 then return list end
+    local start = 1
+    for i, s in ipairs(list) do if s.d < list[start].d then start = i end end
+    local keep, kept, grew = { [start] = true }, { list[start] }, true
+    while grew do
+        grew = false
+        for i, s in ipairs(list) do
+            if not keep[i] then
+                for _, k in ipairs(kept) do
+                    if D(s.yd, k.yd) <= SP.AREA then
+                        keep[i], kept[#kept + 1], grew = true, s, true
+                        break
+                    end
+                end
+            end
+        end
+    end
+    local out = {}
+    for i, s in ipairs(list) do if keep[i] then out[#out + 1] = s end end
+    return out
+end
+
+-- Rule 5: Data\QuestMobs.lua as a table (quest id -> creature ids), or {}.
+function SP.QuestMobs(path)
+    local f = loadfile(path or SP.QUEST_MOBS)
+    if not f then return {} end
+    local ns = {}
+    local ok = pcall(f, "AllinOneGuide", ns)
+    return ok and ns.QuestMobs or {}
+end
+
 -- The spots of one creature for one step: list of { x%, y%, respawn, d (yd from the step spot) } or nil, why.
 function SP.ForStep(step, id, db, fits, idx, exploits)
     local size = sizes[step.map]
@@ -111,9 +147,10 @@ function SP.ForStep(step, id, db, fits, idx, exploits)
         local c = { (floor(sx / #g / SP.SNAP) + 0.5) * SP.SNAP, (floor(sy / #g / SP.SNAP) + 0.5) * SP.SNAP }
         local pc = ToPct(size, c)
         if (not idx or CC.RoomAt(idx, step.map, pc[1], pc[2]) == homeRoom) and not InExploit(exploits, step.map, pc, size) then
-            out[#out + 1] = { R1(pc[1]), R1(pc[2]), SP.Respawn(g), d = D(c, home) }
+            out[#out + 1] = { R1(pc[1]), R1(pc[2]), SP.Respawn(g), d = D(c, home), yd = c }
         end
     end
+    out = SP.Area(out)
     return out, ("%d spawns, %d spots"):format(#pts, #out)
 end
 
@@ -134,9 +171,10 @@ local function Merge(list, spots)
 end
 
 -- All targets of a pack's routes: { ["npc@map"] = { spots } }, plus a log.
-function SP.Pack(pack, db, fits, idx, exploits)
+function SP.Pack(pack, db, fits, idx, exploits, questMobs)
     local routes = Lib.Expand(pack)
     local targets, log = {}, {}
+    questMobs = questMobs or {}
     for _, r in ipairs(routes) do
         for _, s in ipairs(r.steps) do
             if s.type == "objective" and type(s.map) == "number" and type(s.x) == "number" and type(s.y) == "number"
@@ -144,6 +182,10 @@ function SP.Pack(pack, db, fits, idx, exploits)
                 local ids = {}
                 if type(s.npc) == "number" then ids[#ids + 1] = s.npc end
                 if type(s.targetNpc) == "number" and s.targetNpc ~= s.npc then ids[#ids + 1] = s.targetNpc end
+                if #ids == 0 and type(s.quest) == "number" then
+                    for _, id in ipairs(questMobs[s.quest] or {}) do ids[#ids + 1] = id end
+                    if #ids == 0 then log[#log + 1] = ("%s %s q%d: NOMOB"):format(pack.id, s.id, s.quest) end
+                end
                 for _, id in ipairs(ids) do
                     local spots, why = SP.ForStep(s, id, db, fits, idx, exploits)
                     local key = id .. "@" .. s.map
@@ -280,10 +322,11 @@ function SP.Main(argv)
     local list = CC.LoadAll("packs-src/connectors")
     local idx = #list > 0 and CC.Index(list) or nil
     local exploits = Lib.LoadData("packs-src/known-exploits.lua") or {}
+    local questMobs = SP.QuestMobs()
     local ok = true
     for _, f in ipairs(opts.files) do
         local pack = assert(Lib.LoadData(f))
-        local targets, log = SP.Pack(pack, db, fits, idx, exploits)
+        local targets, log = SP.Pack(pack, db, fits, idx, exploits, questMobs)
         for _, l in ipairs(log) do print(l) end
         if next(targets) then
             local path = opts.out .. "/" .. pack.id .. ".lua"

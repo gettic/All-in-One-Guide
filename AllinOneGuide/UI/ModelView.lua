@@ -701,7 +701,9 @@ end
 -- shift (the whole model, as before), at ZOOM_MAX the point LIFT_AIM of the model's height above its middle (chest
 -- / neck) sits in the view's middle. The fit camera makes every model about FILL of the view's height at zoom 0,
 -- so the shift is in view heights and fits small and tall models alike. Linear in the zoom: no jump.
-MV.LIFT_AIM, MV.FILL = 0.28, 0.9
+-- v0.2.10: FILL 0.9 -> 0.72 (the user: "they're really small": the client's fit at camera 1 leaves a wide margin;
+-- 0.72 is our estimate of it, the FIT cams below bring it up to about 0.92)
+MV.LIFT_AIM, MV.FILL = 0.28, 0.72
 -- The view shift (UI units, negative = the picture moves down) for a zoom level and view height; cam = the fit's
 -- camera start (MV.FIT, 1 when nil: a model further back is drawn smaller, so its chest sits nearer the middle).
 function MV.Lift(zoom, h, cam)
@@ -717,14 +719,18 @@ end
 -- creature's type (Data\ModelFit.lua from cmangos CreatureType): cam = the SetCamDistanceScale factor at zoom 0
 -- (x MV.CamScale while zooming), drop = how far the feet sit lower (share of the view's height, fades out as you
 -- zoom in like the murloc's). Never a frame resize. Estimates (no game here): each is one number to tweak.
+-- v0.2.10 (the user: "zoom in a little ... As it is now, they're really small"): every start is closer; a model
+-- fills about FILL / cam of the view's height at zoom 0 (tall 0.72 / 0.78 = 0.92). The zoom wheel still goes on top.
 MV.FIT = {
-    tall = { cam = 1, drop = 0 },          -- humanoid / undead / demon / unknown: fills by height (as before)
-    w = { cam = 1.15, drop = 0.06 },       -- beast / critter / mechanical: fits by width, feet toward the bottom
-    b = { cam = 1.3, drop = 0 },           -- dragonkin / elemental / giant: further back still
+    tall = { cam = 0.78, drop = 0 },       -- humanoid / undead / demon / unknown: ~92 % of the height (was 1)
+    w = { cam = 0.9, drop = 0.06 },        -- beast / critter / mechanical: fits by width, feet lower (was 1.15)
+    b = { cam = 1.0, drop = 0 },           -- dragonkin / elemental / giant: further back (was 1.3)
+    murloc = { cam = 1, drop = 0 },        -- the walking murloc: as before (MURLOC_DROP puts it on the ground)
 }
--- The fit kind for a target: "w" / "b" / "tall" (pictures, cards and display-only models: "tall").
+-- The fit kind for a target: "w" / "b" / "tall" / "murloc" (pictures, cards and display-only models: "tall").
 function MV.FitKind(t)
-    local id = t and not t.picture and not t.murloc and t.npc
+    if t and t.murloc then return "murloc" end
+    local id = t and not t.picture and t.npc
     local k = id and ns.ModelFit and ns.ModelFit[id]
     return (k and MV.FIT[k]) and k or "tall"
 end
@@ -805,21 +811,28 @@ local function Try(stage)
     MV.token = MV.token + 1
     MV.stage = stage
     if stage == "picture" then
+        MV.inModel = nil
         if m.ClearModel then m:ClearModel() end
         MV.DrawPicture()
         return
     end
+    -- v0.2.10 a new model over a loaded one starts from an empty frame (MV.Fresh), so it is centred by its own
+    -- bounds like the first model
     if stage == "npc" then
         ShowCard(false)
+        MV.Fresh(m, "c" .. tostring(t.npc))
         m:SetCreature(t.npc)
     elseif stage == "display" then
         ShowCard(false)
+        MV.Fresh(m, "d" .. tostring(t.display))
         m:SetDisplayInfo(t.display)
     elseif stage == "murloc" then
         ShowCard(false)
         local e = t.chain[t.i]
+        MV.Fresh(m, e.display and ("d" .. tostring(e.display)) or ("c" .. tostring(e.creature)))
         if e.display then m:SetDisplayInfo(e.display) else m:SetCreature(e.creature) end
     else
+        MV.inModel = nil
         if m.ClearModel then m:ClearModel() end
         ShowCard(true)
         return
@@ -866,8 +879,31 @@ end
 -- it is in, before our turn and zoom go on top (ApplyView). MV.refits counts them (tests).
 function MV.Refit(m)
     if not (m and m.RefreshCamera) then return end
+    if MV.ZERO_CENTRE and m.ZeroCachedCenterXY then m:ZeroCachedCenterXY() end
     m:RefreshCamera()
     MV.refits = (MV.refits or 0) + 1
+end
+
+-- v0.2.10 (the user, Tirisfal zombies taking turns: "the green zombies are in the middle, but when we go to the
+-- more brownish zombies, it's like it's in the left side"): the v0.2.9 RefreshCamera didn't centre the second one.
+-- The frame keeps the model centre it worked out for the first model it got (CharacterModelBase has
+-- ZeroCachedCenterXY, FrameAPICharacterModelBaseDocumentation.lua:266, so the centre is cached), and RefreshCamera
+-- only fits the distance: a model whose bounds sit elsewhere from its root lands off to the side. The 16001
+-- client has no bounds query for a PlayerModel (GetActiveBoundingBox is ModelScene actors only,
+-- FrameAPIModelSceneFrameActorBaseDocumentation.lua:18; SimpleModelAPIDocumentation.lua has none), so we can't
+-- shift by the bounds ourselves. Instead each new model goes into an emptied frame (ClearModel, like the first
+-- load), so the client centres it by its own bounds. key = the model about to be set ("c<creature>" /
+-- "d<display>"); MV.inModel = the one in the frame (nil when empty: after a picture, card or unload), so the same
+-- model shown again (re-show after a hide) isn't cleared. MV.freshes counts them (tests). MV.ZERO_CENTRE (off) is the next
+-- knob if a model still sits off: MV.Refit then also calls ZeroCachedCenterXY (the camera aims at the model's
+-- root, as Blizzard's Garrison follower models do on each load, Blizzard_GarrisonMissionTemplates.xml:902).
+MV.ZERO_CENTRE = false
+function MV.Fresh(m, key)
+    local was = MV.inModel
+    MV.inModel = key
+    if not (m and m.ClearModel) or was == nil or was == key then return end
+    m:ClearModel()
+    MV.freshes = (MV.freshes or 0) + 1
 end
 
 -- Did the model load? why = "loaded" (OnModelLoaded) or "timer". A late model brings the view back.
@@ -1001,7 +1037,7 @@ function MV.Unload()
     if not f then return end
     if f.model.ClearModel then f.model:ClearModel() end
     MV.token = MV.token + 1
-    MV.loadedKey, MV.target, MV.stage = nil, nil, nil
+    MV.loadedKey, MV.target, MV.stage, MV.inModel = nil, nil, nil, nil
     MV.unloads = (MV.unloads or 0) + 1
 end
 
