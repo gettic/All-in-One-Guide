@@ -534,12 +534,16 @@ function SR.Aim(t, map, x, y)
     -- arrow keeps leading to that room's next point instead of falling back to straight through the wall
     -- Only from inside a room (the last poll was in one: up to SNAP_YARDS) or with no plan yet (a /reload, a new
     -- step: up to SNAP_FRESH); someone who was outdoors stays outdoors (a lagging flag near a cave isn't a way in).
+    -- An outdoor room (a walled city, the hill over the Deathknell crypt) counts as "no outline" here: indoors
+    -- under it you are in a building or crypt below, not on its open ground (2026-11-27, the crypt hill room).
     local snapped = false
-    if room == nil and indoors == true then
+    local here = room and SR.rooms[room]
+    if (room == nil or not (here and here.indoor)) and indoors == true then
         local fresh = not st or st.target ~= t
-        if fresh or st.room then
-            room = SR.NearRoom(map, x, y, fresh and SR.SNAP_FRESH or SR.SNAP_YARDS, not fresh and st.room or nil)
-            snapped = room ~= nil
+        local was = not fresh and st.room and SR.rooms[st.room]
+        if fresh or (was and was.indoor) then
+            local near = SR.NearRoom(map, x, y, fresh and SR.SNAP_FRESH or SR.SNAP_YARDS, not fresh and st.room or nil)
+            if near then room, snapped = near, true end
         end
     end
     -- hysteresis (beta.5 "arrow jumps while I stand still"): IsIndoors flickers in doorways and cave mouths. The

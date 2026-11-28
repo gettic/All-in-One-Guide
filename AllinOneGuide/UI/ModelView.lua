@@ -67,12 +67,55 @@ function MV.TargetFor(step)
     local II = ns.ItemIcons
     local item = II and II.Ids and II.Ids(step)[1]
     if item then return { picture = true, item = item, key = "i" .. item, source = "step" } end
+    -- v0.2.8 (the user: "for step 4 there are no 3d models for the zombies i need to kill"): an objective step that
+    -- names no mob shows the quest's own mobs (Data\QuestMobs.lua: the kill targets, then who drops its items),
+    -- taking turns every MOB_TURN s when there are several (MV.mobI)
+    local mobs = MV.MobsFor(step)
+    if mobs then
+        local sk = tostring(step.id or step)
+        if MV.mobStep ~= sk then MV.mobStep, MV.mobI = sk, 1 end
+        local i = ((MV.mobI or 1) - 1) % #mobs + 1
+        local id = mobs[i]
+        local info = ns.QuestMobInfo and ns.QuestMobInfo[id]
+        return { npc = id, display = ns.ModelIds and ns.ModelIds[id] or (info and info[1]) or nil, key = "n" .. id,
+            source = "step", mobs = mobs, mobI = i }
+    end
     local kind = MV.KindOf(step)
     if kind == "goto" and S().Get("modelMurloc") then
         local chain = MV.MurlocChain()
         if chain[1] then return { murloc = true, chain = chain, i = 1, kind = kind, key = "w", source = "step" } end
     end
     return { picture = true, kind = kind, key = "k" .. kind, source = "step" }
+end
+
+-- The quest's mobs for an objective step with no mob of its own (a list of creature ids), or nil.
+function MV.MobsFor(step)
+    if type(step) ~= "table" or step.type ~= "objective" then return nil end
+    local q = PosInt(step.quest)
+    local list = q and ns.QuestMobs and ns.QuestMobs[q]
+    if type(list) == "table" and list[1] then return list end
+    return nil
+end
+
+-- Several mobs: the next one after MOB_TURN s while the view shows it (held while you turn it, drag, or fight).
+MV.MOB_TURN = 5
+function MV.ScheduleTurn()
+    MV.turnSeq = (MV.turnSeq or 0) + 1
+    local t = MV.target
+    if not (t and t.mobs and #t.mobs > 1) then return end
+    local seq = MV.turnSeq
+    Co.After(MV.MOB_TURN, function()
+        if seq ~= MV.turnSeq then return end
+        local cur = MV.target
+        if not (cur and cur.mobs and #cur.mobs > 1 and MV.frame and MV.frame:IsShown()) then return end
+        if MV.dragging or MV.turned or Co.InCombat() then
+            MV.ScheduleTurn()
+            return
+        end
+        MV.mobI = (cur.mobI or 1) % #cur.mobs + 1
+        MV.turns = (MV.turns or 0) + 1
+        ns.Errors.Call("model", MV.Update)
+    end)
 end
 
 -- The murlocs still worth trying this session, in order: Azurky by its journal display id, Azurky by creature id,
@@ -253,6 +296,10 @@ local function Build()
     pic.glyph = pic.plateFrame:CreateTexture(nil, "ARTWORK", nil, 3)
     pic.glyph:SetPoint("CENTER")
     pic.plateFrame:Hide()
+    -- v0.2.8 the game's own quest marker (atlas by name) for accept / turn-in steps
+    pic.marker = pic:CreateTexture(nil, "ARTWORK", nil, 2)
+    pic.marker:SetPoint("CENTER")
+    pic.marker:Hide()
     pic:Hide()
     f.pic = pic
     f:SetScript("OnMouseDown", function(self, button) ns.Errors.Call("model", MV.MouseDown, self, button) end)
@@ -502,6 +549,38 @@ MV.PIC_GLYPH = { accept = "glyph.step.accept", turnin = "glyph.step.turnin", kil
     loot = "glyph.step.collect", use = "glyph.step.useitem", ["goto"] = "glyph.step.goto", train = "glyph.step.train",
     fly = "glyph.step.fly", hearth = "glyph.step.hearth", note = "glyph.step.note", done = "glyph.step.done" }
 MV.PIC_GLYPH_MAX, MV.PIC_GLYPH_SHARE, MV.PLATE_CORNER, MV.PIC_TILE_MAX = 32, 0.62, 8, 32
+-- v0.2.8 (the user: "the new ! still look bad like the . is inside the l, can we change it to wows own quest marker
+-- and the same for ? when we need to turn them in"): accept / turn-in steps show the game's own yellow quest marker,
+-- by atlas name only (never copied), the first one this client has (C_Texture.GetAtlasInfo via ns.Atlas.Has):
+-- "QuestNormal" (Blizzard_SharedMapDataProviders\QuestOfferDataProvider.xml:18, Forever) / "QuestTurnin" (its
+-- turn-in partner) and "UI-QuestIcon-TurnIn-Normal" (Blizzard_POIButton\POIButton.lua:237). None = our plate + glyph.
+-- Drawn at the atlas's own size times a whole number (MV.MarkerSize), so it stays sharp.
+MV.PIC_MARKER = { accept = { "QuestNormal" }, turnin = { "QuestTurnin", "UI-QuestIcon-TurnIn-Normal" } }
+MV.MARKER_MAX_X = 2   -- at most twice the atlas's own size
+
+-- The marker atlas for a kind (the first the client has) and its own width / height, or nil.
+function MV.MarkerFor(kind)
+    local list = MV.PIC_MARKER[kind]
+    if not (list and ns.Atlas) then return nil end
+    for _, name in ipairs(list) do
+        if ns.Atlas.Has(name) then
+            local info = Co.AtlasInfo(name) or {}
+            local w, h = tonumber(info.width) or 0, tonumber(info.height) or 0
+            if w > 0 and h > 0 then return name, w, h end
+        end
+    end
+    return nil
+end
+
+-- The marker's size in the room `room`: its own size x a whole number (1 .. MARKER_MAX_X) that fits, or scaled
+-- down to fit when even its own size is too big.
+function MV.MarkerSize(w, h, room)
+    local k = math.min(MV.MARKER_MAX_X, math.floor(room / math.max(w, h)))
+    if k >= 1 then return w * k, h * k end
+    local s = room / math.max(w, h)
+    return math.floor(w * s + 0.5), math.floor(h * s + 0.5)
+end
+
 function MV.DrawPicture()
     local f, t = MV.frame, MV.target
     if not (f and t and t.picture) then return end
@@ -519,11 +598,26 @@ function MV.DrawPicture()
         pic.icon:Show()
         K.TileShown(pic.tile, false)
         pic.plateFrame:Hide()
-        MV.picLook = "icon"
+        pic.marker:Hide()
+        MV.picLook, MV.picMarker = "icon", nil
     else
         pic.icon:Hide()
         local kt, glyph = K.TILE[t.kind], MV.PIC_GLYPH[t.kind]
-        if pic.plate and kt and glyph then
+        local marker, mw, mh = MV.MarkerFor(t.kind)
+        MV.picMarker = marker
+        if marker and pic.marker.SetAtlas then
+            -- the game's own quest marker (v0.2.8)
+            K.TileShown(pic.tile, false)
+            pic.plateFrame:Hide()
+            pic.marker:SetTexCoord(0, 1, 0, 1)
+            pic.marker:SetAtlas(marker)
+            local w2, h2 = MV.MarkerSize(mw, mh, size)
+            pic.marker:SetSize(w2, h2)
+            pic.marker:Show()
+            MV.picLook = "marker"
+            MV.picMarkerSize = { w2, h2, mw, mh }
+        elseif pic.plate and kt and glyph then
+            pic.marker:Hide()
             -- bug 2026-11-27 (the user: "for the fist step as unded there is a yellow ! in the 3d viewer, it looks bad
             -- and pixilated"): the kind tile is 16 x 16 art (round.tga, shown 12-16 px) and was stretched to PIC_SHARE
             -- of the view (about 52 px inside the window, 98 px docked): blocky. Now a 9-slice plate (its corners stay
@@ -540,6 +634,7 @@ function MV.DrawPicture()
         else
             -- no slice art in this theme (or no glyph for the kind): the tile, never past twice its 16 px art
             pic.plateFrame:Hide()
+            pic.marker:Hide()
             local s = math.min(size, MV.PIC_TILE_MAX)
             pic.tile.base:SetSize(s, s)
             K.SetTile(pic.tile, t.kind)
@@ -598,13 +693,25 @@ function MV.Lift(zoom, h)
     return -(z / MV.ZOOM_MAX) * MV.LIFT_AIM * MV.FILL * h / MV.CamScale(z)
 end
 
+-- v0.2.8 (the user: "for the new follow 3d viwe, the murloc is a ttle to far up, and its walking a little fast"):
+-- the walking murloc stands MURLOC_DROP of the view's height lower (feet toward the bottom, like on the ground);
+-- the drop fades out as you zoom in, so the zoom still ends on its chest / head. An estimate (no game here): a later
+-- tweak is this one number.
+MV.MURLOC_DROP = 0.12
+function MV.MurlocDrop(zoom, h)
+    if not (h and h > 0) then return 0 end
+    local z = ns.U.Clamp(zoom or 0, 0, MV.ZOOM_MAX)
+    return -MV.MURLOC_DROP * h * (1 - z / MV.ZOOM_MAX)
+end
+
 local function Zoomed(m)
     if m.SetCamDistanceScale then
         if m.SetPortraitZoom then m:SetPortraitZoom(0) end
         m:SetCamDistanceScale(MV.CamScale(MV.zoom))
         MV.zoomBy = "distance"
         if m.SetViewTranslation then
-            MV.lift = MV.Lift(MV.zoom, m:GetHeight())
+            local h = m:GetHeight()
+            MV.lift = MV.Lift(MV.zoom, h) + (MV.stage == "murloc" and MV.MurlocDrop(MV.zoom, h) or 0)
             m:SetViewTranslation(0, MV.lift)
         end
     else
@@ -620,6 +727,34 @@ local function ApplyView()
     -- the murloc walks on the spot; set again after every load / update (an animation set before the model file
     -- is in is lost: Blizzard sets theirs in OnModelLoaded, Blizzard_ArtifactPerks.lua:153)
     if MV.stage == "murloc" and m.SetAnimation then m:SetAnimation(MV.WALK) end
+    MV.Pace(m)
+end
+
+-- v0.2.8 the murloc walks slower: a model frame has no animation speed (CharacterModelBase SetAnimation takes only
+-- anim + variation, FrameAPICharacterModelBaseDocumentation.lua:124; animSpeed is ModelScene actors only), so the
+-- walk's clock is held for the share 1 - WALK_SPEED of the drawn frames (SimpleModel SetPaused,
+-- SimpleModelAPIDocumentation.lua:625), spread evenly (every 4th frame at 0.75): the walk plays at WALK_SPEED.
+-- Only while the murloc shows; any other model runs freely. An estimate (no game here): one number to tweak.
+MV.WALK_SPEED = 0.75
+function MV.Pace(m)
+    local on = MV.stage == "murloc" and MV.WALK_SPEED < 1 and m.SetPaused and m.SetScript and true or false
+    if on == (MV.pacing or false) then return end
+    MV.pacing = on
+    if on then
+        local acc = 0
+        m:SetScript("OnUpdate", function(self)
+            acc = acc + MV.WALK_SPEED
+            if acc >= 1 then
+                acc = acc - 1
+                self:SetPaused(false)
+            else
+                self:SetPaused(true)
+            end
+        end)
+    else
+        if m.SetScript then m:SetScript("OnUpdate", nil) end
+        if m.SetPaused then m:SetPaused(false) end
+    end
 end
 
 -- stage: "npc" (SetCreature), "display" (SetDisplayInfo), "murloc" (the go-to murloc, chain entry t.i),
@@ -741,6 +876,7 @@ local function Load(t)
     else
         Try("display")
     end
+    MV.ScheduleTurn()
     return true
 end
 
@@ -992,6 +1128,13 @@ ns.SelfChecks[#ns.SelfChecks + 1] = { label = "model", fn = function(h)
     end
     -- the go-to murloc: which one walks (Azurky / Murky) or why none; a walking one has its Walk animation
     h.Info("model murloc: " .. MV.MurlocState())
+    if MV.stage == "murloc" then
+        h.Info(("model murloc pace: %s, drop %d %%"):format(MV.pacing and ("%d %% speed"):format(MV.WALK_SPEED * 100)
+            or "full speed (no SetPaused)", MV.MURLOC_DROP * 100))
+        if f:IsShown() and MV.WALK_SPEED < 1 and f.model.SetPaused and not MV.pacing then
+            h.Problem("model: the murloc walks at full speed")
+        end
+    end
     if t and t.murloc and not t.picture and MV.result == "murloc" and f.model.HasAnimation then
         local ok, has = pcall(f.model.HasAnimation, f.model, MV.WALK)
         if ok and has == false then h.Problem("model: the murloc has no walk animation") end
@@ -1007,6 +1150,13 @@ ns.SelfChecks[#ns.SelfChecks + 1] = { label = "model", fn = function(h)
         if type(tw) == "number" and tw > MV.PIC_TILE_MAX + 0.5 then h.Problem(("model: the kind tile is stretched to %d px"):format(tw)) end
         local gw = f.pic.plateFrame:IsShown() and f.pic.glyph:GetWidth()
         if type(gw) == "number" and gw > MV.PIC_GLYPH_MAX + 0.5 then h.Problem(("model: the kind glyph is stretched to %d px"):format(gw)) end
+        local ms = MV.picMarkerSize
+        if MV.picLook == "marker" and ms and ms[1] > ms[3] and ms[1] % ms[3] ~= 0 then
+            h.Problem(("model: the quest marker is stretched to %d px (own %d)"):format(ms[1], ms[3]))
+        end
+    end
+    if f.pic and MV.PIC_MARKER and t and MV.PIC_MARKER[t.kind] then
+        h.Info("model quest marker: " .. (MV.picMarker or "none on this client (our own plate)"))
     end
     h.Info(("model: %s %s, %s (sd %s, side %s, facing %d deg%s)"):format(t and (t.murloc and not t.picture and "murloc "
         .. ((t.chain[t.i] or {}).name or "?") or t.npc and "npc " .. t.npc or t.display and "display " .. t.display

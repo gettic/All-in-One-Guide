@@ -366,6 +366,10 @@ end, "HELP_GUIDES", { main = true })
 ns.Bus.On("StepChanged", HG, function()
     if ns.Hub.IsShown() and ns.Hub.current == "guides" and HG.page then HG.Layout() end
 end, "hub", 90)
+-- v0.2.9: a guide pack addon loaded (or failed) while the Guides page is open: the cards follow at once
+ns.Bus.On("PacksChanged", HG, function()
+    if ns.Hub.IsShown() and ns.Hub.current == "guides" and HG.page then HG.Layout() end
+end, "hub", 90)
 
 -- Self-test: every installed route pack has a card on the list, at most one is Active, planned ones aren't
 -- installed, and a shown page has its cards laid out.

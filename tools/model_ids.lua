@@ -154,11 +154,12 @@ local function ListLua(dir)
 end
 
 function MI.Main(args)
-    local sql, routes, outPath, check = nil, "AllinOneGuide/Routes", "AllinOneGuide/Data/ModelIds.lua", false
+    -- v0.2.8: the packs live in their own addon folders since v0.2.5; --routes may be given more than once
+    local sql, routes, outPath, check = nil, {}, "AllinOneGuide/Data/ModelIds.lua", false
     local i = 1
     while i <= #args do
         local a = args[i]
-        if a == "--routes" then routes = args[i + 1] i = i + 1
+        if a == "--routes" then routes[#routes + 1] = args[i + 1] i = i + 1
         elseif a == "--out" then outPath = args[i + 1] i = i + 1
         elseif a == "--check" then check = true
         else sql = a end
@@ -168,8 +169,11 @@ function MI.Main(args)
         io.stderr:write("use: luajit tools/model_ids.lua <ClassicDB.sql> [--routes dir] [--out file] [--check]\n")
         return 2
     end
+    if #routes == 0 then routes = { "AllinOneGuide/Routes", "AllinOneGuide_Horde/Routes", "AllinOneGuide_Alliance/Routes" } end
     local texts = {}
-    for _, p in ipairs(ListLua(routes)) do texts[#texts + 1] = assert(ReadFile(p)) end
+    for _, dir in ipairs(routes) do
+        for _, p in ipairs(ListLua(dir)) do texts[#texts + 1] = assert(ReadFile(p)) end
+    end
     local ids = MI.PackNpcs(texts)
     local want = {}
     for _, id in ipairs(ids) do want[id] = true end

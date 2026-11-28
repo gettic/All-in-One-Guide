@@ -95,14 +95,15 @@ ns.Locale.Add("enUS", {
     DIALOG_ROUTE = "A longer route for your start is installed: {guide}. Switch to it? Your progress comes along.",
     DIALOG_MOVE = "This looks like {name} with a new name. Move {name}'s guide progress to this character?",
     MOVE_DONE = "guide progress moved to this character.",
-    MENU_GUIDE = "Guide: {guide}",               -- title menu row per guide; {guide} = its title
 
     -- the guide window
     TITLE = "All-in-One Guide",
     COUNTER = "step {i}/{n}",                   -- top right of the window
     NEXT_LINE = "Next: {text}",                 -- small mode, under the current step
     GOAL_ITEMS = "Items",                       -- goal line of an item step
-    YARDS = "{n} yd",                           -- distance, whole yards
+    YARDS = "{n} yd",                           -- distance, whole yards (setting distUnit = yards)
+    METERS = "{n} m",                           -- distance, whole meters (the default)
+    KILOMETERS = "{n} km",                      -- distance from 1000 m; {n} = "1.2"
     ARRIVED = "You're there",                   -- under the arrow, inside the step's spot
     STATE_NONE = "No guide is open.",
     STATE_FINISHED = "Route finished. Well done!",
@@ -244,7 +245,7 @@ ns.Locale.Add("enUS", {
     MENU_ARROW_STRAIGHT = "Point straight at the goal",
     MENU_ARROW_HUNT = "Lead me round the mob area",
     MENU_ARROW_CENTRE = "Point at the middle instead",
-    VIA_GOAL_LINE = "Goal: {d}",                -- under the arrow while it leads to a door first; {d} = "214 yd" or "0:30 walk"
+    VIA_GOAL_LINE = "Goal: {d}",                -- under the arrow while it leads to a door first; {d} = "196 m", "214 yd" or "0:30 walk"
     VIA_MORE = "{n} more on the way",           -- under the goal line; {n} = points left before the goal
     VIA_ROUTE = "Way: {route}",                 -- arrow hover; {route} = "Through the abbey door > Goal"
     VIA_GOAL = "Goal",
@@ -384,6 +385,8 @@ ns.Locale.Add("enUS", {
     CHOICE_LANG_EN = "English",                   -- never translated
     CHOICE_LANG_DA = "Dansk",                     -- never translated
     CHOICE_YARDS = "Yards",
+    CHOICE_METERS = "Meters",
+    CHOICE_DISTANCE = "Distance",
     CHOICE_TIME = "Walk time",
     SET_LANG = "Language",
     SETTIP_LANG = "Which language the guide uses. A change is used after /reload",
@@ -434,8 +437,10 @@ ns.Locale.Add("enUS", {
     SETTIP_ARROWALPHA = "How solid the arrow is",
     SET_ARROWCLICKTHROUGH = "Click through the arrow",
     SETTIP_ARROWCLICKTHROUGH = "The arrow ignores the mouse; switch it back here or in the guide menu",
-    SET_ARROWUNIT = "Distance shown as",
-    SETTIP_ARROWUNIT = "Yards, or the time it takes to walk there",
+    SET_ARROWUNIT = "Arrow shows",
+    SETTIP_ARROWUNIT = "How far it is, or the time it takes to walk there",
+    SET_DISTUNIT = "Distance",
+    SETTIP_DISTUNIT = "Every distance the guide shows, in meters or in yards",
     SET_ARRIVALSOUND = "Sound on arrival",
     SETTIP_ARRIVALSOUND = "A short sound when you reach the spot",
     SET_SMARTARROW = "Smart arrow",

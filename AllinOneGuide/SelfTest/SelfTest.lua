@@ -388,6 +388,8 @@ function ST.ModelParts()
         -- 2026-11-27 the crisp kind picture: plate (9-slice) + the kind's glyph at its own size
         { name = "model.picture.plate", obj = f and f.pic and f.pic.plateFrame, opt = true, shownOnly = true },
         { name = "model.picture.glyph", obj = f and f.pic and f.pic.glyph, opt = true, shownOnly = true, artSelf = true },
+        -- v0.2.8 the game's own quest marker (atlas by name) on accept / turn-in steps
+        { name = "model.picture.marker", obj = f and f.pic and f.pic.marker, opt = true, shownOnly = true },
     }
 end
 

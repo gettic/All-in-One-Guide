@@ -2,7 +2,7 @@
 
 One leveling guide addon with one guide window and a waypoint arrow. It can hold many guides as guide packs, so you only need one guide addon in game.
 
-Made for WoW Forever (interface 16001). Version: 0.2.5.
+Made for WoW Forever (interface 16001). Version: 0.2.9.
 
 ## What you get
 
@@ -35,7 +35,7 @@ Normal leveling routes from level 1 to 60, for both factions.
 | Item pictures | The guide window shows an item's own game icon on the current step only, never on the next-step lines or in step tooltips. The icon is a small tile at the left of the note line under the step (like the kill X on goal lines), and at the left of the step text only when that line has no step icon (next to the 3D view). Goal lines show the item icon instead of the small square. The item's name in the step text and the note is a coloured name: hover it to see the game's item tooltip (clicking does nothing). Items a step only names in its text (like the Nibbled-On Book) get their picture too, and so do items new in WoW Forever. Setting: Steps > "Item pictures" (on by default). Item names come from the game, or from CMaNGOS (GPL) data before the game has loaded the item. |
 | "Use it now" reminders | The step button glows (and gently pulses) when the target is in range, when you are at the spot, or right after you loot the item. In the menu: off, glow, glow and text, or glow, text and sound (sound is off unless you pick it). |
 | Hints | Hearthstone (ready now or in N minutes; a warning if it is set to another inn than the route expects) and flight paths (new one here, one you lack, which place to pick on the flight map). Known flight paths are remembered per character. |
-| Arrow | One arrow for everything: your corpse after you release, then a spot another addon asks for, then a spot you picked, then the step. It turns green when you face it, yellow to the side and red behind, and shows distance as walk time or yards. |
+| Arrow | One arrow for everything: your corpse after you release, then a spot another addon asks for, then a spot you picked, then the step. It turns green when you face it, yellow to the side and red behind, and shows distance as walk time or distance (meters by default; yards in Settings > Arrow > "Distance"). Setting "Arrow shows" picks distance or walk time. |
 | Smart arrow | When the spot is inside a building, cave or city, the arrow first leads to the middle of the door, cave mouth or gate. See [Smart arrow](#smart-arrow). |
 | Path line | The way the arrow leads you (through doors and cave mouths, or straight when there is no door) shows as dots on the world map and the minimap. See [Path line](#path-line). |
 | Corpse arrow | Right after you release, the arrow points to your corpse, also when the graveyard is in the next zone. There is no corpse arrow when the corpse is on another continent. |
@@ -120,7 +120,7 @@ How it behaves:
 
 ### The guide menu
 
-Open it with `/aog`, right-click the minimap button, left-click the menu button in the guide window's title bar, or "Open guide menu" in the options menu. It opens on the page you used last. Pages:
+Open it with `/aog`, right-click the minimap button, left-click the menu button in the guide window's title bar (it always opens on the Guides page), or "Open guide menu" in the options menu. Guides are picked on the Guides page; "Choose a guide" in the right-click menu opens it. Pages:
 
 | Page | What it has |
 |---|---|
@@ -138,10 +138,11 @@ Settings that move the guide window (width, scale, follow UI scale, "Reset this 
 
 The smart arrow is on by default. Switch it in the arrow's right-click menu or on the Arrow settings page.
 
-- While it leads to a door, cave mouth or gate first, the arrow is light blue. Under it is a line like "Through the abbey door", and "Goal: 214 yd".
+- While it leads to a door, cave mouth or gate first, the arrow is light blue. Under it is a line like "Through the abbey door", and "Goal: 196 m".
 - The arrow gives one short pulse when you pass a door (not with "Stop flashing and pulsing", and not when it points straight).
 - "Point straight at the goal" in the arrow's right-click menu turns it off for that one spot.
 - It knows these places so far: Northshire Abbey, Echo Ridge Mine, Fargodeep Mine, Jasperlode Mine, the Goldshire inn, the Den and Burning Blade Coven in the Valley of Trials, Dustwind Cave, Skull Rock, the Razor Hill inn, and the main gates of Stormwind and Orgrimmar. Their positions are first estimates and get better as testers check them.
+- Undead start (Deathknell): the arrow leads you out of the crypt point by point (to the stairs, up both flights, out), anywhere in the crypt. On the way to the chapel it goes through the gap in the fence and in by the chapel's door, not through walls. The layout comes from Shortest Path Forever's walking map (GPL).
 - It only shows the way. It never moves your character.
 
 ### Path line
@@ -155,8 +156,10 @@ The smart arrow is on by default. Switch it in the arrow's right-click menu or o
 
 - The NPC or mob of your current step shows as a 3D model, by default inside the guide window: a square at the top left of the current step, with the step text beside it. The model is turned about 45 degrees toward the text.
 - The square stays on every step, so the layout doesn't jump. A step without a model shows a big picture there instead: the item it is about, or else the step's own icon (accept, turn in, go to ...). The big item pictures have no light corners.
-- On go-to steps it shows a small murloc pet walking on the spot (Azurky, else Murky; if neither loads, the go-to picture). Turn it off with Settings > Guide window > "Walking murloc on go-to steps" (on by default).
-- Drag it to turn the model, use the mouse wheel to zoom, double-click to reset (back to 45 degrees), right-click for options. Each new model starts at 45 degrees. The model stays centred when you zoom in and turn it.
+- Accept steps show the game's own yellow "!" quest marker, and turn-in steps the "?" marker.
+- Kill and loot steps that don't name their mob show the quest's mobs (they take turns when there are several), and the target button works for them too.
+- On go-to steps it shows a small murloc pet walking on the spot, standing low in the view and walking slowly (Azurky, else Murky; if neither loads, the go-to picture). Turn it off with Settings > Guide window > "Walking murloc on go-to steps" (on by default).
+- Drag it to turn the model, use the mouse wheel to zoom, double-click to reset (back to 45 degrees), right-click for options. Each new model starts at 45 degrees. The model stays centred when you zoom in and turn it. Zooming in moves up to the chest and head; not zoomed, the whole model shows. A step without a model shows a sharp picture.
 - Settings > Guide window: "Show the 3D view", "3D view position" (inside the window, left, right, below or free; Shift+drag it when free), "3D view size" and "Hide the 3D view in combat" (on by default; this applies to the outside positions, inside the window it stays during fights).
 - Switch it on or off with the options menu or `/aog model`.
 

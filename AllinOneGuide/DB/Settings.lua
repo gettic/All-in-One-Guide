@@ -96,7 +96,10 @@ S.schema = {
     { key = "arrowAlpha", scope = "char", kind = "number", default = 1, min = 0.3, max = 1, step = 0.1, export = true, page = "arrow" },
     { key = "arrowClickThrough", scope = "char", kind = "bool", default = false, export = true, page = "arrow" },
     { key = "arrowUnit", scope = "account", kind = "choice", default = "yards", choices = { "yards", "time" }, export = true,
-        page = "arrow", choiceLabels = { yards = "CHOICE_YARDS", time = "CHOICE_TIME" } },
+        page = "arrow", choiceLabels = { yards = "CHOICE_DISTANCE", time = "CHOICE_TIME" } },
+    -- v0.2.9: every shown distance in meters (default, the user: "we use real math!") or yards; maths stays in yards
+    { key = "distUnit", scope = "account", kind = "choice", default = "meters", choices = { "meters", "yards" }, export = true,
+        page = "arrow", choiceLabels = { meters = "CHOICE_METERS", yards = "CHOICE_YARDS" } },
     { key = "arrivalSound", scope = "account", kind = "bool", default = false, export = true, page = "arrow" },
     -- smart arrow: lead through doors, gates and paths (Engine\SmartRoute.lua); off = the straight arrow
     { key = "smartArrow", scope = "account", kind = "bool", default = true, export = true, page = "arrow" },

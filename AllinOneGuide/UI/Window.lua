@@ -864,7 +864,7 @@ function UI.DistText(step)
     if not (step and step.map and step.x and step.y) then return nil end
     local d = ns.Geo.PlayerDistance(step.map, step.x, step.y)
     if not d then return nil end
-    return ns.U.Fill(L().YARDS, { n = math.floor(d + 0.5) })
+    return ns.Locale.Distance(d)
 end
 
 local function Wrap(field, v, id)
@@ -1115,8 +1115,13 @@ function UI.DistWidth()
     local tb = UI.title
     local d = tb.dist
     local keep = d:GetText()
-    d:SetText(ns.U.Fill(L().YARDS, { n = UI.DIST_SAMPLE }))
-    local w = math.ceil(d:GetStringWidth() or 0)
+    -- (v0.2.9: the widest of the unit texts: "9999 yd", "999 m", "9.9 km")
+    local w = 0
+    for _, s in ipairs({ ns.U.Fill(L().YARDS, { n = UI.DIST_SAMPLE }), ns.U.Fill(L().METERS, { n = 999 }),
+        ns.U.Fill(L().KILOMETERS, { n = ns.Locale.Number(99.9, 1) }) }) do
+        d:SetText(s)
+        w = math.max(w, math.ceil(d:GetStringWidth() or 0))
+    end
     d:SetText(keep)
     return w
 end
@@ -1863,18 +1868,8 @@ function UI.ChipItems()
     return items
 end
 
--- The guides for this character (built from the installed packs; at most 3 rows).
-local function GuideRows(items)
-    local E = ns.Engine
-    local _, ids = E.GuideList()
-    local g = E.Focused()
-    local focusPack = g and g.key:match("^([^/]+)")
-    for i = 1, math.min(3, #ids) do
-        local id = ids[i]
-        items[#items + 1] = { text = ns.U.Fill(L().MENU_GUIDE, { guide = E.GuideTitle(id) }), checked = id == focusPack,
-            fn = function() E.OpenGuide(id) end }
-    end
-end
+-- (v0.2.9, the user: "removes guides from the burger menu! like "guide: horde 1-20"": no "Guide: <name>" rows any
+-- more; guides are picked on the guide menu's Guides page only, reached by "Choose a guide" or a left-click.)
 
 -- The tail both menus share: the arrow's click-through switch (a click-through arrow can't be right-clicked,
 -- so it's here while it's on) and "Link with Gear Set" (only when Gear Set is loaded, v0.1.1).
@@ -1889,10 +1884,12 @@ end
 
 -- The title bar's menu button: left = the guide menu (main window) open / closed, right = the drop-down (beta.11).
 -- Without the guide menu: the drop-down on either click.
+-- v0.2.9 fix (the user: "i still cant see any guides when i open the guide menu"): the left-click opens on the
+-- Guides page, not on the page used last (a Settings page has no guides on it); open = close, as before.
 function UI.MenuClick(btn, button)
     if button ~= "RightButton" and ns.Hub and ns.Hub.Available() then
         if ns.Menu.IsOpen() then ns.Menu.Close() end
-        ns.Hub.Toggle()
+        if ns.Hub.IsShown() then ns.Hub.Close() else ns.Hub.Open("guides") end
         return "hub"
     end
     if ns.Menu.IsOpen() then ns.Menu.Close() else ns.Menu.Open(btn, UI.MenuItems(), { right = true }) end
@@ -1915,7 +1912,6 @@ function UI.MenuItems()
                 fn = function() S.Set("modelViewer", not S.Get("modelViewer")) end },
             { text = L().MENU_QUIET, checked = S.Get("quiet"), fn = function() S.Set("quiet", not S.Get("quiet")) end },
         }
-        GuideRows(items)
         TailRows(items)
         return items
     end
@@ -1949,7 +1945,6 @@ function UI.MenuItems()
     items[#items + 1] = { text = L().MENU_RESETPOS, fn = UI.ResetPos }
     -- v0.2 M5: Report a mistake (the Hub's Report page; About and What's new are next to it there)
     if not ns.safeMode then items[#items + 1] = { text = L().MENU_REPORT, fn = function() ns.HubReport.Open() end } end
-    GuideRows(items)
     TailRows(items)
     -- language: on the Settings > General page and /aog lang; here only without the main window
     local lang = S.Get("lang")
@@ -1998,7 +1993,8 @@ local function OnSettings(_, key)
         if (key == "lines" or key == "small") and not Co.InCombat() and ns.Overlay.KeepOnScreen(UI.frame) then UI.SavePos() end
     elseif key == "opacity" then
         UI.ApplyOpacity()
-    elseif key == "reducedMotion" or key == "quiet" or key == "noteLine" or key == "itemIcons" then
+    elseif key == "reducedMotion" or key == "quiet" or key == "noteLine" or key == "itemIcons" or key == "distUnit" then
+        UI.titleKey = nil   -- (distUnit: the title's distance width is measured again)
         UI.Refresh()
     end
 end

@@ -117,13 +117,14 @@ function A.MenuItems()
     return items
 end
 
--- Distance text: whole yards, or the walk time at run speed (7 yards a second) as "m:ss".
+-- Distance text: the distance (meters / yards, ns.Locale.Distance), or the walk time at run speed (7 yards a second)
+-- as "m:ss".
 A.RUN_SPEED = 7
 function A.DistanceText(yards)
     if ns.Settings.Get("arrowUnit") == "time" then
         return ns.U.Fill(ns.L.WALK_TIME, { t = ns.Locale.Duration(yards / A.RUN_SPEED) })
     end
-    return ns.U.Fill(ns.L.YARDS, { n = math.floor(yards + 0.5) })
+    return ns.Locale.Distance(yards)
 end
 
 -- Look settings: size, opacity (texture / text colour alpha: the UI never uses SetAlpha), click-through.
@@ -519,7 +520,8 @@ end
 ns.Bus.On("SettingsChanged", A, function(_, key)
     if key == "arrow" then A.Update()
     elseif key == "arrowScale" or key == "arrowAlpha" or key == "arrowClickThrough" then A.ApplyLook() A.Update()
-    elseif key == "arrowUnit" or key == "smartArrow" or key == "huntPath" or key == "huntMode" then A.Update() end
+    elseif key == "arrowUnit" or key == "distUnit" then A.dirty = true A.Update()   -- (the texts redraw now)
+    elseif key == "smartArrow" or key == "huntPath" or key == "huntMode" then A.Update() end
 end, "ui", 75)
 ns.Bus.On("FeatureChanged", A, function() A.Update() end, "ui", 75)
 -- v0.2 M4: high contrast / colour-blind / font size (Theme\Overlay.lua)
@@ -529,3 +531,20 @@ ns.Bus.On("WorldMapShown", A, function() A.Update() end, "ui", 75)
 ns.Bus.On("WorldMapHidden", A, function() A.Update() end, "ui", 75)
 ns.Events.On("PLAYER_CONTROL_LOST", A, function() A.Update() end, "ui")
 ns.Events.On("PLAYER_CONTROL_GAINED", A, function() A.Update() end, "ui")
+
+-- Self-test (v0.2.9): the distance texts follow the Distance setting (meters "m" / "km", yards "yd"), and a shown
+-- arrow's distance uses that unit.
+ns.SelfChecks[#ns.SelfChecks + 1] = { label = "distance", fn = function(h)
+    h.Count()
+    local unit = ns.Settings.Get("distUnit")
+    local want = unit == "yards" and "^%d+ yd" or "^%d+ m"
+    local t = ns.Locale.Distance(100)
+    if not t:find(want) then h.Problem("distance: 100 yd reads " .. t .. " (" .. unit .. ")") end
+    if unit ~= "yards" and not ns.Locale.Distance(2000):find("km", 1, true) then h.Problem("distance: no km from 1000 m") end
+    local shown = A.frame and A.frame:IsShown() and A.dist and A.dist:IsShown() and A.dist:GetText()
+    if shown and ns.Settings.Get("arrowUnit") ~= "time" and shown:find("^%d") then
+        local ok = unit == "yards" and shown:find(" yd", 1, true) or unit ~= "yards" and (shown:find(" m", 1, true) or shown:find(" km", 1, true))
+        if not ok then h.Problem("distance: the arrow reads " .. shown .. " (" .. unit .. ")") end
+    end
+    h.Info("distance: " .. unit .. " (" .. t .. ")")
+end }

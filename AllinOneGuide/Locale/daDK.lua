@@ -46,7 +46,6 @@ ns.Locale.Add("daDK", {
     DIALOG_ROUTE = "En længere rute for din start er installeret: {guide}. Skift til den? Dine fremskridt følger med.",
     DIALOG_MOVE = "Det ligner {name} med et nyt navn. Flyt fremskridtet i guiden fra {name} til denne karakter?",
     MOVE_DONE = "fremskridt i guiden flyttet til denne karakter.",
-    MENU_GUIDE = "Guide: {guide}",
     HELP_RESETPOS ="nulstil placeringen af guidevinduet og pilen",
 
     -- the guide window

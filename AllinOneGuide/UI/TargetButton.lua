@@ -5,7 +5,8 @@
 -- these conditions, all kept here and checked by the self-test:
 --   1. the macro is exactly one line "/targetexact <name>" (no other command, no cycling, one name)
 --   2. the name is cleaned (no ; [ ] or line breaks, at most TB.MAX characters)
---   3. the name comes only from static data for the current step (Data\MobNames.lua by the step's mob id); never
+--   3. the name comes only from static data for the current step (Data\MobNames.lua by the step's mob id, or
+--      Data\QuestMobs.lua by its quest when the step names no mob); never
 --      from units, nameplates, the combat log or "nearest"
 --   4. only the player's press targets (a SecureActionButtonTemplate, type "macro"); the addon never clicks it
 --   5. macro text, show / hide and position change only out of combat (ns.CombatQueue "targetbutton"); in combat
@@ -49,7 +50,36 @@ function TB.NameFor(step)
     if type(names) ~= "table" then return nil end
     local id = tonumber(step.targetNpc)
     if not id and step.type == "objective" then id = tonumber(step.npc) end
-    return id and TB.Clean(names[id]) or nil
+    if id then return TB.Clean(names[id] or TB.QuestMobName(id)) end
+    -- v0.2.8 (the user: "for step 4 ... there is no marking button!"): an objective step that names no mob gets the
+    -- quest's own mob from static data (Data\QuestMobs.lua, generated from cmangos): one name, the first kill
+    -- objective not done yet, else the first mob. Still one "/targetexact" line (condition 1), no cycling.
+    local mobs = ns.ModelView and ns.ModelView.MobsFor and ns.ModelView.MobsFor(step)
+    if not mobs then return nil end
+    local pick = mobs[TB.OpenKill(step.quest) or 1] or mobs[1]
+    return TB.Clean(names[pick] or TB.QuestMobName(pick))
+end
+
+-- The English creature name from Data\QuestMobs.lua's info table, or nil.
+function TB.QuestMobName(id)
+    local info = ns.QuestMobInfo and ns.QuestMobInfo[id]
+    local name = info and info[2]
+    return type(name) == "string" and name ~= "" and name or nil
+end
+
+-- The index (among the quest's kill objectives, in the game's order = the quest's creature order) of the first one
+-- not finished, or nil when the game gives no kill objectives.
+function TB.OpenKill(quest)
+    local list = quest and Co.Objectives(quest)
+    if type(list) ~= "table" then return nil end
+    local k = 0
+    for _, o in ipairs(list) do
+        if type(o) == "table" and o.type == "monster" then
+            k = k + 1
+            if not o.finished then return k end
+        end
+    end
+    return nil
 end
 
 -- The name the button should have now (nil = hidden).
@@ -184,6 +214,11 @@ function TB.Problem()
         for _, v in pairs(ns.MobNames or {}) do
             if v == name then known = true break end
         end
+        if not known then
+            for _, info in pairs(ns.QuestMobInfo or {}) do
+                if info[2] == name then known = true break end
+            end
+        end
         if not known then return "the name isn't a mob from the guide data" end
         if not TB.Allowed() then return "shown on a non-English client" end
     end
@@ -214,6 +249,8 @@ ns.Bus.On("Login", TB, function()
     local function Replace() ns.Errors.Call("targetbutton", TB.Update, true) end
     ns.Bus.On("StepChanged", TB, Up, "targetbutton")
     ns.Bus.On("WindowToggled", TB, Up, "targetbutton")
+    -- v0.2.8: a kill objective done -> the next mob of the quest (Update only changes the macro out of combat)
+    ns.Bus.On("QuestsChanged", TB, Up, "targetbutton")
     ns.Bus.On("WindowMoved", TB, Replace, "targetbutton")
     ns.Bus.On("WindowLayout", TB, Replace, "targetbutton")
     ns.Bus.On("ScaleChanged", TB, Replace, "targetbutton", 81)

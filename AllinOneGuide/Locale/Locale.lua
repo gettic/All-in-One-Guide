@@ -125,6 +125,23 @@ function Lo.Number(n, decimals)
     return out
 end
 
+-- v0.2.9 (the user: "change yards to meters, im in the eu"): a distance (the game's yards; all maths stays in
+-- yards) as the player reads it. Setting distUnit "meters" (default): "35 m", from 1000 m "1.2 km"; "yards": "35 yd".
+Lo.METERS_PER_YARD = 0.9144
+function Lo.Distance(yards)
+    local y = math.max(0, tonumber(yards) or 0)
+    local S = ns.Settings
+    if S and S.Get and S.Get("distUnit") == "yards" then
+        return U.Fill(ns.L.YARDS, { n = math.floor(y + 0.5) })
+    end
+    local m = math.floor(y * Lo.METERS_PER_YARD + 0.5)
+    if m >= 1000 then
+        local km = math.floor(m / 100 + 0.5) / 10   -- one decimal, rounded
+        return U.Fill(ns.L.KILOMETERS, { n = Lo.Number(km, 1) })
+    end
+    return U.Fill(ns.L.METERS, { n = m })
+end
+
 -- Seconds -> "1:05" (under an hour) or "1:02:05".
 function Lo.Duration(seconds)
     local s = math.max(0, math.floor((tonumber(seconds) or 0) + 0.5))
