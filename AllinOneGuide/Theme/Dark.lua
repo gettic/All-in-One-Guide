@@ -64,7 +64,7 @@ ns.Theme.Register("Dark", {
     ["color.icon.train"] = "=icon.learn",
     ["color.icon.note"] = { "#6B7686", 1 },
     ["color.icon.useitem"] = { "#C86BD6", 1 },
-    ["color.icon.grind"] = { "#B84A63", 1 },
+    ["color.icon.grind"] = { "#8C2F4A", 1 },   -- ui look check (2026-11-28): wine
     ["color.icon.fly"] = { "#3BA9D9", 1 },
     ["color.icon.getfp"] = "=icon.fly",
     ["color.icon.hearth"] = { "#D8643C", 1 },
@@ -79,6 +79,7 @@ ns.Theme.Register("Dark", {
     ["color.stepFrame"] = { "#4A4A50", 1 },
     ["color.endButtonEdge"] = "=stepFrame",   -- v0.2.5: the end card button's 1 px edge (the accent under the mouse)
     ["color.stepFrameMissing"] = { "#E0524A", 1 },
+    ["color.stepReminder"] = { "#F4C542", 1 },   -- icon review #1: "use it now" ring + glow (gold; red = missing)
     -- v0.2 look review: the Hub, dialog, copy box and menu (text over the world; the guide window keeps
     -- color.panel and the opacity setting)
     ["color.panelSolid"] = { "#0A0A0B", 0.95 },
@@ -163,9 +164,10 @@ ns.Theme.Register("Dark", {
     ["color.verb.use"] = { "#5CC8D8", 1 },
     ["color.verb.goto"] = { "#4DA3F0", 1 },
     ["color.verb.talk"] = { "#B48CF0", 1 },
-    ["color.verb.train"] = { "#9C7CF0", 1 },
-    ["color.verb.fly"] = { "#3BA9D9", 1 },
-    ["color.verb.hearth"] = { "#D8643C", 1 },
+    -- icon review #4 (2026-11-28): train magenta, fly pale sky (dark symbol), hearth brown-amber: no two alike
+    ["color.verb.train"] = { "#D46BC8", 1 },
+    ["color.verb.fly"] = { "#9FD8FF", 1 },
+    ["color.verb.hearth"] = { "#B59A72", 1 },   -- ui look check (2026-11-28): stone tan, apart from loot orange
     ["color.verb.note"] = { "#A8A2A2", 1 },
     -- next lines only (beta.13, the user: "Lighter blue and red text"): the same hue mixed toward white, >= 4.5:1 on
     -- #0A0A0B at the faintest row fade (64 %): go to 4.61:1 (was 3.57), kill 4.51:1 (was 4.08)
@@ -183,6 +185,13 @@ ns.Theme.Register("Dark", {
     ["color.tile.hearth"] = "=verb.hearth",
     ["color.tile.note"] = { "#6B7686", 1 },
     ["color.tile.done"] = { "#3FBF5F", 1 },
+    -- icon review #6: own tiles (level teal, grind wine, get-fp / set-hearth like fly / hearth)
+    ["color.tile.level"] = { "#2FC4A8", 1 },
+    ["color.tile.grind"] = { "#8C2F4A", 1 },   -- ui look check (2026-11-28): wine, apart from kill red
+    ["color.verb.grind"] = { "#D46A8A", 1 },   -- grind verb: a lighter wine (~5.9:1 on #0A0A0B; the tile's 2.5:1 was too dark)
+    ["color.verb.level"] = "=tile.level",
+    ["color.tile.getfp"] = "=verb.fly",
+    ["color.tile.sethearth"] = "=verb.hearth",
     ["color.tile.open"] = { "#8A8F98", 1 },
     ["color.tileDark"] = { "#2A1F00", 1 },    -- symbol on the light (yellow / orange) tiles
 
@@ -194,6 +203,7 @@ ns.Theme.Register("Dark", {
     ["font.step"] = { size = 12, shadow = true },
     ["font.goal"] = { size = 11, shadow = true },
     ["font.small"] = { size = 10 },
+    ["font.bar"] = { size = 10, shadow = true },    -- the footer's step text (1 px dark shadow: readable on the red fill)
     ["font.arrow"] = { size = 15, flags = "OUTLINE", numbers = true },
     ["font.buttonText"] = { size = 10, flags = "OUTLINE", numbers = true },  -- count / key on the step button (busy icons)
     ["font.sectionHead"] = { size = 10, shadow = true },     -- the "NOW" / "NEXT" headers
@@ -231,12 +241,14 @@ ns.Theme.Register("Dark", {
     ["size.spotDot"] = 8,         -- spawn spots: a spot on the world map (screen units)
     ["size.spotTargetDot"] = 12,  -- ... the spot the arrow points at
     ["size.spotMiniDot"] = 5,     -- ... a spot on the minimap
-    ["size.modelW"] = 150,        -- 3D viewer: width / height at size 100 %
-    ["size.modelH"] = 170,
+    -- 3D view: one fixed 3:4 portrait (2026-11-28, the user's pick "B"); every model is fitted by its camera
+    ["size.modelW"] = 132,        -- 3D viewer docked: width / height at size 100 %
+    ["size.modelH"] = 176,
     ["size.modelGap"] = 6,        -- ... gap to the guide window (window units)
     ["size.modelInset"] = 2,      -- ... the model inside its box
-    ["size.modelInside"] = 80,    -- ... its square in the step block (x the 3D view size setting)
-    ["size.modelInsideMin"] = 64, -- ... under 272 wide
+    ["size.modelInside"] = 72,    -- ... inside the step block: width (x the 3D view size setting)
+    ["size.modelInsideH"] = 96,   -- ... and height
+    ["size.modelInsideMin"] = 60, -- ... width under 272 wide (the height keeps the 3:4 shape: 80)
     -- the one window: rounded corners (0 = the flat panel + hairline, e.g. a Blizzard-style theme)
     ["size.corner"] = 10,         -- the window's corners
     ["size.shadow"] = 8,          -- its soft shadow (outside the window)
@@ -322,7 +334,7 @@ ns.Theme.Register("Dark", {
     ["slot.notice.snooze"] = "glyph.notice.snooze",
     ["slot.btn.keybind"] = "glyph.btn.keybind",
     ["slot.btn.copy"] = "glyph.btn.copy",
-    ["slot.state.wait"] = "glyph.state.wait",
+    ["slot.state.wait"] = "glyph.notice.legacy",   -- icon review #10: a plain hourglass (the circled one read as "reload")
     ["slot.arrow.corpse"] = "glyph.arrow.corpse",
     ["slot.pin.body"] = "glyph.pin.body",
     ["slot.pin.face"] = "glyph.pin.face",
@@ -364,6 +376,10 @@ ns.Theme.Register("Dark", {
     ["slot.tile.hearth"] = "tile.hearth",
     ["slot.tile.note"] = "tile.note",
     ["slot.tile.done"] = "tile.done",
+    ["slot.tile.level"] = "tile.level",
+    ["slot.tile.grind"] = "tile.grind",
+    ["slot.tile.getfp"] = "tile.getfp",
+    ["slot.tile.sethearth"] = "tile.sethearth",
 
     -- motion (seconds; 0 with reduced motion)
     ["motion.flash"] = 0.7,

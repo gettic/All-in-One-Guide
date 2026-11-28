@@ -11,7 +11,7 @@
 # Plain Python 3, deterministic. Run: python -B art-src/build_window_art.py
 # Writes only AllinOneGuide/media/glyphs2.tga and AllinOneGuide/media/emblems.tga:
 #   glyphs2.tga  256x32   32x32 cells in one row: 0 grip, 1 attach, 2 detach,
-#                         3 search, 4 resize, 5..6 empty. White + 1 px dark rim
+#                         3 search, 4 resize, 5 talk bubble, 6 note 'i'. White + 1 px dark rim
 #                         (tinted in game), same style as glyphs.tga.
 #                         7: the title-bar logo, full colour, NOT tinted: the
 #                         "Waypoint" logo of build_logo.py rendered at 28x28
@@ -21,7 +21,7 @@
 #                         neutral, soon.
 # Coordinates: art-src/MANIFEST.md.
 import math, os
-from aog_art import MEDIA, Mask, capsule, circle, compose, dist2, down, poly, ring, write_tga
+from aog_art import MEDIA, Mask, capsule, circle, compose, dist2, down, poly, ring, rrect, write_tga
 import build_glyphs as BG
 import build_logo as BL
 
@@ -93,6 +93,17 @@ def g_search(m):  # magnifier
     m.add(capsule((0.62, 0.62), (0.79, 0.79), 0.135))
 
 
+def g_talk(m):  # speech bubble with three dots cut out (3D view: only the last fallback)
+    m.add(rrect(0.15, 0.19, 0.85, 0.65, 0.15))
+    m.add(poly([(0.28, 0.60), (0.50, 0.60), (0.24, 0.85)]))
+    for x in (0.34, 0.5, 0.66):
+        m.sub(circle(x, 0.42, 0.055))
+
+
+def g_info(m):  # "i" (3D view: only the last fallback)
+    m.add(circle(0.5, 0.26, 0.085))
+    m.add(capsule((0.5, 0.43), (0.5, 0.76), 0.15))
+
 def render_cell(fn):
     m = Mask(N)
     fn(m)
@@ -104,12 +115,14 @@ def render_cell(fn):
     return cell
 
 
-G2 = [  # cell, key, drawing, what (5..7 spare)
+G2 = [  # cell, key, drawing, what (7 = title-bar logo, drawn separately)
     (0, "glyph.btn.grip", g_grip, "drag handle (NOW strip, left)"),
     (1, "glyph.btn.attach", g_attach, "attach: whole chain"),
     (2, "glyph.btn.detach", g_detach, "detach: broken chain"),
     (3, "glyph.btn.search", g_search, "search box magnifier"),
     (4, "glyph.btn.resize", g_resize, "resize corner (bottom-right), extra / optional"),
+    (5, "glyph.step.talk", g_talk, "talk: speech bubble (3D view last fallback)"),
+    (6, "glyph.step.info", g_info, "note: 'i' (3D view last fallback, same symbol as tile.note)"),
 ]
 
 

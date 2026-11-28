@@ -68,7 +68,7 @@ function HB.Fill(child)
     return y + 8
 end
 
-ns.Hub.AddPage("questitems", { title = "HUB_QUESTITEMS", icon = "badge.useitem", order = 55,
+ns.Hub.AddPage("questitems", { title = "HUB_QUESTITEMS", icon = "badge.collect", order = 55,   -- icon review #11: a sack (quest items), not the flask
     build = function(child) return HB.Fill(child) end,
     refresh = function(child) HB.Fill(child) end })
 

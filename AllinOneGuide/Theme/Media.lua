@@ -48,10 +48,13 @@ Md.SLOTS = {
     -- glyphs2.tga (one row of 8 cells; MANIFEST "glyphs2.tga cells")
     ["glyph.btn.grip"] = 0, ["glyph.btn.attach"] = 1, ["glyph.btn.detach"] = 2, ["glyph.btn.search"] = 3,
     ["glyph.btn.resize"] = 4,
+    -- icon review 2026-11-28 (plans\icon-review\art-slots.md): 32 px talk bubble and "i" (3D view, last fallback)
+    ["glyph.step.talk"] = 5, ["glyph.step.info"] = 6,
 }
 -- Slots that live in another grid file than glyphs.tga: key -> file; Md.GRIDS: file -> rows (8 cells a row).
 Md.SLOT_FILE = { ["glyph.btn.grip"] = "glyphs2", ["glyph.btn.attach"] = "glyphs2", ["glyph.btn.detach"] = "glyphs2",
-    ["glyph.btn.search"] = "glyphs2", ["glyph.btn.resize"] = "glyphs2" }
+    ["glyph.btn.search"] = "glyphs2", ["glyph.btn.resize"] = "glyphs2", ["glyph.step.talk"] = "glyphs2",
+    ["glyph.step.info"] = "glyphs2" }
 Md.GRIDS = { glyphs = 8, glyphs2 = 1 }
 -- Whole-file textures.
 Md.WHOLE = { ["tex.arrow"] = "arrow", ["tex.arrived"] = "arrived", ["tex.logo"] = "logo_64",
@@ -74,6 +77,9 @@ Md.REGIONS = {
     ["round.s"] = { "round", 0.125, 0.25, 0, 0.5 },
     ["btn.target"] = { "round", 0.125, 0.25, 0.5, 1 },
     ["frame.stepbutton2"] = { "round", 0.5, 0.75, 0, 1 },
+    -- icon review #6: the get-flight-path and set-hearth tile symbols (glyphs.tga slot 63, its top 16 px quadrants)
+    ["tile.getfp"] = { "glyphs", 0.875, 0.9375, 0.875, 0.9375 },
+    ["tile.sethearth"] = { "glyphs", 0.9375, 1.0, 0.875, 0.9375 },
 }
 -- 9-slice corner sizes in texture coordinates (du, dv) for the round.tga pieces.
 Md.SLICE = {
@@ -85,7 +91,7 @@ Md.SLICE = {
 -- Tiles: 16 x 16 cells, 4 x 4 at the right end of round.tga (cell c: l = 0.75 + 0.0625 * (c % 4), t = 0.25 * floor(c / 4)).
 Md.TILES = { ["tile.base"] = 0, ["tile.open"] = 1, ["tile.accept"] = 2, ["tile.turnin"] = 3, ["tile.kill"] = 4,
     ["tile.loot"] = 5, ["tile.use"] = 6, ["tile.goto"] = 7, ["tile.talk"] = 8, ["tile.train"] = 9, ["tile.fly"] = 10,
-    ["tile.hearth"] = 11, ["tile.note"] = 12, ["tile.done"] = 13 }
+    ["tile.hearth"] = 11, ["tile.note"] = 12, ["tile.done"] = 13, ["tile.level"] = 14, ["tile.grind"] = 15 }
 for key, c in pairs(Md.TILES) do
     local l, t = 0.75 + 0.0625 * (c % 4), 0.25 * math.floor(c / 4)
     Md.REGIONS[key] = { "round", l, l + 0.0625, t, t + 0.25 }

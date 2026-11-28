@@ -120,9 +120,22 @@ P.ReleaseAll = ReleaseAll
 
 local COLOR = { current = "accent", group = "accent", next = "text.dim", show = "icon.goto", external = "icon.goto", corpse = "corpse" }
 
--- The pin colour: an upcoming step's pin has its row badge's colour (look review #8), else by kind.
+-- A step's row tile kind, like the window's rows (UI.Verb: the verb at the start of its text, else its type).
+function P.TileKind(step)
+    local UI, g = ns.UI, ns.Engine and ns.Engine.Focused and ns.Engine.Focused()
+    if UI and UI.VerbSplit and g and g.Text then
+        local w, _, kind = UI.VerbSplit(g:Text(step))
+        if w and K.TILE[kind] then return kind end
+    end
+    return K.TileKind(step)
+end
+
+-- The pin colour: an upcoming step's pin has its row tile's colour (icon review #5: the same colour as in the
+-- window), else by kind.
 function P.ColorKey(t)
     if t.kind == "next" and t.step then
+        local key = "tile." .. P.TileKind(t.step)
+        if Th.Has("color." .. key) then return key end
         local b = K.BADGE[K.BadgeKind(t.step)]
         if b then return b[2] end
     end

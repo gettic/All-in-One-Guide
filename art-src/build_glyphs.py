@@ -10,12 +10,13 @@
 #
 # Plain Python 3, deterministic. Run: python art-src/build_glyphs.py
 # Writes only AllinOneGuide/media/glyphs.tga: 256x256, 8x8 grid of 32x32
-# slots, slot i at column i % 8, row i // 8 (row 0 = top). Every glyph is
+# slots, slot i at column i % 8, row i // 8 (row 0 = top). Slot 63 holds four
+# 16x16 tile symbols instead (tile.getfp, tile.sethearth). Every glyph is
 # white (tinted in game with SetVertexColor) with a baked 1 px dark rim;
 # content stays inside the slot's middle 28x28 (2 px clear padding).
 # Slot list and texture coordinates: art-src/MANIFEST.md.
 import math, os
-from aog_art import (MEDIA, Mask, arc, capsule, circle, compose, down, lens, poly,
+from aog_art import (MEDIA, Mask, arc, capsule, circle, compose, down, kill_sword, lens, poly,
                      polyline, ring, rrect, write_tga)
 
 SS = 4                 # supersampling per output pixel
@@ -100,12 +101,8 @@ def g_turnin(m):
     m.add(circle(0.5, 0.73, 0.075))
 
 
-def g_kill(m):
-    m.add(ring(0.5, 0.5, 0.155, 0.245))
-    m.add(circle(0.5, 0.5, 0.065))
-    for a, b in (((0.5, 0.21), (0.5, 0.13)), ((0.5, 0.79), (0.5, 0.87)),
-                 ((0.21, 0.5), (0.13, 0.5)), ((0.79, 0.5), (0.87, 0.5))):
-        m.add(capsule(a, b, 0.075))
+def g_kill(m):  # one sword, the same shape as tile.kill (was a target until 2026-11-28)
+    m.add(kill_sword())
 
 
 def g_collect(m):
@@ -508,7 +505,7 @@ SLOTS = [
     (1, "glyph.step.ring", g_ring, "badge ring / outline"),
     (2, "glyph.step.accept", g_accept, "accept '!'"),
     (3, "glyph.step.turnin", g_turnin, "turn in '?'"),
-    (4, "glyph.step.kill", g_kill, "kill: target"),
+    (4, "glyph.step.kill", g_kill, "kill: sword (same as tile.kill)"),
     (5, "glyph.step.collect", g_collect, "collect: sack"),
     (6, "glyph.step.goto", g_goto, "goto: map pin"),
     (7, "glyph.step.done", g_done, "done tick (done step, done chip)"),
@@ -589,7 +586,22 @@ def build():
         ox, oy = (slot % 8) * CELL, (slot // 8) * CELL
         for j in range(CELL):
             sheet[(oy + j) * W + ox:(oy + j) * W + ox + CELL] = cell[j * CELL:(j + 1) * CELL]
+    # slot 63: four 16 x 16 tile-symbol cells (round.tga style, no rim; drawn on tile.base), because round.tga's
+    # 4 x 4 tile grid is full: top left tile.getfp, top right tile.sethearth, bottom row spare (empty)
+    import build_round as BR
+    for q, fn in TILE_QUADS:
+        px = BR.symbol(fn(BR))
+        ox, oy = 224 + (q % 2) * 16, 224 + (q // 2) * 16
+        for j in range(16):
+            sheet[(oy + j) * W + ox:(oy + j) * W + ox + 16] = px[j * 16:(j + 1) * 16]
     return sheet
+
+
+# slot 63 quadrant (0 TL, 1 TR, 2 BL, 3 BR) -> tile symbol (key, coords: art-src/MANIFEST.md)
+TILE_QUADS = [
+    (0, lambda BR: BR.s_getfp),       # tile.getfp: bird + "+"
+    (1, lambda BR: BR.s_sethearth),   # tile.sethearth: house + "+"
+]
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@
 ## Title: All-in-One Guide
 ## Notes: Leveling guide with one guide window and a waypoint arrow.
 ## Author: gettic
-## Version: 0.2.9
+## Version: 0.2.10-beta.1
 ## SavedVariables: AllinOneGuideDB, AllinOneGuideRecDB
 ## SavedVariablesPerCharacter: AllinOneGuideCharDB
 ## IconTexture: Interface\AddOns\AllinOneGuide\media\logo_64
@@ -39,6 +39,7 @@ Data\Planned.lua
 Data\KnownPacks.lua
 Data\FirstAid.lua
 Data\ModelIds.lua
+Data\ModelFit.lua
 Data\MobNames.lua
 Data\QuestMobs.lua
 Data\ItemNames.lua

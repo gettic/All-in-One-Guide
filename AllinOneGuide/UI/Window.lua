@@ -71,7 +71,12 @@ function UI.TopRoom() return math.max(UI.ButtonRow(), Th.Size("shadow")) end
 -- size.blockGoals goal lines. A taller current step grows the window up by the difference.
 function UI.BlockBase()
     local MV = ns.ModelView
-    local slot = MV and MV.InsideSize and MV.InsideSize() or 0
+    -- (the 3D view's height: a 3:4 portrait since 2026-11-28, so the block is 16 taller than the old 80 square)
+    local slot = 0
+    if MV and MV.InsideSize then
+        local w, h = MV.InsideSize()
+        slot = h or w or 0
+    end
     local pad = Th.Size("blockPad")
     return pad + math.max(slot > 0 and slot + pad or 0, LH() + 2 * LG()) + Th.Size("blockGoals") * LG()
 end
@@ -413,7 +418,7 @@ local function Footer(f)
         t:SetAllPoints(ft.fillFrame)
         K.Gradient(t, "VERTICAL", "barTo", "barFrom")
     end
-    ft.text = K.Text(bar, "small", "barText", "CENTER")
+    ft.text = K.Text(bar, Th.Has("font.bar") and "bar" or "small", "barText", "CENTER")
     ft.text:SetPoint("CENTER", bar, "CENTER", 0, 0)
     ft.pct = ft.text
     bar:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -982,7 +987,16 @@ end
 -- The verb at the start of a step's text in its colour ("Kill" red-orange, "Turn in" yellow, "Go to" blue ...) and
 -- the tile kind it stands for. The words come from the locale (VERB_<KIND> = "Turn in|Hand in"), longest first;
 -- no verb found = the text as it is and the tile of the step's type.
-UI.VERB_KINDS = { "turnin", "accept", "loot", "kill", "use", "goto", "note", "talk", "train", "fly", "hearth" }
+UI.VERB_KINDS = { "turnin", "accept", "loot", "kill", "use", "goto", "note", "talk", "train", "fly", "hearth",
+    "grind", "level" }
+-- (ui look check 2026-11-28) step types with their own tile whose text starts with a shared word ("Reach level" is
+-- both a level and a grind step): the step's own kind wins, so the verb and tile follow tile.grind / tile.level
+UI.VERB_OWN_TYPE = { grind = true, level = true }
+local function OwnKind(step, kind)
+    local own = step and K.TileKind(step)
+    if own and UI.VERB_OWN_TYPE[own] then return own end
+    return kind
+end
 local verbCache = {}
 function UI.VerbList()
     local Lc = L()
@@ -1019,6 +1033,7 @@ function UI.Verb(step, text)
     text = text or ""
     local w, _, kind = UI.VerbSplit(text)
     if w then
+        kind = OwnKind(step, kind)
         local key = "verb." .. kind
         if not Th.Has("color." .. key) then key = "text" end
         return Th.Wrap(key, w) .. text:sub(#w + 1), kind
@@ -1039,6 +1054,8 @@ function UI.NextTag(step, plain)
             if k == kind and k ~= "note" then words = L()["VERB_" .. k:upper()] end
         end
         w = (type(words) == "string" and words:match("^[^|]+")) or L().TAG_NOTE
+    else
+        kind = OwnKind(step, kind)
     end
     if step.quest and (step.type == "accept" or step.type == "turnin") and ns.Names then
         local q, real = ns.Names.Quest(step.quest, step.qname)
@@ -1653,10 +1670,13 @@ function UI.Refresh()
     d.boxed = true
     d.reserveRight = nil
     local MV = ns.ModelView
-    local slot = not small and MV and MV.InsideSlot and MV.InsideSlot(m.cur) or nil
-    UI.slot = slot
+    local slot, slotH
+    if not small and MV and MV.InsideSlot then slot, slotH = MV.InsideSlot(m.cur) end
+    slotH = slot and (slotH or slot) or nil
+    -- UI.slot / UI.slotH: the 3D view's width / height in the step block (one fixed 3:4 size)
+    UI.slot, UI.slotH = slot, slotH
     if slot then
-        d.lean, d.leanX, d.leanH = true, Pad() + slot + 8, slot
+        d.lean, d.leanX, d.leanH = true, Pad() + slot + 8, slotH
     else
         d.lean, d.leanX, d.leanH = nil, nil, nil
     end

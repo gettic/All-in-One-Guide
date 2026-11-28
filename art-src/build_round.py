@@ -19,10 +19,11 @@
 #                                     9-slice corner 27 (12 falloff + r 15)
 #   x 128-191           frame.stepbutton2  rounded button frame, shown 52x52
 #   x 192-255           tiles: 4 x 4 cells of 16x16 (tile.base, tile.open and
-#                                     the tile symbols, drawn on top of tile.base)
+#                                     the tile symbols, drawn on top of tile.base;
+#                                     tile.getfp / tile.sethearth live in glyphs.tga slot 63)
 # Coordinates: art-src/MANIFEST.md.
 import math, os
-from aog_art import MEDIA, Mask, capsule, circle, compose, down, poly, polyline, ring, rrect, arc, write_tga
+from aog_art import MEDIA, Mask, capsule, circle, compose, corner_mark, down, kill_sword, poly, polyline, ring, rrect, arc, write_tga
 
 W, H = 256, 64
 
@@ -134,21 +135,23 @@ TSS = 8              # supersampling for the tile symbols
 TN = 16 * TSS
 
 
-def s_accept(m):
-    m.add(capsule((0.5, 0.25), (0.5, 0.55), 0.16))
-    m.add(circle(0.5, 0.74, 0.09))
+def u(v):            # 16 px grid -> unit
+    return v / 16.0
 
 
-def s_turnin(m):
-    m.add(arc(0.5, 0.37, 0.135, 0.14, 190, 400))
+def s_accept(m):     # "!" on the 16 px grid: bar 3 x 6.5 px, a clear 1.5 px gap, dot 3 x 2.5 px (2026-11-28)
+    m.add(rrect(u(6.5), u(2.5), u(9.5), u(9.0), u(0.6)))
+    m.add(rrect(u(6.5), u(10.5), u(9.5), u(13.0), u(0.6)))
+
+
+def s_turnin(m):     # bolder "?": open hook, short stem, square dot (2026-11-28)
+    m.add(arc(u(8), u(5.6), u(2.7), u(2.5), 185, 400))
     a = math.radians(400)
-    m.add(capsule((0.5 + 0.135 * math.cos(a), 0.37 + 0.135 * math.sin(a)), (0.5, 0.57), 0.14))
-    m.add(circle(0.5, 0.75, 0.09))
+    m.add(capsule((u(8 + 2.7 * math.cos(a)), u(5.6 + 2.7 * math.sin(a))), (u(8), u(9.0)), u(2.5)))
+    m.add(rrect(u(6.75), u(10.6), u(9.25), u(13.0), u(0.6)))
 
-
-def s_kill(m):
-    m.add(capsule((0.31, 0.31), (0.69, 0.69), 0.14))
-    m.add(capsule((0.69, 0.31), (0.31, 0.69), 0.14))
+def s_kill(m):       # one sword, tip top right (was an X until 2026-11-28: it read as "don't do this")
+    m.add(kill_sword())
 
 
 def s_loot(m):       # sack with a tied neck
@@ -164,8 +167,10 @@ def s_use(m):        # potion flask
     m.add(capsule((0.38, 0.22), (0.62, 0.22), 0.09))
 
 
-def s_goto(m):       # route arrowhead
-    m.add(poly([(0.5, 0.18), (0.77, 0.80), (0.5, 0.66), (0.23, 0.80)]))
+def s_goto(m):       # map pin with a hole (was an arrowhead until 2026-11-28: it read as "A")
+    m.add(circle(0.5, 0.40, 0.27))
+    m.add(poly([(0.27, 0.52), (0.73, 0.52), (0.5, 0.88)]))
+    m.sub(circle(0.5, 0.40, 0.10))
 
 
 def s_talk(m):       # speech bubble
@@ -178,9 +183,17 @@ def s_train(m):      # double chevron up
     m.add(polyline([(0.27, 0.73), (0.5, 0.52), (0.73, 0.73)], 0.13))
 
 
-def s_fly(m):        # bird in flight (gull)
-    m.add(polyline([(0.17, 0.42), (0.31, 0.37), (0.5, 0.60), (0.69, 0.37), (0.83, 0.42)], 0.12))
+def qcurve(p0, c, p1, n=10):
+    return [((1 - t) ** 2 * p0[0] + 2 * (1 - t) * t * c[0] + t * t * p1[0],
+             (1 - t) ** 2 * p0[1] + 2 * (1 - t) * t * c[1] + t * t * p1[1]) for t in (k / n for k in range(n + 1))]
 
+
+def s_fly(m):        # bird, side view, flying up-right: big swept wing, head, beak, tail (2026-11-28; was a thin gull)
+    m.add(capsule((0.30, 0.68), (0.66, 0.52), 0.21))
+    m.add(circle(0.72, 0.47, 0.12))
+    m.add(poly([(0.80, 0.41), (0.95, 0.43), (0.82, 0.51)]))
+    m.add(poly([(0.34, 0.64), (0.06, 0.70), (0.14, 0.82), (0.36, 0.76)]))
+    m.add(poly(qcurve((0.40, 0.62), (0.22, 0.30), (0.14, 0.12)) + qcurve((0.14, 0.12), (0.50, 0.22), (0.62, 0.55))[1:]))
 
 def s_hearth(m):     # house with a door
     m.add(poly([(0.5, 0.18), (0.84, 0.48), (0.16, 0.48)]))
@@ -197,6 +210,36 @@ def s_done(m):       # tick
     m.add(polyline([(0.26, 0.52), (0.43, 0.69), (0.75, 0.32)], 0.15))
 
 
+def s_level(m):      # arrow up on a bar (reach a level)
+    m.add(poly([(u(8), u(2.6)), (u(12.4), u(7.2)), (u(3.6), u(7.2))]))
+    m.add(rrect(u(6.6), u(6.8), u(9.4), u(10.2), u(0.3)))
+    m.add(rrect(u(3.4), u(11.2), u(12.6), u(13.2), u(0.6)))
+
+
+def s_grind(m):      # bold round loop arrow (2 px) round a small sword: "keep killing" (2026-11-28; the
+    # old corner loop on the diagonal kill sword read as kill at 12 px, so the outline is round now)
+    cx, cy, r, w = u(8), u(8.3), u(4.6), u(2.0)
+    a0, a1 = 10.0, 262.0                       # y down: the gap is at the top right, the head ends the loop there
+    m.add(arc(cx, cy, r, w, a0, a1))
+    t = math.radians(a1)
+    rad = (math.cos(t), math.sin(t))           # outward
+    tan = (-math.sin(t), math.cos(t))          # along the loop (growing angle)
+    bx, by = cx + r * rad[0], cy + r * rad[1]
+    hw, hl = u(2.3), u(2.7)
+    m.add(poly([(bx + rad[0] * u(1.8), by + rad[1] * u(1.8)), (bx - rad[0] * hw, by - rad[1] * hw),   # (outer side short: stays off the tile edge)
+                (bx + tan[0] * hl, by + tan[1] * hl)]))
+    # small sword in the middle, tip top right like the kill sword (so it never reads as a power button)
+    m.add(kill_sword(tip=(u(9.8), u(6.4)), blade=u(3.6), blade_w=u(1.8), guard_half=u(1.5), guard_w=u(1.2),
+                     grip=u(1.0), grip_w=u(1.1), pommel=u(0.6)))
+
+
+def s_getfp(m):      # bird + "+" (get the flight path)
+    corner_mark(m, s_fly, "+")
+
+
+def s_sethearth(m):  # house + "+" (set your hearth here)
+    corner_mark(m, s_hearth, "+")
+
 def symbol(fn):
     m = Mask(TN)
     fn(m)
@@ -207,18 +250,20 @@ def symbol(fn):
 TILES = [
     (0, "tile.base", "tile background: rounded square, lit top, darker edge (tint = step colour)", lambda: field(16, 16, tile_base)),
     (1, "tile.open", "empty tile: ring + dark see-through middle (open goal)", lambda: field(16, 16, tile_open)),
-    (2, "tile.accept", "symbol: !", lambda: symbol(s_accept)),
+    (2, "tile.accept", "symbol: ! (pixel-aligned)", lambda: symbol(s_accept)),
     (3, "tile.turnin", "symbol: ?", lambda: symbol(s_turnin)),
-    (4, "tile.kill", "symbol: X", lambda: symbol(s_kill)),
+    (4, "tile.kill", "symbol: sword", lambda: symbol(s_kill)),
     (5, "tile.loot", "symbol: sack", lambda: symbol(s_loot)),
     (6, "tile.use", "symbol: flask", lambda: symbol(s_use)),
-    (7, "tile.goto", "symbol: route arrowhead", lambda: symbol(s_goto)),
+    (7, "tile.goto", "symbol: map pin", lambda: symbol(s_goto)),
     (8, "tile.talk", "symbol: speech bubble", lambda: symbol(s_talk)),
     (9, "tile.train", "symbol: double chevron up", lambda: symbol(s_train)),
-    (10, "tile.fly", "symbol: bird", lambda: symbol(s_fly)),
+    (10, "tile.fly", "symbol: bird, side view", lambda: symbol(s_fly)),
     (11, "tile.hearth", "symbol: house", lambda: symbol(s_hearth)),
     (12, "tile.note", "symbol: i", lambda: symbol(s_note)),
     (13, "tile.done", "symbol: tick", lambda: symbol(s_done)),
+    (14, "tile.level", "symbol: arrow up on a bar", lambda: symbol(s_level)),
+    (15, "tile.grind", "symbol: round loop arrow round a small sword", lambda: symbol(s_grind)),
 ]
 
 

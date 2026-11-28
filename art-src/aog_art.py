@@ -93,6 +93,24 @@ def lens(cx, cy, rad, k):
         (x - cx) ** 2 + (y - cy + k) ** 2 <= rad * rad
 
 
+def kill_sword(tip=(0.82, 0.18), blade=0.56, blade_w=0.17, guard_half=0.17, guard_w=0.12, grip=0.17,
+               grip_w=0.10, pommel=0.075):
+    """The kill symbol: one sword, tip top right, hilt bottom left (tile.kill and glyph.step.kill).
+    The grip and pommel reach well past the guard, so the hilt reads as a small cross, never as a tick."""
+    s = 1 / math.sqrt(2)
+    dx, dy = -s, s                    # tip -> hilt
+    px, py = s, s                     # across the blade
+    tx, ty = tip
+    gx, gy = tx + dx * blade, ty + dy * blade                  # guard centre
+    bx, by = tx + dx * blade_w * 1.1, ty + dy * blade_w * 1.1   # where the point widens to the full blade
+    h = blade_w / 2
+    ex, ey = gx + dx * grip, gy + dy * grip
+    return [poly([(tx, ty), (bx + px * h, by + py * h), (gx + px * h, gy + py * h),
+                  (gx - px * h, gy - py * h), (bx - px * h, by - py * h)]),
+            capsule((gx - px * guard_half, gy - py * guard_half), (gx + px * guard_half, gy + py * guard_half), guard_w),
+            capsule((gx, gy), (ex, ey), grip_w),
+            circle(ex + dx * 0.03, ey + dy * 0.03, pommel)]
+
 # ------------------------------------------------------------------ mask
 class Mask:
     """n x n supersampled mask; value 0 = empty, > 0 = filled with that shade."""
@@ -127,6 +145,29 @@ class Mask:
         s._apply(shape, 0.0)
         return s
 
+
+def corner_mark(m, base_fn, mark, sc=0.78, ox=-0.07, oy=0.07):
+    """Draw base_fn(mask) smaller (sc) and moved toward the bottom left, then a cut-free mark in the
+    top-right corner: '+' (something new here: get the flight path, set hearth) or 'loop' (keep doing it:
+    grind). Used by the 16 px tiles."""
+    sub = Mask(m.n)
+    base_fn(sub)
+    n = m.n
+    for j in range(n):
+        for i in range(n):
+            x = 0.5 + ((i + 0.5) / n - 0.5 - ox) / sc
+            y = 0.5 + ((j + 0.5) / n - 0.5 - oy) / sc
+            si, sj = int(x * n), int(y * n)
+            if 0 <= si < n and 0 <= sj < n and sub.v[sj * n + si] > 0:
+                m.v[j * n + i] = 1.0
+    cx, cy, h = 0.76, 0.25, 0.115
+    m.sub(circle(cx, cy, 0.20))
+    if mark == "+":
+        m.add(capsule((cx, cy - h), (cx, cy + h), 0.10))
+        m.add(capsule((cx - h, cy), (cx + h, cy), 0.10))
+    else:
+        m.add(arc(cx, cy, 0.10, 0.07, 0, 270))
+        m.add(poly([(cx + 0.025, cy - 0.005), (cx + 0.175, cy - 0.005), (cx + 0.10, cy + 0.075)]))
 
 def dist2(mask, rmax):
     """Exact squared distance (in supersampled px) to the nearest filled pixel,

@@ -693,7 +693,7 @@ ns.Locale.Add("enUS", {
     VERB_TURNIN = "Turn in|Hand in",
     VERB_ACCEPT = "Accept",
     VERB_LOOT = "Pick up|Loot|Collect",
-    VERB_KILL = "Kill|Slay|Grind",
+    VERB_KILL = "Kill|Slay",
     VERB_USE = "Use|Click|Open",
     VERB_GOTO = "Go to|Go back|Go|Follow|Leave|Cross|Run|Head|Return|Enter",
     VERB_NOTE = "Reach",
@@ -701,6 +701,8 @@ ns.Locale.Add("enUS", {
     VERB_TRAIN = "Train|Learn",
     VERB_FLY = "Fly to|Fly|Get the flight path",
     VERB_HEARTH = "Hearth to|Hearth|Set your hearthstone",
+    VERB_GRIND = "Grind",                       -- (a grind / level step's "Reach level" keeps the step's own kind)
+    VERB_LEVEL = "Level up",
     TAG_NOTE = "Note",                          -- next step's tag when its text has no verb (shown in capitals)
     CHIP_LEVEL = "Level {level}",
     CHIP_LEVEL_XP = "Level {level} · {pct} % XP",

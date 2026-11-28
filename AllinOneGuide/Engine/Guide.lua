@@ -27,6 +27,8 @@ function Guide.New(key, route, save)
     -- v0.2: steps ticked by hand, quests the player isn't doing (only written when used)
     if type(save.done) ~= "table" then save.done = nil end
     if type(save.notDoing) ~= "table" then save.notDoing = nil end
+    -- level fix: ids of `level>=N` steps passed over while the player was short (they come back when near)
+    if type(save.levelWait) ~= "table" then save.levelWait = nil end
     return g
 end
 
@@ -205,6 +207,7 @@ function Guide:Restore(snap)
     self.pos, self.pinned, self.pinDone = snap.pos, snap.pinned, snap.pinDone
     self.save.skips, self.save.notDoing, self.save.done = snap.skips, snap.notDoing, snap.done
     self:Rewind(from)   -- an Undo back to an earlier step: the goals of that step (beta.11 fix)
+    if type(from) == "number" and self.pos > from then self:ScanLevel(from, self.pos - 1) end   -- level fix
     self:Store()
 end
 
@@ -216,6 +219,98 @@ function Guide:UnderLevel(step)
     if not need or type(lv) ~= "number" or lv >= need then return nil end
     local GS2 = ns.GameState
     return need - lv, GS2.xp, GS2.xpMax
+end
+
+-- Level fix (level audit cause 5): a quest step with a `level>=N` condition (no minLevel) that doesn't apply now
+-- only because the player is under N: the level it needs, else nil. Only quest steps (accept / turn-in /
+-- objective): a walk or note gated by level is a route choice for the other level, never brought back.
+function Guide:CondLevelNeed(step)
+    if step.bad or step.minLevel or not step.condAst or not step.quest then return nil end
+    local t = step.type
+    if t ~= "accept" and t ~= "turnin" and t ~= "objective" then return nil end
+    return Cd.LevelNeed(step.condAst, ns.Engine.ctx)
+end
+
+-- Such a step comes back only where the player is (least travel, never a line for another zone): within `yards`
+-- of the player or of the current step (LEVEL_AHEAD stops from it); without positions (no map data), on the map of
+-- those stops.
+Guide.LEVEL_NEAR, Guide.LEVEL_LEAVE, Guide.LEVEL_AHEAD = 200, 400, 1
+function Guide:NearRoute(s, yards)
+    if not s.map then return false end
+    local Geo = ns.Geo
+    if s.x and s.y then
+        local d = Geo.PlayerDistance(s.map, s.x, s.y)
+        if d and d <= yards then return true end
+    end
+    local seen, i, n = 0, self.pos, self:Count()
+    while i <= n and seen < Guide.LEVEL_AHEAD do
+        local t = self:Step(i)
+        if t and t.map and self:IsStop(t, i) then
+            seen = seen + 1
+            local dd = s.x and s.y and t.x and t.y and Geo.Distance(s.map, s.x, s.y, t.map, t.x, t.y)
+            if dd then
+                if dd <= yards then return true end
+            elseif t.map == s.map then
+                return true
+            end
+        end
+        i = i + 1
+    end
+    return false
+end
+
+-- Marks step i (a `level>=N` step passed over) as waiting for its level; kept in the save for a /reload.
+function Guide:LevelWait(i, s)
+    self.levelWait = self.levelWait or {}
+    if self.levelWait[i] then return end
+    self.levelWait[i] = "near"
+    self.save.levelWait = self.save.levelWait or {}
+    self.save.levelWait[s.id] = true
+end
+
+-- Brings the waiting `level>=N` step i back as a background goal; once its quest is accepted, the quest's later
+-- steps behind the current step come back too (backQuests, as for the quest giver check).
+function Guide:LevelBack(i, s)
+    for _, b in ipairs(self.bg) do if b == i then return end end
+    self.bg[#self.bg + 1] = i
+    self.levelBack = self.levelBack or {}
+    self.levelBack[i] = true
+    if s.type == "accept" and s.quest then
+        self.backQuests = self.backQuests or {}
+        self.backQuests[s.quest] = true
+    end
+end
+
+-- A brought-back step the player has left far behind (more than LEVEL_LEAVE yards from them and the next stops)
+-- stops riding along and waits again, so it shows when the route comes near it once more. One that dropped out of
+-- the goals (going back past it) waits again too while it isn't done.
+function Guide:LevelLeave()
+    for i in pairs(self.levelBack) do
+        local s = self:Step(i)
+        local k
+        for n, b in ipairs(self.bg) do if b == i then k = n break end end
+        if not s then
+            self.levelBack[i] = nil
+        elseif not k then
+            self.levelBack[i] = nil
+            if self:IsStop(s, i) or self:CondLevelNeed(s) then self:LevelWait(i, s) end
+        elseif not self:NearRoute(s, Guide.LEVEL_LEAVE) then
+            table.remove(self.bg, k)
+            self.levelBack[i] = nil
+            self:LevelWait(i, s)
+        end
+    end
+    if not next(self.levelBack) then self.levelBack = nil end
+end
+
+local function Unwait(self, i)
+    local v = self.levelWait[i]
+    self.levelWait[i] = nil
+    if v == "near" and self.save.levelWait then
+        local s = self:Step(i)
+        if s then self.save.levelWait[s.id] = nil end
+        if not next(self.save.levelWait) then self.save.levelWait = nil end
+    end
 end
 
 -- The quest ids this route uses (built once).
@@ -426,6 +521,8 @@ function Guide:Advance()
         if s and s.minLevel and not self:Applicable(s) and self:UnderLevel(s) then
             self.levelWait = self.levelWait or {}
             self.levelWait[i] = true
+        elseif s and s.condAst and self:CondLevelNeed(s) and not self:Skipped(s) then
+            self:LevelWait(i, s)   -- a `level>=N` step: back once the level is there and the route is near it
         end
         -- v0.2: an optional step for an item not in the bags yet (cond item=) comes back when it is
         if s and s.flags.optional and s.condAst and next(Cd.Items(s.condAst)) and not self:Applicable(s) then
@@ -514,8 +611,43 @@ function Guide:ScanBehind(i)
         if s and s.minLevel and not self:Applicable(s) then
             self.levelWait = self.levelWait or {}
             self.levelWait[j] = true
+        elseif s and s.condAst and self:CondLevelNeed(s) and not self:Skipped(s) then
+            self:LevelWait(j, s)
         end
     end
+end
+
+-- Level fix: the `level>=N` steps from index a to b the player is still short for wait for their level, as if the
+-- walk had passed them (an Undo forward, a jump ahead by picking a step: the same as after a /reload).
+function Guide:ScanLevel(a, b)
+    for j = math.max(a, 1), math.min(b, self:Count()) do
+        local s = self:Step(j)
+        if s and s.condAst and self:CondLevelNeed(s) and not self:Skipped(s) then self:LevelWait(j, s) end
+    end
+end
+
+-- Level fix: the waits kept in the save (a /reload): back in place by step id (renames followed).
+function Guide:LoadLevelWaits()
+    local ids = self.save.levelWait
+    if not ids then return end
+    local renamed
+    for id in pairs(ids) do
+        local new = type(id) == "string" and self:Resolve(id)
+        local j = new and self:IndexOf(new)
+        if j and new ~= id then
+            renamed = renamed or {}
+            renamed[new] = true
+            ids[id] = nil
+        end
+        if j then
+            self.levelWait = self.levelWait or {}
+            if not self.levelWait[j] then self.levelWait[j] = "near" end
+        else
+            ids[id] = nil   -- a step gone from the route
+        end
+    end
+    for id in pairs(renamed or {}) do ids[id] = true end
+    if not next(ids) then self.save.levelWait = nil end
 end
 
 -- Going back (Back, picking an earlier step, Undo, an abandoned quest's accept step): the guide shows itself as it
@@ -557,6 +689,7 @@ end
 -- First refresh after opening: restore the saved position (following renames).
 function Guide:Load()
     self.needsLoad = false
+    self:LoadLevelWaits()
     local ren = self.header.renamedSteps
     if type(ren) == "table" then
         for old in pairs(ren) do
@@ -624,10 +757,26 @@ function Guide:Refresh()
     end
     -- v0.2: steps passed over for their level: once the level is there they are background goals
     -- (or the current step when the route had run out)
+    if self.levelBack then self:LevelLeave() end
     if self.levelWait then
-        for i in pairs(self.levelWait) do
+        for i, how in pairs(self.levelWait) do
             local s = self:Step(i)
-            if not s or i >= self.pos then
+            if not s then
+                Unwait(self, i)
+            elseif how == "near" then
+                -- level fix: a `level>=N` step behind comes back once it applies and the route is near it (kept
+                -- while it is ahead again after going back: the walk meets it, an Undo forward keeps it)
+                if i < self.pos and self:Applicable(s) then
+                    if not self:IsStop(s, i) then
+                        Unwait(self, i)
+                    elseif (s.type == "accept" or GS.InLog(s.quest)) and self:NearRoute(s, Guide.LEVEL_NEAR) then
+                        Unwait(self, i)
+                        if self.pos > self:Count() then self.pos = i else self:LevelBack(i, s) end
+                    end
+                elseif i < self.pos and not self:CondLevelNeed(s) then
+                    Unwait(self, i)   -- not doing it any more, or a higher level doesn't help now
+                end
+            elseif i >= self.pos then
                 self.levelWait[i] = nil
             elseif self:Applicable(s) then
                 self.levelWait[i] = nil
@@ -675,6 +824,7 @@ function Guide:Refresh()
         self:CheckQuest()
         self:Advance()
         self:CheckQuest()
+        if self.levelBack then self:LevelLeave() end   -- Advance may have moved far away: drop it at once
     end
     self:Store()
     return before ~= self:CurrentId()
@@ -708,6 +858,7 @@ function Guide:SetCurrent(id)
     local from = self.pos
     self.pos, self.pinned, self.pinDone = i, true, self:Done(s)
     self:Rewind(from, true)   -- picked (or Back to) an earlier step: the guide as it is there (beta.11 fix)
+    if i > from then self:ScanLevel(from, i - 1) end   -- level fix: a jump ahead, as a /reload would see it
     self:Store()
     return true
 end

@@ -223,8 +223,11 @@ local TILE = {
     kill = { "tile.kill", "tile.kill", "white" }, loot = { "tile.loot", "tile.loot", "tileDark" },
     use = { "tile.use", "tile.use", "white" }, ["goto"] = { "tile.goto", "tile.goto", "white" },
     talk = { "tile.talk", "tile.talk", "white" }, train = { "tile.train", "tile.train", "white" },
-    fly = { "tile.fly", "tile.fly", "white" }, hearth = { "tile.hearth", "tile.hearth", "white" },
+    fly = { "tile.fly", "tile.fly", "tileDark" }, hearth = { "tile.hearth", "tile.hearth", "white" },   -- (fly: pale tile, dark symbol)
     note = { "tile.note", "tile.note", "white" }, done = { "tile.done", "tile.done", "white" },
+    -- icon review #6 (2026-11-28): own tiles instead of borrowing note / kill / fly / hearth
+    level = { "tile.level", "tile.level", "white" }, grind = { "tile.grind", "tile.grind", "white" },
+    getfp = { "tile.getfp", "tile.getfp", "tileDark" }, sethearth = { "tile.sethearth", "tile.sethearth", "white" },
 }
 K.TILE = TILE
 
@@ -264,9 +267,9 @@ function K.TileShown(tile, on)
 end
 
 -- A step's tile / verb kind by its type (the verb at the start of its text may say more: UI.Verb).
-local TYPE_KIND = { accept = "accept", turnin = "turnin", ["goto"] = "goto", level = "note", grind = "kill", manual = "note",
-    learn = "train", train = "train", note = "note", useitem = "use", fly = "fly", getfp = "fly", hearth = "hearth",
-    sethearth = "hearth" }
+local TYPE_KIND = { accept = "accept", turnin = "turnin", ["goto"] = "goto", level = "level", grind = "grind", manual = "note",
+    learn = "train", train = "train", note = "note", useitem = "use", fly = "fly", getfp = "getfp", hearth = "hearth",
+    sethearth = "sethearth" }
 function K.TileKind(step)
     if step.type == "objective" then return step.item and "loot" or "kill" end
     return TYPE_KIND[step.type] or "note"

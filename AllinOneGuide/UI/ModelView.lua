@@ -187,26 +187,34 @@ function MV.InsideMode()
     return S().Get("modelPos") == "now"
 end
 
--- The square's size from the settings alone (the window keeps this room for it whether a step has a model or not),
--- or nil when the view isn't inside (off / another position / small mode / safe mode).
+-- The view's width and height from the settings alone (the window keeps this room for it whether a step has a
+-- model or not), or nil when the view isn't inside (off / another position / small mode / safe mode).
+-- 2026-11-28 (the user: "B: 3:4 portrait", "I still only want one size for the 3D viewer"): a 3:4 portrait,
+-- size.modelInside x size.modelInsideH (72 x 96); under 272 wide size.modelInsideMin wide at the same shape. The
+-- size never depends on what it shows: every model is fitted into it by its camera (MV.FIT).
 function MV.InsideSize()
     if not (S().Get("modelViewer") and MV.InsideMode()) or ns.safeMode or S().Get("small") then return nil end
     if not ns.Feature.IsOn("model") then return nil end
-    local size = Th.Size("modelInside")
-    if ns.UI and ns.UI.Width and ns.UI.Width() < 272 then size = Th.Size("modelInsideMin") end
-    return math.floor(size * S().Get("modelScale") + 0.5)
+    local w = Th.Size("modelInside")
+    local h = Th.Has("size.modelInsideH") and Th.Size("modelInsideH") or w
+    if ns.UI and ns.UI.Width and ns.UI.Width() < 272 then
+        local m = Th.Size("modelInsideMin")
+        h, w = h * m / w, m
+    end
+    local k = S().Get("modelScale")
+    return math.floor(w * k + 0.5), math.floor(h * k + 0.5)
 end
 
--- The square's size (window units) when the step block shows the 3D view for this step, else nil.
+-- The view's width and height (window units) when the step block shows the 3D view for this step, else nil.
 -- Pure (UI\Window.lua Refresh asks it before laying out the row): the same rules as Why() below, so the room
 -- is kept exactly when the viewer shows. A step with nothing to show (card targets) shows its tile and text from
 -- the left; the card stands in only when a model fails to load.
 function MV.InsideSlot(step)
-    local size = MV.InsideSize()
-    if not size or not step then return nil end
+    local w, h = MV.InsideSize()
+    if not w or not step then return nil end
     -- (beta.13: every step has a model or a big picture: the room is always the view's)
     if not MV.TargetFor(step) then return nil end
-    return size
+    return w, h
 end
 
 -- Why it's hidden now, or nil when it shows.
@@ -393,11 +401,17 @@ function MV.Place()
     local f, w, p = MV.frame, ns.UI and ns.UI.frame, Co.UIParent()
     if not f then return end
     if MV.InsideMode() and w then
-        -- inside the window: a square at the step block's top-left, the step text right of it (Refresh keeps the room)
+        -- inside the window: a 3:4 portrait at the step block's top-left, the step text right of it (Refresh keeps
+        -- the room)
         if f:GetParent() ~= w then f:SetParent(w) end
-        local size = MV.InsideSize() or math.floor(Th.Size("modelInside") * S().Get("modelScale") + 0.5)
+        local vw, vh = MV.InsideSize()
+        if not vw then
+            local k = S().Get("modelScale")
+            vw = math.floor(Th.Size("modelInside") * k + 0.5)
+            vh = math.floor((Th.Has("size.modelInsideH") and Th.Size("modelInsideH") or Th.Size("modelInside")) * k + 0.5)
+        end
         f:SetScale(1)
-        f:SetSize(size, size)
+        f:SetSize(vw, vh)
         f:ClearAllPoints()
         local x, y = ns.UI.SlotSpot()
         f:SetPoint("TOPLEFT", w, "TOPLEFT", x, -y)
@@ -462,9 +476,9 @@ function MV.InsideProblem()
     local fl, fr, fb, ft = R(f)
     local nl, nr, nb, nt = R(n)
     if not (fl and nl) then return nil end
-    local want = ns.UI.slot
-    if want and (math.abs((fr - fl) - want) > 0.5 or math.abs((ft - fb) - want) > 0.5) then
-        return ("size %.0fx%.0f, wanted %d"):format(fr - fl, ft - fb, want)
+    local want, wantH = ns.UI.slot, ns.UI.slotH or ns.UI.slot
+    if want and (math.abs((fr - fl) - want) > 0.5 or math.abs((ft - fb) - wantH) > 0.5) then
+        return ("size %.0fx%.0f, wanted %dx%d"):format(fr - fl, ft - fb, want, wantH)
     end
     local x, y = ns.UI.SlotSpot()
     if math.abs(fl - (nl + x)) > 0.5 or math.abs(ft - (nt - y)) > 0.5 then return "not at the window's left, under its title" end
@@ -547,7 +561,9 @@ MV.PIC_CROP = 0.1
 -- has 8 px corners). PIC_TILE_MAX: the 16 px tile's biggest size when there is no plate (twice its art).
 MV.PIC_GLYPH = { accept = "glyph.step.accept", turnin = "glyph.step.turnin", kill = "glyph.step.kill",
     loot = "glyph.step.collect", use = "glyph.step.useitem", ["goto"] = "glyph.step.goto", train = "glyph.step.train",
-    fly = "glyph.step.fly", hearth = "glyph.step.hearth", note = "glyph.step.note", done = "glyph.step.done" }
+    fly = "glyph.step.fly", hearth = "glyph.step.hearth", note = "glyph.step.note", done = "glyph.step.done",
+    -- (icon review #6: these kinds have their own row tiles now; the 3D view keeps their existing 32 px glyphs)
+    level = "glyph.step.level", grind = "glyph.step.grind", getfp = "glyph.step.getfp", sethearth = "glyph.step.sethearth" }
 MV.PIC_GLYPH_MAX, MV.PIC_GLYPH_SHARE, MV.PLATE_CORNER, MV.PIC_TILE_MAX = 32, 0.62, 8, 32
 -- v0.2.8 (the user: "the new ! still look bad like the . is inside the l, can we change it to wows own quest marker
 -- and the same for ? when we need to turn them in"): accept / turn-in steps show the game's own yellow quest marker,
@@ -686,12 +702,33 @@ end
 -- / neck) sits in the view's middle. The fit camera makes every model about FILL of the view's height at zoom 0,
 -- so the shift is in view heights and fits small and tall models alike. Linear in the zoom: no jump.
 MV.LIFT_AIM, MV.FILL = 0.28, 0.9
--- The view shift (UI units, negative = the picture moves down) for a zoom level and view height.
-function MV.Lift(zoom, h)
+-- The view shift (UI units, negative = the picture moves down) for a zoom level and view height; cam = the fit's
+-- camera start (MV.FIT, 1 when nil: a model further back is drawn smaller, so its chest sits nearer the middle).
+function MV.Lift(zoom, h, cam)
     local z = ns.U.Clamp(zoom or 0, 0, MV.ZOOM_MAX)
     if z <= 0 or not (h and h > 0) then return 0 end
-    return -(z / MV.ZOOM_MAX) * MV.LIFT_AIM * MV.FILL * h / MV.CamScale(z)
+    return -(z / MV.ZOOM_MAX) * MV.LIFT_AIM * MV.FILL * h / (MV.CamScale(z) * (cam or 1))
 end
+
+-- One fixed frame for every model (2026-11-28, the user: "I still only want one size for the 3D viewer. I don't
+-- want it to change if we put something else in it."; plans\icon-review\3d-plan.md section 3): the client's camera
+-- fit (RefreshCamera) frames a model by its height, which suits a standing humanoid in the 3:4 portrait; a long,
+-- low beast or a huge giant would then run out at the sides. So the camera starts further back for those, by the
+-- creature's type (Data\ModelFit.lua from cmangos CreatureType): cam = the SetCamDistanceScale factor at zoom 0
+-- (x MV.CamScale while zooming), drop = how far the feet sit lower (share of the view's height, fades out as you
+-- zoom in like the murloc's). Never a frame resize. Estimates (no game here): each is one number to tweak.
+MV.FIT = {
+    tall = { cam = 1, drop = 0 },          -- humanoid / undead / demon / unknown: fills by height (as before)
+    w = { cam = 1.15, drop = 0.06 },       -- beast / critter / mechanical: fits by width, feet toward the bottom
+    b = { cam = 1.3, drop = 0 },           -- dragonkin / elemental / giant: further back still
+}
+-- The fit kind for a target: "w" / "b" / "tall" (pictures, cards and display-only models: "tall").
+function MV.FitKind(t)
+    local id = t and not t.picture and not t.murloc and t.npc
+    local k = id and ns.ModelFit and ns.ModelFit[id]
+    return (k and MV.FIT[k]) and k or "tall"
+end
+function MV.Fit(t) return MV.FIT[MV.FitKind(t)] end
 
 -- v0.2.8 (the user: "for the new follow 3d viwe, the murloc is a ttle to far up, and its walking a little fast"):
 -- the walking murloc stands MURLOC_DROP of the view's height lower (feet toward the bottom, like on the ground);
@@ -707,11 +744,14 @@ end
 local function Zoomed(m)
     if m.SetCamDistanceScale then
         if m.SetPortraitZoom then m:SetPortraitZoom(0) end
-        m:SetCamDistanceScale(MV.CamScale(MV.zoom))
+        local fit = MV.Fit(MV.target)
+        MV.fitKind = MV.FitKind(MV.target)
+        m:SetCamDistanceScale(MV.CamScale(MV.zoom) * fit.cam)
         MV.zoomBy = "distance"
         if m.SetViewTranslation then
             local h = m:GetHeight()
-            MV.lift = MV.Lift(MV.zoom, h) + (MV.stage == "murloc" and MV.MurlocDrop(MV.zoom, h) or 0)
+            local feet = fit.drop > 0 and -fit.drop * h * (1 - ns.U.Clamp(MV.zoom or 0, 0, MV.ZOOM_MAX) / MV.ZOOM_MAX) or 0
+            MV.lift = MV.Lift(MV.zoom, h, fit.cam) + (MV.stage == "murloc" and MV.MurlocDrop(MV.zoom, h) or feet)
             m:SetViewTranslation(0, MV.lift)
         end
     else
@@ -818,6 +858,18 @@ local function NoWalk(why)
     return ok and has == false
 end
 
+-- v0.2.9 (the user: "when the 3d viwer switches betrean models one of them are on the lef and on is in the
+-- middle"): the model frame fits its camera to the first model it loads; SetCreature / SetDisplayInfo over a loaded
+-- model (the kill step's mobs taking turns, or the next step's NPC) kept the old model's camera, so the new model
+-- sat off to the side. Like Blizzard (TalkingHeadUI.lua:265 OnModelLoaded -> RefreshCamera; Blizzard_Wardrobe.lua
+-- :494; FrameAPICharacterModelBaseDocumentation.lua:108, Forever), the camera is fitted again to each model once
+-- it is in, before our turn and zoom go on top (ApplyView). MV.refits counts them (tests).
+function MV.Refit(m)
+    if not (m and m.RefreshCamera) then return end
+    m:RefreshCamera()
+    MV.refits = (MV.refits or 0) + 1
+end
+
 -- Did the model load? why = "loaded" (OnModelLoaded) or "timer". A late model brings the view back.
 function MV.Check(why)
     local f = MV.frame
@@ -840,6 +892,7 @@ function MV.Check(why)
         end
         MV.result = MV.stage
         MV.token = MV.token + 1   -- no step down any more
+        MV.Refit(f.model)
         ApplyView()
         return
     end
@@ -1105,7 +1158,7 @@ end, "model", 95)
 ns.SelfChecks[#ns.SelfChecks + 1] = { label = "model", fn = function(h)
     h.Count()
     for _, key in ipairs({ "color.modelBg", "color.modelEdge", "color.modelText", "size.modelW", "size.modelH",
-        "size.modelGap", "size.modelInset", "size.modelInside" }) do
+        "size.modelGap", "size.modelInset", "size.modelInside", "size.modelInsideH" }) do
         if not Th.Has(key) then h.Problem("model: theme lacks " .. key) end
     end
     local f = MV.frame
@@ -1169,6 +1222,21 @@ ns.SelfChecks[#ns.SelfChecks + 1] = { label = "model", fn = function(h)
     end
     local m = f.model
     if MV.turnBy then h.Info("model turn: " .. (MV.turnBy == "rotation" and "SetRotation" or "SetFacing (no SetRotation)")) end
+    if MV.frame and MV.frame.model then
+        h.Info("model camera fit: " .. (MV.frame.model.RefreshCamera and ("RefreshCamera on each load (" .. (MV.refits or 0) .. " so far)")
+            or "off (no RefreshCamera)"))
+    end
+    -- one fixed size (the user's pick "B", 3:4): the frame never follows what it shows
+    local fw, fh = f:GetWidth(), f:GetHeight()
+    if MV.side == "now" and ns.UI.slot then
+        h.Info(("model size: %.0f x %.0f inside (fit %s, camera start %.2f)"):format(fw or 0, fh or 0,
+            MV.FitKind(t), MV.Fit(t).cam))
+    elseif MV.side and MV.side ~= "now" then
+        if math.abs((fw or 0) - Th.Size("modelW")) > 0.5 or math.abs((fh or 0) - Th.Size("modelH")) > 0.5 then
+            h.Problem(("model: docked size %.0f x %.0f, wanted %d x %d"):format(fw or 0, fh or 0, Th.Size("modelW"), Th.Size("modelH")))
+        end
+        h.Info(("model size: %.0f x %.0f docked (fit %s, camera start %.2f)"):format(fw or 0, fh or 0, MV.FitKind(t), MV.Fit(t).cam))
+    end
     if MV.zoomBy then
         h.Info(("model zoom: %s (zoom %.1f, camera %.2f, aim up %s)"):format(MV.zoomBy == "distance" and "SetCamDistanceScale"
             or "off (no SetCamDistanceScale)", MV.zoom or 0, MV.CamScale(MV.zoom),

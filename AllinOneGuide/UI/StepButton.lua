@@ -301,7 +301,8 @@ local function Build()
     b.glow:SetSize(72, 72)
     b.glow:SetPoint("CENTER")
     Th.Glyph(b.glow, "frame.glow")
-    b.glow:SetVertexColor(Th.Color("accent"))
+    -- icon review #1: gold = "use it now" (red is only for a missing item)
+    b.glow:SetVertexColor(Th.Color("stepReminder"))
     if b.glow.SetBlendMode then b.glow:SetBlendMode("ADD") end
     b.glow:Hide()
     -- the glow pulses (look review #9, variant A): alpha alpha.pulseLow -> 1 -> back, one loop per
@@ -325,7 +326,7 @@ local function Build()
     b.badge:SetPoint("CENTER", b, "TOPRIGHT", -3, -3)
     if b.badge:SetTexture(SB.BADGE) == false then
         Th.Glyph(b.badge, SB.BADGE_FALLBACK)
-        b.badge:SetVertexColor(Th.Color("accent"))
+        b.badge:SetVertexColor(Th.Color("icon.accept"))   -- quest yellow, like the game's "!"
         SB.badgeFallback = true
     end
     b.badge:Hide()
@@ -361,7 +362,7 @@ function SB.Look()
     b.badge:SetShown(SB.starts[id] ~= nil and not missing and not pending)
     b.icon:SetDesaturated(missing)
     b.icon:SetAlpha(farming and SB.FARM_ALPHA or 1)
-    local edge = (farming and "stepFrame") or (missing and "stepFrameMissing") or (b.glow:IsShown() and "accent") or "stepFrame"
+    local edge = (farming and "stepFrame") or (missing and "stepFrameMissing") or (b.glow:IsShown() and "stepReminder") or "stepFrame"
     b.border:SetVertexColor(Th.Color(edge))
     local s, d = Co.ItemCooldown(id)
     if b.cd.SetCooldown then b.cd:SetCooldown(s, d) end

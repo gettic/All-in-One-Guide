@@ -61,6 +61,7 @@ function R.New(parent)
     row.right:SetPoint("TOPRIGHT", row, "TOPRIGHT", -Pad(), -2)
     row.tick = K.Glyph(row, "done", Th.Size("badge"), "goalDone")
     row.tick:SetPoint("TOPRIGHT", row, "TOPRIGHT", -Pad(), 0)
+    row.tick:Hide()   -- (never shown since the "tile only" pick, 2026-11-28; kept for older callers)
     row.lines = {}
     row.subs = {}
     -- a faint hairline at the top of a next step (mock-up 4h; not the first one: the divider is above it)
@@ -432,7 +433,7 @@ function R.Note(row, text, h, reserve, item)
     local lines, cut = R.NoteFlow(note[1], text, widths)
     row.noteCut = cut or nil
     if item then
-        local s = TileS(LG)   -- (the goal tile's size helper: always the same as the kill X)
+        local s = TileS(LG)   -- (the goal tile's size helper: always the same as the kill sword)
         local beside = R.BesideView(row, h)
         R.ItemTile(row, "note", item, beside and TextX(row) or GoalX(row), h + (LG - s) / 2, s)
     end
@@ -478,7 +479,9 @@ function R.Set(row, d)
     -- the tile never gets taller than the line (small fonts); centred in its column
     local ts = TileS(LH)
     local tile = row.badge
-    K.SetTile(tile, d.tile or "note", state == "done")
+    -- icon review #7 (2026-11-28): a done row shows the green done tile (dimmed), not its dimmed kind tile (a dim
+    -- grey-yellow "?" read like WoW's "quest not finished")
+    K.SetTile(tile, state == "done" and "done" or (d.tile or "note"), state == "done")
     tile.base:SetSize(ts, ts)
     tile.base:ClearAllPoints()
     tile.base:SetPoint("TOPLEFT", row, "TOPLEFT", Pad() + NumW() + (Th.Size("tile") - ts) / 2, -math.max(0, (LH - ts) / 2))
@@ -489,7 +492,8 @@ function R.Set(row, d)
     local most = current and (d.maxLines or (lean and 4 or 3)) or 1
     row.text:SetWordWrap(most > 1)
     if row.text.SetMaxLines then row.text:SetMaxLines(most) end
-    row.tick:SetShown(state == "done")
+    -- ui look check (2026-11-28, the user: "Tile only"): a done row's only tick is its done tile at the left
+    row.tick:Hide()
     row.right:SetText(state ~= "done" and d.right or "")
     local reserve = tonumber(d.reserveRight) or 0
     row.reserve = reserve
@@ -497,8 +501,8 @@ function R.Set(row, d)
     row.right:SetPoint("TOPRIGHT", row, "TOPRIGHT", -(Pad() + reserve), -2)
     row.tick:ClearAllPoints()
     row.tick:SetPoint("TOPRIGHT", row, "TOPRIGHT", -(Pad() + reserve), 0)
-    -- the main text ends left of the right-hand text (or the done tick)
-    local inset = state == "done" and Pad() + math.max(44, Th.Size("badge") + 6) + reserve or RightInset(row.right, 6, reserve)
+    -- the main text ends left of the right-hand text; a done row has none (no tick either): the text gets the room
+    local inset = state == "done" and Pad() + reserve or RightInset(row.right, 6, reserve)
     if current and (row.right:GetText() or "") == "" then inset = Pad() + reserve end
     row.text:ClearAllPoints()
     -- beta.12: the current step's first item as a tile at the text's left, only when the line has no step tile

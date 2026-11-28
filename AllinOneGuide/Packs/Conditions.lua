@@ -224,3 +224,46 @@ function Cd.Check(ast, ctx)
     if #ast.info.unknown > 0 then return false end
     return Eval(ast, ctx) == true
 end
+
+-- The levels at which a level word of the ast can turn true (level>=N / level=N: N, level>N: N + 1), sorted.
+local function LevelMarks(a, out)
+    if a.op == "atom" then
+        if a.key == "level" and a.num then
+            if a.cmp == ">=" or a.cmp == "=" then out[#out + 1] = a.num
+            elseif a.cmp == ">" then out[#out + 1] = a.num + 1 end
+        end
+    else
+        if a[1] then LevelMarks(a[1], out) end
+        if a[2] then LevelMarks(a[2], out) end
+    end
+    return out
+end
+
+-- one reused proxy: ctx with another level (no table per call)
+local probeMeta = {}
+local probe = setmetatable({}, probeMeta)
+
+-- The lowest level above ctx.level at which the condition turns true while everything else stays as it is now,
+-- or nil (true already, an unknown word, or a higher level doesn't help: class / race / done words, level<N).
+-- The engine uses it to bring a step back that was passed over only because the player was a little short.
+function Cd.LevelNeed(ast, ctx)
+    if not ast or #ast.info.unknown > 0 then return nil end
+    local marks = ast.info.levels
+    if not marks then
+        marks = LevelMarks(ast, {})
+        table.sort(marks)
+        ast.info.levels = marks
+    end
+    local lv = ctx.level
+    if #marks == 0 or type(lv) ~= "number" or Eval(ast, ctx) == true then return nil end
+    probeMeta.__index = ctx
+    local need
+    for _, n in ipairs(marks) do
+        if n > lv then
+            probe.level = n
+            if Eval(ast, probe) == true then need = n break end
+        end
+    end
+    probe.level, probeMeta.__index = nil, nil
+    return need
+end

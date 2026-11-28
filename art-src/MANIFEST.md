@@ -50,7 +50,7 @@ The whole minimap button: round dark badge, thicker teal ring, logo mark simplif
 | `btn.target` | 0.125 | 0.250 | 0.500 | 1.000 | single | crosshair glyph (white + 1 px dark rim), ~28 px, #FF8C7A |
 | `frame.stepbutton2` | 0.500 | 0.750 | 0.000 | 1.000 | single | 52x52 centred on the 36x36 button; 34 px see-through hole r 5, dark band baked in, tinted ring (#4A4A50, reminder #C8102E) |
 
-Tiles: 4 x 4 cells of 16x16 at x 192-255; cell c: l = 0.75 + 0.0625 * (c % 4), r = l + 0.0625, t = 0.25 * floor(c / 4), b = t + 0.25. `tile.base` (c 0, tinted with the step colour) with a symbol on top (white, or dark #2A1F00 on yellow): 2 `tile.accept` (!), 3 `tile.turnin` (?), 4 `tile.kill` (X), 5 `tile.loot` (sack), 6 `tile.use` (flask), 7 `tile.goto` (arrowhead), 8 `tile.talk` (bubble), 9 `tile.train` (double chevron), 10 `tile.fly` (bird), 11 `tile.hearth` (house), 12 `tile.note` (i), 13 `tile.done` (tick). 1 `tile.open`: whole empty tile (ring + dark middle). 14-15 spare. Shown 12-16 px.
+Tiles: 4 x 4 cells of 16x16 at x 192-255; cell c: l = 0.75 + 0.0625 * (c % 4), r = l + 0.0625, t = 0.25 * floor(c / 4), b = t + 0.25. `tile.base` (c 0, tinted with the step colour) with a symbol on top (white, or dark #2A1F00 on yellow): 2 `tile.accept` (!, pixel-aligned bar + gap + dot), 3 `tile.turnin` (bolder ?), 4 `tile.kill` (sword, tip top right; same shape as `glyph.step.kill`, 2026-11-28), 5 `tile.loot` (sack), 6 `tile.use` (flask), 7 `tile.goto` (map pin), 8 `tile.talk` (bubble), 9 `tile.train` (double chevron), 10 `tile.fly` (bird, side view, big raised wing), 11 `tile.hearth` (house), 12 `tile.note` (i), 13 `tile.done` (tick), 14 `tile.level` (arrow up on a bar), 15 `tile.grind` (bold 2 px round loop arrow, head at the top right, round a small kill-style sword; redrawn 2026-11-28 so its outline reads round, not diagonal like kill; suggested tint wine #8C2F4A). 1 `tile.open`: whole empty tile (ring + dark middle). The grid is full; `tile.getfp` (bird + "+") and `tile.sethearth` (house + "+") are in glyphs.tga slot 63 (see there), same 16x16 symbol style. Symbols redrawn 2026-11-28: accept, turnin, kill, goto, fly; new: level, grind, getfp, sethearth. Shown 12-16 px.
 ## glyphs2.tga cells
 
 One row of 8 cells, 32x32 each; cell `i`: l = `i/8`, r = `(i+1)/8`, **t = 0, b = 1**. Same style as `glyphs.tga`: white with a baked 1 px dark rim, inside the middle 28x28 (2 px clear padding), coloured with `SetVertexColor` (suggested: #A3ADBA, hover white, active / selected accent #2FC4A8).
@@ -62,7 +62,8 @@ One row of 8 cells, 32x32 each; cell `i`: l = `i/8`, r = `(i+1)/8`, **t = 0, b =
 | 2 | `glyph.btn.detach` | broken chain, two links apart + break marks (shown while attached: click = detach) | 0.250 | 0.375 | 0.000 | 1.000 | 14 px |
 | 3 | `glyph.btn.search` | magnifier (main window search box) | 0.375 | 0.500 | 0.000 | 1.000 | 12 px, #A3ADBA |
 | 4 | `glyph.btn.resize` | resize corner: 6 dots in a triangle, bottom-right (optional) | 0.500 | 0.625 | 0.000 | 1.000 | 14 px |
-| 5-6 | (spare) | empty | | | | | |
+| 5 | `glyph.step.talk` | talk: speech bubble, three dots cut out (3D view: last fallback only, 2026-11-28) | 0.625 | 0.750 | 0.000 | 1.000 | 32 px |
+| 6 | `glyph.step.info` | note: "i", the same symbol as `tile.note` (3D view: last fallback only, 2026-11-28) | 0.750 | 0.875 | 0.000 | 1.000 | 32 px |
 | 7 | (logo) | the title-bar logo, full colour, see "Title-bar logo" below (not a slot) | | | | | |
 
 The lock in the NOW strip reuses `glyph.btn.lock` / `glyph.btn.unlock` (`glyphs.tga` slots 26 / 27).
@@ -116,7 +117,7 @@ Four 64x64 shields, full colour, **not tinted**; our own shield shape (arched-in
 | 1 | `glyph.step.ring` | badge ring / outline | 0.125 | 0.250 | 0.000 | 0.125 |
 | 2 | `glyph.step.accept` | "!" | 0.250 | 0.375 | 0.000 | 0.125 |
 | 3 | `glyph.step.turnin` | "?" | 0.375 | 0.500 | 0.000 | 0.125 |
-| 4 | `glyph.step.kill` | target | 0.500 | 0.625 | 0.000 | 0.125 |
+| 4 | `glyph.step.kill` | sword (same shape as `tile.kill`; was a target until 2026-11-28) | 0.500 | 0.625 | 0.000 | 0.125 |
 | 5 | `glyph.step.collect` | sack | 0.625 | 0.750 | 0.000 | 0.125 |
 | 6 | `glyph.step.goto` | map pin | 0.750 | 0.875 | 0.000 | 0.125 |
 | 7 | `glyph.step.done` | done tick (done step, done chip) | 0.875 | 1.000 | 0.000 | 0.125 |
@@ -175,7 +176,7 @@ Four 64x64 shields, full colour, **not tinted**; our own shield shape (arched-in
 | 60 | `glyph.report.text` | report type text wrong: "T" with a wavy line (v0.2) | 0.500 | 0.625 | 0.875 | 1.000 |
 | 61 | `glyph.report.other` | report type other: three dots (v0.2) | 0.625 | 0.750 | 0.875 | 1.000 |
 | 62 | `glyph.btn.copy` | copy (copy box): two sheets (v0.2) | 0.750 | 0.875 | 0.875 | 1.000 |
-| 63 | (spare) | empty | | | | |
+| 63 | (tile symbols) | four 16x16 tile-symbol cells in round.tga style (no rim, drawn on `tile.base`), because round.tga's tile grid is full: `tile.getfp` top left (0.875, 0.9375, 0.875, 0.9375), `tile.sethearth` top right (0.9375, 1.000, 0.875, 0.9375), bottom half empty (2026-11-28) | 0.875 | 1.000 | 0.875 | 1.000 |
 
 Slots 9, 10, 11 and 35 are extras beyond the theme-notes list (level step type, rounded goal box, expand button); the code may draw the goal box with `SetColorTexture` instead.
 
