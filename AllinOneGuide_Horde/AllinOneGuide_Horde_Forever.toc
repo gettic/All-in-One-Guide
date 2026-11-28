@@ -3,7 +3,7 @@
 ## Title: All-in-One Guide: Horde routes
 ## Notes: Horde leveling routes for All-in-One Guide. Loaded only when the guide needs them.
 ## Author: gettic
-## Version: 1.0.0
+## Version: 1.0.1
 ## Dependencies: AllinOneGuide
 ## LoadOnDemand: 1
 ## X-License: GPL-3.0-or-later

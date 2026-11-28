@@ -722,10 +722,10 @@ return {
                   text = "Accept {quest} from Sarvis", da = "Tag imod {quest} fra Sarvis",
                   src = "wiki", seen = "2026-11", confirmed = false },
                 -- CLASS-BLOCK POINT (Deathknell, level 1-2): warlock imp quest (the skulls come from the skeletons
-                -- the route kills anyway); the class scrolls follow at Sarvis' next turn-in (they need 3)
+                -- the route kills anyway); the class scrolls follow after the hollow, at the chapel (they need 3)
                 { include = "dkWlkImp1", id = "dk-cls-wlk-imp1", cond = "class=WARLOCK",
                   params = { untilId = "dk-cls-wlk-imp2.ti-1470" } },
-                { id = "dk-obj-364", type = "objective", quest = 364,
+                { id = "dk-obj-364", type = "objective", quest = 364, map = 1420, x = 32.0, y = 63.0, r = 40,
                   qname = "The Mindless Ones",
                   text = "Kill 8 mindless and 8 wretched zombies in the north part of the village for {quest}", da = "Dræb 8 mindless og 8 wretched zombies i den nordlige del af landsbyen til {quest}",
                   src = "wiki", seen = "2026-11", confirmed = false },
@@ -753,8 +753,7 @@ return {
                   qname = "Rattling the Rattlecages",
                   text = "Turn in {quest} to Sarvis", da = "Aflever {quest} til Sarvis",
                   src = "wiki", seen = "2026-11", confirmed = false },
-                -- class scrolls, the paladin's Holy Light quest, the warlock's imp hand-in (all around the chapel)
-                { include = "dkLetters", id = "dk-cls-letter" },
+                -- the paladin's Holy Light quest and the warlock's imp hand-in (both around the chapel)
                 { include = "dkPalLight", id = "dk-cls-pal-light", cond = "class=PALADIN" },
                 { include = "dkWlkImp2", id = "dk-cls-wlk-imp2", cond = "class=WARLOCK" },
                 { id = "dk-ti-376", type = "turnin", quest = 376, map = 1420, x = 30.9, y = 66.1, xp = 170,
@@ -776,7 +775,7 @@ return {
                   qname = "Scavenging Deathknell",
                   text = "Pick up 6 scavenged goods around Deathknell as you go for {quest}", da = "Saml 6 efterladte varer op omkring Deathknell undervejs til {quest}",
                   src = "wiki", seen = "2026-11", confirmed = false },
-                { id = "dk-obj-380", type = "objective", quest = 380, map = 1420, x = 26.0, y = 60.0, r = 15,
+                { id = "dk-obj-380", type = "objective", quest = 380, map = 1420, x = 28.5, y = 56.0, r = 15,
                   qname = "Night Web's Hollow",
                   text = "Kill 10 young and 8 grown night web spiders at the mine to the north-west for {quest}", da = "Dræb 10 unge og 8 voksne night web spiders ved minen mod nordvest til {quest}",
                   src = "wiki", seen = "2026-11", confirmed = false },
@@ -794,6 +793,9 @@ return {
                   qname = "Marla's Last Wish",
                   text = "Accept {quest} from Elreth", da = "Tag imod {quest} fra Elreth",
                   src = "wiki", seen = "2026-11", confirmed = false },
+                -- route test fix: the class scrolls need 3 too, so Sarvis gives them here (about 3.2), not after the
+                -- rattlecages (about 2.6)
+                { include = "dkLetters", id = "dk-cls-letter" },
                 { id = "dk-ti-3902", type = "turnin", quest = 3902, map = 1420, x = 31.6, y = 65.6, xp = 320,
                   qname = "Scavenging Deathknell",
                   text = "Turn in {quest} to Saltain", da = "Aflever {quest} til Saltain",
